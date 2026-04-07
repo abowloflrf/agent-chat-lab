@@ -50,7 +50,7 @@ export function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
   const failed = invocation.state === "output-error";
 
   return (
-    <section className="rounded-[1.4rem] border border-black/10 bg-white p-4 shadow-sm">
+    <section className="rounded-lg border border-black/10 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.18em] text-orange-700">
@@ -62,7 +62,7 @@ export function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
         </div>
 
         <span
-          className={`rounded-full px-3 py-1 text-xs font-medium ${
+          className={`rounded-md px-3 py-1 text-xs font-medium ${
             failed
               ? "bg-red-100 text-red-700"
               : "bg-emerald-100 text-emerald-700"
@@ -73,7 +73,7 @@ export function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div className="rounded-2xl bg-stone-50 p-3">
+        <div className="rounded-lg bg-stone-50 p-3">
           <div className="mb-2 text-xs uppercase tracking-[0.18em] text-slate-500">
             Input
           </div>
@@ -82,7 +82,7 @@ export function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
           </pre>
         </div>
 
-        <div className="rounded-2xl bg-stone-50 p-3">
+        <div className="rounded-lg bg-stone-50 p-3">
           <div className="mb-2 text-xs uppercase tracking-[0.18em] text-slate-500">
             Output
           </div>

@@ -56,21 +56,20 @@ export function ChatShell() {
         window.removeEventListener(providerConfigChangedEvent, onStoreChange);
       };
     },
-    loadProviderConfigFromStorage,
-    () => defaultProviderConfig,
+    () => JSON.stringify(loadProviderConfigFromStorage()),
+    () => JSON.stringify(defaultProviderConfig),
   );
-  const [transport] = useState(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/chat",
-        prepareSendMessagesRequest: ({ body }) => ({
-          body: {
-            ...body,
-            providerConfig: loadProviderConfigFromStorage(),
-          },
-        }),
-      }),
-  );
+  const providerConfigObj = JSON.parse(providerConfig);
+  const transport = new DefaultChatTransport({
+    api: "/api/chat",
+    prepareSendMessagesRequest: ({ body, messages }) => ({
+      body: {
+        ...body,
+        messages,
+        providerConfig: loadProviderConfigFromStorage(),
+      },
+    }),
+  });
 
   const { messages, sendMessage, status, error, stop } = useChat({
     transport,
@@ -100,8 +99,8 @@ export function ChatShell() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(240,94,35,0.24),_transparent_30%),linear-gradient(180deg,_#f4efe7_0%,_#efe6d8_48%,_#e8ddcd_100%)] text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-4 lg:flex-row lg:px-6">
-        <aside className="flex w-full flex-col justify-between rounded-[2rem] border border-black/10 bg-black/[0.04] p-5 backdrop-blur lg:max-w-sm">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 px-4 py-4 lg:flex-row lg:px-6">
+        <aside className="flex w-full flex-col justify-between rounded-xl border border-black/10 bg-black/[0.04] p-4 backdrop-blur lg:max-w-sm">
           <div className="space-y-8">
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
@@ -110,7 +109,7 @@ export function ChatShell() {
                 </p>
                 <Link
                   href="/settings"
-                  className="rounded-full border border-black/10 px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-slate-700 transition hover:bg-black/5"
+                  className="rounded-md border border-black/10 px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-slate-700 transition hover:bg-black/5"
                 >
                   系统设置
                 </Link>
@@ -129,21 +128,21 @@ export function ChatShell() {
                 <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
                   当前模型配置
                 </h2>
-                <span className="rounded-full border border-black/10 px-2 py-1 text-xs text-slate-600">
-                  {providerConfig.model ? "已配置" : "未配置"}
+                <span className="rounded-md border border-black/10 px-2 py-1 text-xs text-slate-600">
+                  {providerConfigObj.model ? "已配置" : "未配置"}
                 </span>
               </div>
-              <div className="rounded-2xl border border-black/10 bg-white/70 p-3 text-sm leading-6 text-slate-700">
+              <div className="rounded-lg border border-black/10 bg-white/70 p-3 text-sm leading-6 text-slate-700">
                 <p>
                   <span className="font-medium text-slate-900">Base URL:</span>{" "}
                   <span className="font-mono text-xs">
-                    {providerConfig.baseUrl || "未设置"}
+                    {providerConfigObj.baseUrl || "未设置"}
                   </span>
                 </p>
                 <p className="mt-1">
                   <span className="font-medium text-slate-900">模型:</span>{" "}
                   <span className="font-mono text-xs">
-                    {providerConfig.model || "未设置"}
+                    {providerConfigObj.model || "未设置"}
                   </span>
                 </p>
               </div>
@@ -154,7 +153,7 @@ export function ChatShell() {
                 <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
                   内置 Tools
                 </h2>
-                <span className="rounded-full border border-black/10 px-2 py-1 text-xs text-slate-600">
+                <span className="rounded-md border border-black/10 px-2 py-1 text-xs text-slate-600">
                   4 个
                 </span>
               </div>
@@ -162,7 +161,7 @@ export function ChatShell() {
                 {builtInTools.map((tool) => (
                   <div
                     key={tool.name}
-                    className="rounded-2xl border border-black/10 bg-white/70 p-3"
+                    className="rounded-lg border border-black/10 bg-white/70 p-3"
                   >
                     <div className="font-mono text-xs text-orange-700">
                       {tool.name}
@@ -189,10 +188,10 @@ export function ChatShell() {
             </section>
           </div>
 
-          <div className="rounded-2xl border border-black/10 bg-slate-950 px-4 py-3 text-sm text-slate-100">
+          <div className="rounded-lg border border-black/10 bg-slate-950 px-4 py-3 text-sm text-slate-100">
             <div className="flex items-center justify-between gap-3">
               <span>当前状态</span>
-              <span className="rounded-full bg-white/10 px-2 py-1 font-mono text-xs uppercase tracking-[0.16em] text-orange-200">
+              <span className="rounded-md bg-white/10 px-2 py-1 font-mono text-xs uppercase tracking-[0.16em] text-orange-200">
                 {status}
               </span>
             </div>
@@ -203,7 +202,7 @@ export function ChatShell() {
           </div>
         </aside>
 
-        <section className="flex min-h-[75vh] flex-1 flex-col overflow-hidden rounded-[2rem] border border-black/10 bg-white/75 shadow-[0_20px_80px_rgba(15,23,42,0.10)] backdrop-blur">
+        <section className="flex min-h-[75vh] flex-1 flex-col overflow-hidden rounded-xl border border-black/10 bg-white/75 shadow-[0_20px_80px_rgba(15,23,42,0.10)] backdrop-blur">
           <header className="border-b border-black/10 px-5 py-4">
             <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
               <div>
@@ -222,7 +221,7 @@ export function ChatShell() {
             {messages.length === 0 ? (
               <div className="flex h-full flex-col justify-between gap-8">
                 <div className="max-w-2xl space-y-4">
-                  <div className="inline-flex rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-orange-700">
+                  <div className="inline-flex rounded-md border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-orange-700">
                     Stage 1
                   </div>
                   <h3 className="text-4xl font-semibold leading-tight text-slate-900">
@@ -241,7 +240,7 @@ export function ChatShell() {
                       type="button"
                       onClick={() => void handleStarterPrompt(prompt)}
                       disabled={isBusy}
-                      className="rounded-2xl border border-black/10 bg-stone-50 p-4 text-left text-sm leading-7 text-slate-700 transition hover:-translate-y-0.5 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-lg border border-black/10 bg-stone-50 p-4 text-left text-sm leading-7 text-slate-700 transition hover:-translate-y-0.5 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {prompt}
                     </button>
@@ -259,7 +258,7 @@ export function ChatShell() {
 
           <div className="border-t border-black/10 px-5 py-4">
             {error ? (
-              <div className="mb-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
                 {error.message}
               </div>
             ) : null}
@@ -273,7 +272,7 @@ export function ChatShell() {
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   placeholder="例如：帮我记住一条笔记，标题是下周计划，内容是先补 tool calling 和 persistence。"
-                  className="min-h-28 w-full resize-none rounded-[1.6rem] border border-black/10 bg-stone-50 px-4 py-4 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:bg-white"
+                  className="min-h-28 w-full resize-none rounded-xl border border-black/10 bg-stone-50 px-4 py-4 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:bg-white"
                   disabled={isBusy}
                 />
               </label>
@@ -288,7 +287,7 @@ export function ChatShell() {
                     <button
                       type="button"
                       onClick={() => void stop()}
-                      className="rounded-full border border-black/10 px-4 py-2 text-sm text-slate-700 transition hover:bg-black/5"
+                      className="rounded-md border border-black/10 px-4 py-2 text-sm text-slate-700 transition hover:bg-black/5"
                     >
                       停止生成
                     </button>
@@ -296,7 +295,7 @@ export function ChatShell() {
                   <button
                     type="submit"
                     disabled={isBusy || draft.trim().length === 0}
-                    className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-md bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isBusy ? "生成中..." : "发送消息"}
                   </button>

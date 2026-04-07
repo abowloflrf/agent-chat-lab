@@ -21,9 +21,11 @@ function stripMessageId(message: UIMessage): Omit<UIMessage, "id"> {
 
 export async function POST(request: Request) {
   const json = await request.json();
+  console.log('Received request body:', JSON.stringify(json, null, 2));
   const parsed = requestSchema.safeParse(json);
 
   if (!parsed.success) {
+    console.log('Validation failed:', parsed.error);
     return Response.json(
       {
         error: "Invalid request: missing valid messages array.",
