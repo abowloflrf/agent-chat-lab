@@ -2,9 +2,12 @@
 
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
+import type { UIMessage } from "ai";
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { ChatMessage } from "@/components/chat-message";
+import { ConversationList } from "@/components/conversation-list";
 import {
   defaultProviderConfig,
   loadProviderConfigFromStorage,
@@ -30,16 +33,49 @@ const builtInTools = [
   },
   {
     name: "create_note",
-    description: "写入一条内存笔记，演示 Agent 修改状态。",
+    description: "写入一条持久化笔记，演示 Agent 修改状态。",
   },
   {
     name: "search_notes",
-    description: "检索已有笔记，演示最小记忆能力。",
+    description: "检索已有持久化笔记，演示最小记忆能力。",
   },
 ];
 
-export function ChatShell() {
+type ChatShellProps = {
+  initialConversationId: string;
+  initialMessages: UIMessage[];
+};
+
+export function ChatShell({
+  initialConversationId,
+  initialMessages,
+}: ChatShellProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [draft, setDraft] = useState("");
+  const [conversationId, setConversationId] = useState(initialConversationId);
+  const [currentMessages, setCurrentMessages] = useState<UIMessage[]>(initialMessages);
+  const [conversationRefresh, setConversationRefresh] = useState(0);
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+
+  useEffect(() => {
+    const conversationIdFromUrl = searchParams.get("conversationId");
+
+    if (conversationIdFromUrl && conversationIdFromUrl !== conversationId) {
+      setConversationId(conversationIdFromUrl);
+      fetch(`/api/conversations/${conversationIdFromUrl}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.conversation) {
+            setCurrentMessages(data.conversation.messages);
+            setMessages(data.conversation.messages);
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to load conversation:", error);
+        });
+    }
+  }, [searchParams]);
   const providerConfig = useSyncExternalStore(
     (onStoreChange) => {
       const handleStorageChange = (event: StorageEvent) => {
@@ -62,18 +98,38 @@ export function ChatShell() {
   const providerConfigObj = JSON.parse(providerConfig);
   const transport = new DefaultChatTransport({
     api: "/api/chat",
-    prepareSendMessagesRequest: ({ body, messages }) => ({
+    prepareSendMessagesRequest: ({ body, id, messages }) => ({
       body: {
         ...body,
+        conversationId: id,
         messages,
         providerConfig: loadProviderConfigFromStorage(),
       },
     }),
   });
 
-  const { messages, sendMessage, status, error, stop } = useChat({
+  const { messages, sendMessage, status, error, stop, setMessages } = useChat({
+    id: conversationId,
+    messages: currentMessages,
     transport,
   });
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setConversationRefresh((prev) => prev + 1);
+    }
+  }, [messages.length]);
+
+  useEffect(() => {
+    if (status === "ready" && messages.length > 0) {
+      const userMessages = messages.filter(m => m.role === "user");
+      const assistantMessages = messages.filter(m => m.role === "assistant");
+      
+      if (userMessages.length === 1 && assistantMessages.length === 1) {
+        setConversationRefresh((prev) => prev + 1);
+      }
+    }
+  }, [status]);
 
   const isBusy = status !== "ready";
 
@@ -97,6 +153,30 @@ export function ChatShell() {
     await sendMessage({ text: prompt });
   }
 
+  async function handleNewConversation() {
+    if (isCreatingConversation) {
+      return;
+    }
+
+    setIsCreatingConversation(true);
+    const newId = crypto.randomUUID ? crypto.randomUUID() : generateUUID();
+    setConversationId(newId);
+    setCurrentMessages([]);
+    setMessages([]);
+    router.push(`/?conversationId=${newId}`, {
+      scroll: false,
+    });
+    setIsCreatingConversation(false);
+  }
+
+  function generateUUID() {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(240,94,35,0.24),_transparent_30%),linear-gradient(180deg,_#f4efe7_0%,_#efe6d8_48%,_#e8ddcd_100%)] text-slate-900">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 px-4 py-4 lg:flex-row lg:px-6">
@@ -109,7 +189,7 @@ export function ChatShell() {
                 </p>
                 <Link
                   href="/settings"
-                  className="rounded-md border border-black/10 px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-slate-700 transition hover:bg-black/5"
+                  className="rounded-md border border-black/10 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-700 transition hover:bg-black/5"
                 >
                   系统设置
                 </Link>
@@ -118,17 +198,26 @@ export function ChatShell() {
                 从 0 开始学习一个最小可解释 Agent
               </h1>
               <p className="max-w-sm text-sm leading-7 text-slate-700">
-                这个项目故意保持简单: 一个聊天界面、一个模型、四个工具。
+                这个项目故意保持简单：一个聊天界面、一个模型、四个工具。
                 重点不是炫技，而是让你看清 Agent 的基本流程。
               </p>
             </div>
+
+            <section className="h-64 min-h-0 flex-1">
+              <ConversationList
+                currentConversationId={conversationId}
+                onNewConversation={handleNewConversation}
+                refreshTrigger={conversationRefresh}
+                isCreatingConversation={isCreatingConversation}
+              />
+            </section>
 
             <section className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
                   当前模型配置
                 </h2>
-                <span className="rounded-md border border-black/10 px-2 py-1 text-xs text-slate-600">
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
                   {providerConfigObj.model ? "已配置" : "未配置"}
                 </span>
               </div>
@@ -153,7 +242,7 @@ export function ChatShell() {
                 <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
                   内置 Tools
                 </h2>
-                <span className="rounded-md border border-black/10 px-2 py-1 text-xs text-slate-600">
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
                   4 个
                 </span>
               </div>
@@ -197,7 +286,14 @@ export function ChatShell() {
                 <p className="text-xs uppercase tracking-[0.28em] text-slate-500">
                   对话区
                 </p>
-                <h2 className="text-2xl font-semibold">最小 Agent 回路</h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl font-semibold">最小 Agent 回路</h2>
+                  {conversationRefresh > 0 && messages.length > 0 && (
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
+                      {messages.length} 条消息
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </header>
@@ -233,7 +329,7 @@ export function ChatShell() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-in fade-in duration-300">
                 {messages.map((message) => (
                   <ChatMessage key={message.id} message={message} />
                 ))}
@@ -264,7 +360,7 @@ export function ChatShell() {
 
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <p className="text-xs leading-6 text-slate-500">
-                  第一阶段先只保留服务端工具，不接数据库。这样你能更专注地看清 Agent loop。
+                  当前已接入 SQLite 持久化，支持多会话管理，笔记与工具调用会记录到本地数据库。
                 </p>
 
                 <div className="flex items-center gap-3">

@@ -25,6 +25,7 @@ export function ProviderSettingsForm() {
     status: "idle",
     error: null,
   });
+  const [isCustomModel, setIsCustomModel] = useState(false);
   const initialLoadDone = useRef(false);
 
   useEffect(() => {
@@ -188,22 +189,46 @@ export function ProviderSettingsForm() {
                 <label className="mb-2 block text-xs uppercase tracking-[0.24em] text-slate-500">
                   Model
                 </label>
-                <select
-                  value={form.model}
-                  onChange={(event) => updateField("model", event.target.value)}
-                  className="w-full rounded-2xl border border-black/10 bg-stone-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-orange-300 focus:bg-white"
-                >
-                  <option value="">
-                    {models.length > 0
-                      ? "请选择模型"
-                      : "等待自动拉取 models 列表"}
-                  </option>
-                  {models.map((model) => (
-                    <option key={model} value={model}>
-                      {model}
+                <div className="flex gap-3">
+                  <select
+                    value={isCustomModel ? "" : form.model}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value === "__custom__") {
+                        setIsCustomModel(true);
+                        updateField("model", "");
+                      } else {
+                        setIsCustomModel(false);
+                        updateField("model", value);
+                      }
+                    }}
+                    className="w-full rounded-2xl border border-black/10 bg-stone-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-orange-300 focus:bg-white"
+                  >
+                    <option value="">
+                      {models.length > 0
+                        ? "请选择模型或手动输入"
+                        : "等待自动拉取 models 列表"}
                     </option>
-                  ))}
-                </select>
+                    {models.map((model) => (
+                      <option key={model} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                    <option value="__custom__">自定义模型...</option>
+                  </select>
+                  {isCustomModel && (
+                    <input
+                      type="text"
+                      value={form.model}
+                      onChange={(event) =>
+                        updateField("model", event.target.value)
+                      }
+                      placeholder="输入自定义模型名称"
+                      className="w-full rounded-2xl border border-black/10 bg-stone-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:bg-white"
+                      autoFocus
+                    />
+                  )}
+                </div>
                 {fetchState.status === "loading" ? (
                   <p className="mt-2 text-xs leading-6 text-slate-500">
                     正在拉取模型列表...

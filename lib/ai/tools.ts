@@ -1,30 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-
-type Note = {
-  id: string;
-  title: string;
-  content: string;
-  tags: string[];
-  createdAt: string;
-};
-
-const notes: Note[] = [
-  {
-    id: crypto.randomUUID(),
-    title: "Agent 学习路线",
-    content: "先学 prompt、tools、state、loop，再扩展到 memory 和 planning。",
-    tags: ["agent", "learning"],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: crypto.randomUUID(),
-    title: "当前项目定位",
-    content: "这是一个教学型 Agent Web 应用，目标是把最小可解释流程先跑通。",
-    tags: ["project", "mvp"],
-    createdAt: new Date().toISOString(),
-  },
-];
+import { createNote, searchNotes } from "@/lib/persistence";
 
 const expressionPattern = /^[\d+\-*/().\s]+$/;
 const MAX_EXPRESSION_LENGTH = 120;
@@ -58,25 +34,6 @@ function evaluateExpression(expression: string) {
     }
     throw new Error(`计算失败：${error instanceof Error ? error.message : "未知错误"}`);
   }
-}
-
-function scoreNote(note: Note, query: string) {
-  const lowerQuery = query.toLowerCase();
-  let score = 0;
-
-  if (note.title.toLowerCase().includes(lowerQuery)) {
-    score += 4;
-  }
-
-  if (note.content.toLowerCase().includes(lowerQuery)) {
-    score += 3;
-  }
-
-  if (note.tags.some((tag) => tag.toLowerCase().includes(lowerQuery))) {
-    score += 2;
-  }
-
-  return score;
 }
 
 export const agentTools = {
@@ -135,23 +92,7 @@ export const agentTools = {
       content: z.string().trim().min(1).max(MAX_CONTENT_LENGTH),
       tags: z.array(z.string().trim().min(1).max(MAX_TAG_LENGTH)).max(MAX_TAGS_COUNT).default([]),
     }),
-    execute: async ({ title, content, tags }) => {
-      const note = {
-        id: crypto.randomUUID(),
-        title,
-        content,
-        tags,
-        createdAt: new Date().toISOString(),
-      } satisfies Note;
-
-      notes.unshift(note);
-
-      return {
-        success: true,
-        note,
-        totalNotes: notes.length,
-      };
-    },
+    execute: async ({ title, content, tags }) => createNote({ title, content, tags }),
   }),
 
   search_notes: tool({
@@ -159,22 +100,6 @@ export const agentTools = {
     inputSchema: z.object({
       query: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
     }),
-    execute: async ({ query }) => {
-      const matches = notes
-        .map((note) => ({
-          note,
-          score: scoreNote(note, query),
-        }))
-        .filter((item) => item.score > 0)
-        .sort((left, right) => right.score - left.score)
-        .slice(0, 5)
-        .map((item) => item.note);
-
-      return {
-        query,
-        totalMatches: matches.length,
-        matches,
-      };
-    },
+    execute: async ({ query }) => searchNotes(query),
   }),
 };

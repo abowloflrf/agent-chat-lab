@@ -3,12 +3,14 @@ import { z } from "zod";
 import { getChatModel, resolveProviderConfig } from "@/lib/ai/model";
 import { systemPrompt } from "@/lib/ai/system-prompt";
 import { agentTools } from "@/lib/ai/tools";
+import { persistFinishedConversation, persistIncomingMessages, generateConversationTitle } from "@/lib/persistence";
 import { providerConfigInputSchema } from "@/lib/provider-config";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const requestSchema = z.object({
+  conversationId: z.string().trim().min(1),
   messages: z.array(z.custom<UIMessage>()),
   providerConfig: providerConfigInputSchema.optional(),
 });
@@ -21,14 +23,12 @@ function stripMessageId(message: UIMessage): Omit<UIMessage, "id"> {
 
 export async function POST(request: Request) {
   const json = await request.json();
-  console.log('Received request body:', JSON.stringify(json, null, 2));
   const parsed = requestSchema.safeParse(json);
 
   if (!parsed.success) {
-    console.log('Validation failed:', parsed.error);
     return Response.json(
       {
-        error: "Invalid request: missing valid messages array.",
+        error: "Invalid request: missing valid conversation or messages.",
       },
       { status: 400 },
     );
@@ -52,6 +52,8 @@ export async function POST(request: Request) {
     );
   }
 
+  await persistIncomingMessages(parsed.data.conversationId, parsed.data.messages);
+
   const result = streamText({
     model: getChatModel(providerConfig),
     system: systemPrompt,
@@ -60,5 +62,25 @@ export async function POST(request: Request) {
     stopWhen: stepCountIs(5),
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    originalMessages: parsed.data.messages,
+    onFinish: async ({ messages }) => {
+      await persistFinishedConversation(parsed.data.conversationId, messages);
+
+      const userMessages = messages.filter((m) => m.role === "user");
+      const assistantMessages = messages.filter((m) => m.role === "assistant");
+
+      console.log("onFinish: userMessages=", userMessages.length, "assistantMessages=", assistantMessages.length);
+
+      if (userMessages.length === 1 && assistantMessages.length === 1) {
+        console.log("Calling generateConversationTitle for conversation:", parsed.data.conversationId);
+        const result = await generateConversationTitle(
+          parsed.data.conversationId,
+          messages,
+          providerConfig,
+        );
+        console.log("generateConversationTitle result:", result);
+      }
+    },
+  });
 }

@@ -18,6 +18,8 @@
 - Tailwind CSS 4
 - Vercel AI SDK 6
 - OpenAI Provider
+- SQLite
+- Drizzle ORM
 - Zod
 
 ## 当前已实现
@@ -33,6 +35,8 @@
 - 对工具调用过程的前端可视化
 - 一个系统设置页，可配置 OpenAI 兼容供应商的 `base URL / API Key / model`
 - 通过 `/models` 接口自动拉取模型列表并选择
+- 基于 SQLite + Drizzle 的 conversation/message/tool_call/note 持久化
+- 首页自动恢复最近一次会话
 
 ## 项目结构
 
@@ -52,7 +56,11 @@ lib/ai/
   model.ts               # 模型配置
   system-prompt.ts       # 系统提示词
   tools.ts               # 本地工具
+lib/db/
+  client.ts              # SQLite 连接与迁移初始化
+  schema.ts              # Drizzle schema
 lib/
+  persistence.ts         # 持久化查询与转换
   provider-config.ts     # 供应商配置 schema 与本地存储 key
 ```
 
@@ -116,7 +124,6 @@ http://localhost:3000
 
 ## 当前限制
 
-- 还没有数据库，笔记只保存在服务端内存中
 - 还没有用户系统
 - 还没有 RAG、联网搜索、文件上传
 - 还没有测试
@@ -125,12 +132,6 @@ http://localhost:3000
 这些都属于下一阶段。
 
 ## 下一阶段建议
-
-### Stage 2: Persistence
-
-- 引入 SQLite
-- 用 Drizzle 建表
-- 持久化 conversation、message、tool_call、note
 
 ### Stage 3: Observability
 

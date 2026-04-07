@@ -22,6 +22,15 @@
 - [x] 通过 `/models` 自动拉取模型列表并选择
 - [x] 聊天请求支持按当前配置动态选择供应商和模型
 
+### Persistence
+- [x] 引入 SQLite
+- [x] 引入 Drizzle ORM
+- [x] 持久化 `conversation`
+- [x] 持久化 `message`
+- [x] 持久化 `tool_call`
+- [x] 持久化 `note`
+- [x] 支持多会话管理（列表/创建/删除/重命名）
+
 ### 工程化
 - [x] 更新 `README.md`
 - [x] 生成项目级 `AGENTS.md`
@@ -29,14 +38,6 @@
 - [x] 当前代码可通过 `pnpm build`
 
 ## 未完成
-
-### Persistence
-- [ ] 引入 SQLite
-- [ ] 引入 Drizzle ORM
-- [ ] 持久化 `conversation`
-- [ ] 持久化 `message`
-- [ ] 持久化 `tool_call`
-- [ ] 持久化 `note`
 
 ### Observability
 - [ ] 记录每一步耗时
