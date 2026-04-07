@@ -1,7 +1,9 @@
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { AgentTimeline } from "@/components/agent-timeline";
 import { ToolCallCard } from "@/components/tool-call-card";
+import { parseAgentObservability } from "@/lib/observability";
 
 function roleLabel(role: UIMessage["role"]) {
   switch (role) {
@@ -24,6 +26,7 @@ function isToolPart(part: UIMessage["parts"][number]): part is ToolLikePart {
 
 export function ChatMessage({ message }: { message: UIMessage }) {
   const isUser = message.role === "user";
+  const observability = !isUser ? parseAgentObservability(message.metadata) : null;
 
   return (
     <article
@@ -53,16 +56,26 @@ export function ChatMessage({ message }: { message: UIMessage }) {
                         : "border border-black/10 bg-stone-50 text-slate-800"
                     }`}
                   >
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      p: ({ children }) => <p className="whitespace-pre-wrap">{children}</p>,
-                      pre: ({ children }) => <pre className="my-2 overflow-x-auto rounded-lg bg-slate-900 p-3 text-slate-100">{children}</pre>,
-                      code: ({ children }) => <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm font-mono text-slate-800">{children}</code>,
-                    }}
-                  >
-                    {part.text}
-                  </ReactMarkdown>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({ children }) => (
+                          <p className="whitespace-pre-wrap">{children}</p>
+                        ),
+                        pre: ({ children }) => (
+                          <pre className="my-2 overflow-x-auto rounded-lg bg-slate-900 p-3 text-slate-100">
+                            {children}
+                          </pre>
+                        ),
+                        code: ({ children }) => (
+                          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm font-mono text-slate-800">
+                            {children}
+                          </code>
+                        ),
+                      }}
+                    >
+                      {part.text}
+                    </ReactMarkdown>
                   </div>
                 );
               }
@@ -75,34 +88,38 @@ export function ChatMessage({ message }: { message: UIMessage }) {
                 return null;
               }
 
-            if (part.type === "reasoning") {
-              return (
-                <details
-                  key={`${message.id}-reasoning-${index}`}
-                  className="rounded-lg border border-black/10 bg-amber-50/80 px-4 py-3 text-sm text-slate-700"
-                >
-                  <summary className="cursor-pointer font-medium text-amber-800">
-                    模型推理片段
-                  </summary>
-                  <pre className="mt-3 whitespace-pre-wrap font-mono text-xs leading-6 text-slate-700">
-                    {"text" in part ? part.text : JSON.stringify(part, null, 2)}
-                  </pre>
-                </details>
-              );
-            }
+              if (part.type === "reasoning") {
+                return (
+                  <details
+                    key={`${message.id}-reasoning-${index}`}
+                    className="rounded-lg border border-black/10 bg-amber-50/80 px-4 py-3 text-sm text-slate-700"
+                  >
+                    <summary className="cursor-pointer font-medium text-amber-800">
+                      模型推理片段
+                    </summary>
+                    <pre className="mt-3 whitespace-pre-wrap font-mono text-xs leading-6 text-slate-700">
+                      {"text" in part ? part.text : JSON.stringify(part, null, 2)}
+                    </pre>
+                  </details>
+                );
+              }
 
-            if (isToolPart(part)) {
-              return (
-                <ToolCallCard
-                  key={`${message.id}-tool-${index}`}
-                  invocation={part}
-                />
-              );
-            }
+              if (isToolPart(part)) {
+                return (
+                  <ToolCallCard
+                    key={`${message.id}-tool-${index}`}
+                    invocation={part}
+                  />
+                );
+              }
 
-            return null;
-          })}
+              return null;
+            })}
         </div>
+
+        {!isUser && observability ? (
+          <AgentTimeline observability={observability} />
+        ) : null}
       </div>
     </article>
   );

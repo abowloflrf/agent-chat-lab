@@ -14,7 +14,7 @@ type ConversationSummary = {
 type ConversationListProps = {
   currentConversationId: string;
   onNewConversation: () => void;
-  refreshTrigger?: number;
+  refreshTrigger?: string | number;
   isCreatingConversation?: boolean;
 };
 

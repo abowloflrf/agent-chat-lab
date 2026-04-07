@@ -2,9 +2,9 @@ import "server-only";
 
 import { and, asc, desc, eq, notInArray } from "drizzle-orm";
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
-import { z } from "zod";
 import { db, ensureDatabase } from "@/lib/db/client";
 import { conversations, messages, notes, toolCalls } from "@/lib/db/schema";
+import type { ChatUIMessage } from "@/lib/observability";
 
 type NoteRecord = {
   id: string;
@@ -16,7 +16,7 @@ type NoteRecord = {
 
 type ChatSnapshot = {
   conversationId: string;
-  messages: UIMessage[];
+  messages: ChatUIMessage[];
 };
 
 type ToolInvocation = {
@@ -48,7 +48,7 @@ function toIsoString(timestamp: number) {
   return new Date(timestamp).toISOString();
 }
 
-function generateMessageId(message: UIMessage): string {
+function generateMessageId(message: ChatUIMessage): string {
   if (message.id) {
     return message.id;
   }
@@ -90,7 +90,7 @@ function isToolPart(part: UIMessage["parts"][number]): part is ToolLikePart {
   return part.type === "dynamic-tool" || part.type.startsWith("tool-");
 }
 
-function extractConversationTitle(chatMessages: UIMessage[]) {
+function extractConversationTitle(chatMessages: ChatUIMessage[]) {
   const firstUserMessage = chatMessages.find((message) => message.role === "user");
   const firstTextPart = firstUserMessage?.parts.find((part) => part.type === "text");
   const text = firstTextPart?.type === "text" ? firstTextPart.text.trim() : "";
@@ -102,11 +102,11 @@ function extractConversationTitle(chatMessages: UIMessage[]) {
   return text.slice(0, 60);
 }
 
-function toStoredMessage(row: typeof messages.$inferSelect): UIMessage {
+function toStoredMessage(row: typeof messages.$inferSelect): ChatUIMessage {
   return {
     id: row.id,
     role: row.role as UIMessage["role"],
-    metadata: parseJson<UIMessage["metadata"] | undefined>(row.metadataJson, undefined),
+    metadata: parseJson<ChatUIMessage["metadata"] | undefined>(row.metadataJson, undefined),
     parts: parseJson<UIMessage["parts"]>(row.partsJson, []),
   };
 }
@@ -154,7 +154,7 @@ function toToolInvocation(
   };
 }
 
-function extractToolInvocations(chatMessages: UIMessage[]) {
+function extractToolInvocations(chatMessages: ChatUIMessage[]) {
   return chatMessages.flatMap((message) =>
     message.parts
       .map((part, index) => toToolInvocation(part, message.id, index))
@@ -164,7 +164,7 @@ function extractToolInvocations(chatMessages: UIMessage[]) {
 
 function saveConversationSnapshot(
   conversationId: string,
-  chatMessages: UIMessage[],
+  chatMessages: ChatUIMessage[],
   options?: { syncToolCalls?: boolean },
 ) {
   const now = Date.now();
@@ -380,7 +380,7 @@ export async function renameConversation(
 
 export async function generateConversationTitle(
   conversationId: string,
-  chatMessages: UIMessage[],
+  chatMessages: ChatUIMessage[],
   providerConfig: {
     baseUrl: string;
     apiKey: string;
@@ -439,7 +439,7 @@ export async function generateConversationTitle(
 
 export async function persistIncomingMessages(
   conversationId: string,
-  chatMessages: UIMessage[],
+  chatMessages: ChatUIMessage[],
 ) {
   await ensureDatabase();
   saveConversationSnapshot(conversationId, chatMessages);
@@ -447,7 +447,7 @@ export async function persistIncomingMessages(
 
 export async function persistFinishedConversation(
   conversationId: string,
-  chatMessages: UIMessage[],
+  chatMessages: ChatUIMessage[],
 ) {
   await ensureDatabase();
   saveConversationSnapshot(conversationId, chatMessages, { syncToolCalls: true });

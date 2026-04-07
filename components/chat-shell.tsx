@@ -2,12 +2,12 @@
 
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
-import type { UIMessage } from "ai";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ChatMessage } from "@/components/chat-message";
 import { ConversationList } from "@/components/conversation-list";
+import { agentObservabilitySchema, type ChatUIMessage } from "@/lib/observability";
 import {
   defaultProviderConfig,
   loadProviderConfigFromStorage,
@@ -43,7 +43,7 @@ const builtInTools = [
 
 type ChatShellProps = {
   initialConversationId: string;
-  initialMessages: UIMessage[];
+  initialMessages: ChatUIMessage[];
 };
 
 export function ChatShell({
@@ -52,30 +52,13 @@ export function ChatShell({
 }: ChatShellProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const routeConversationId = searchParams.get("conversationId");
   const [draft, setDraft] = useState("");
-  const [conversationId, setConversationId] = useState(initialConversationId);
-  const [currentMessages, setCurrentMessages] = useState<UIMessage[]>(initialMessages);
-  const [conversationRefresh, setConversationRefresh] = useState(0);
+  const [localConversationId, setLocalConversationId] = useState(initialConversationId);
+  const [currentMessages, setCurrentMessages] = useState<ChatUIMessage[]>(initialMessages);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const conversationId = routeConversationId ?? localConversationId;
 
-  useEffect(() => {
-    const conversationIdFromUrl = searchParams.get("conversationId");
-
-    if (conversationIdFromUrl && conversationIdFromUrl !== conversationId) {
-      setConversationId(conversationIdFromUrl);
-      fetch(`/api/conversations/${conversationIdFromUrl}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.conversation) {
-            setCurrentMessages(data.conversation.messages);
-            setMessages(data.conversation.messages);
-          }
-        })
-        .catch((error) => {
-          console.error("Failed to load conversation:", error);
-        });
-    }
-  }, [searchParams]);
   const providerConfig = useSyncExternalStore(
     (onStoreChange) => {
       const handleStorageChange = (event: StorageEvent) => {
@@ -107,29 +90,33 @@ export function ChatShell({
       },
     }),
   });
-
-  const { messages, sendMessage, status, error, stop, setMessages } = useChat({
+  const { messages, sendMessage, status, error, stop, setMessages } = useChat<ChatUIMessage>({
     id: conversationId,
     messages: currentMessages,
+    messageMetadataSchema: agentObservabilitySchema,
     transport,
   });
+  const shouldRefreshTitle =
+    status === "ready" &&
+    messages.filter((message) => message.role === "user").length === 1 &&
+    messages.filter((message) => message.role === "assistant").length === 1;
+  const conversationRefresh = `${conversationId}:${messages.length}:${shouldRefreshTitle ? "title" : "base"}`;
 
   useEffect(() => {
-    if (messages.length > 0) {
-      setConversationRefresh((prev) => prev + 1);
+    if (routeConversationId && routeConversationId !== localConversationId) {
+      fetch(`/api/conversations/${routeConversationId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.conversation) {
+            setCurrentMessages(data.conversation.messages);
+            setMessages(data.conversation.messages);
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to load conversation:", error);
+        });
     }
-  }, [messages.length]);
-
-  useEffect(() => {
-    if (status === "ready" && messages.length > 0) {
-      const userMessages = messages.filter(m => m.role === "user");
-      const assistantMessages = messages.filter(m => m.role === "assistant");
-      
-      if (userMessages.length === 1 && assistantMessages.length === 1) {
-        setConversationRefresh((prev) => prev + 1);
-      }
-    }
-  }, [status]);
+  }, [localConversationId, routeConversationId, setMessages]);
 
   const isBusy = status !== "ready";
 
@@ -160,7 +147,7 @@ export function ChatShell({
 
     setIsCreatingConversation(true);
     const newId = crypto.randomUUID ? crypto.randomUUID() : generateUUID();
-    setConversationId(newId);
+    setLocalConversationId(newId);
     setCurrentMessages([]);
     setMessages([]);
     router.push(`/?conversationId=${newId}`, {
@@ -288,7 +275,7 @@ export function ChatShell({
                 </p>
                 <div className="flex items-center gap-3">
                   <h2 className="text-2xl font-semibold">最小 Agent 回路</h2>
-                  {conversationRefresh > 0 && messages.length > 0 && (
+                  {messages.length > 0 && (
                     <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
                       {messages.length} 条消息
                     </span>

@@ -31,6 +31,11 @@
 - [x] 持久化 `note`
 - [x] 支持多会话管理（列表/创建/删除/重命名）
 
+### Observability
+- [x] 记录每一步耗时
+- [x] 记录 step finish 事件
+- [x] 在页面展示完整 Agent timeline
+
 ### 工程化
 - [x] 更新 `README.md`
 - [x] 生成项目级 `AGENTS.md`
@@ -38,11 +43,6 @@
 - [x] 当前代码可通过 `pnpm build`
 
 ## 未完成
-
-### Observability
-- [ ] 记录每一步耗时
-- [ ] 记录 step finish 事件
-- [ ] 在页面展示完整 Agent timeline
 
 ### More Tools
 - [ ] `web_search`
