@@ -125,7 +125,7 @@ export function ProviderSettingsForm() {
     const nextConfig = normalizeProviderConfig(form);
     saveProviderConfigToStorage(nextConfig);
     setForm(nextConfig);
-    setSaveMessage("已保存到浏览器本地存储。聊天页后续请求会自动使用这组配置。");
+    setSaveMessage("已保存。");
   }
 
   return (
@@ -133,16 +133,11 @@ export function ProviderSettingsForm() {
       <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 px-4 py-6 lg:px-6">
         <header className="flex flex-col gap-4 rounded-[2rem] border border-black/10 bg-white/70 p-6 backdrop-blur">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="space-y-3">
+            <div className="space-y-2">
               <p className="text-xs uppercase tracking-[0.28em] text-slate-500">
                 System Settings
               </p>
               <h1 className="text-3xl font-semibold">模型供应商配置</h1>
-              <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                这里配置的是一个 OpenAI 兼容的 Chat Completions 供应商。
-                目前为了保持项目简单，设置会保存在当前浏览器的
-                `localStorage`，聊天请求时再安全地发给本地服务端。
-              </p>
             </div>
 
             <Link
@@ -154,7 +149,7 @@ export function ProviderSettingsForm() {
           </div>
         </header>
 
-        <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <section>
           <form
             onSubmit={handleSave}
             className="rounded-[2rem] border border-black/10 bg-white/80 p-6 shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur"
@@ -172,10 +167,6 @@ export function ProviderSettingsForm() {
                   placeholder="https://api.openai.com/v1"
                   className="w-full rounded-2xl border border-black/10 bg-stone-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:bg-white"
                 />
-                <p className="mt-2 text-xs leading-6 text-slate-500">
-                  填 API 基础路径，通常以 `/v1` 结尾，不要直接填
-                  `/chat/completions`。
-                </p>
               </div>
 
               <div>
@@ -215,7 +206,7 @@ export function ProviderSettingsForm() {
                 </select>
                 {fetchState.status === "loading" ? (
                   <p className="mt-2 text-xs leading-6 text-slate-500">
-                    正在通过 `/models` 自动拉取模型列表...
+                    正在拉取模型列表...
                   </p>
                 ) : null}
                 {fetchState.status === "error" ? (
@@ -223,18 +214,10 @@ export function ProviderSettingsForm() {
                     {fetchState.error}
                   </p>
                 ) : null}
-                {fetchState.status === "success" && models.length > 0 ? (
-                  <p className="mt-2 text-xs leading-6 text-emerald-700">
-                    已自动拉取到 {models.length} 个模型，可直接选择。
-                  </p>
-                ) : null}
               </div>
             </div>
 
-            <div className="mt-6 flex flex-col gap-3 border-t border-black/10 pt-5 md:flex-row md:items-center md:justify-between">
-              <p className="text-xs leading-6 text-slate-500">
-                这是本地教学项目，所以目前配置保存在浏览器本地，而不是数据库。
-              </p>
+            <div className="mt-6 flex justify-end border-t border-black/10 pt-5">
               <button
                 type="submit"
                 className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
@@ -249,31 +232,6 @@ export function ProviderSettingsForm() {
               </div>
             ) : null}
           </form>
-
-          <aside className="space-y-5 rounded-[2rem] border border-black/10 bg-black/[0.04] p-6">
-            <section className="rounded-[1.6rem] border border-black/10 bg-white/80 p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-600">
-                当前行为
-              </h2>
-              <ul className="mt-3 space-y-2 text-sm leading-7 text-slate-700">
-                <li>1. 输入 `base URL` 和 `API Key` 后自动调用 `/api/models`</li>
-                <li>2. 服务端代理请求 `${"{baseURL}"}/models`</li>
-                <li>3. 返回模型列表并自动填充下拉框</li>
-                <li>4. 保存后，聊天页发送请求时会附带这组配置</li>
-              </ul>
-            </section>
-
-            <section className="rounded-[1.6rem] border border-black/10 bg-slate-950 p-4 text-slate-100">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-200">
-                兼容性约束
-              </h2>
-              <div className="mt-3 space-y-2 text-sm leading-7 text-slate-300">
-                <p>当前默认按 OpenAI 兼容的 `/models` 和 Chat Completions 语义工作。</p>
-                <p>如果供应商不提供 `/models`，模型列表就无法自动拉取。</p>
-                <p>如果某些模型不支持工具调用，聊天时会直接在服务端报错。</p>
-              </div>
-            </section>
-          </aside>
         </section>
       </div>
     </main>

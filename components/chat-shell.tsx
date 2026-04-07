@@ -188,32 +188,17 @@ export function ChatShell() {
             </section>
           </div>
 
-          <div className="rounded-lg border border-black/10 bg-slate-950 px-4 py-3 text-sm text-slate-100">
-            <div className="flex items-center justify-between gap-3">
-              <span>当前状态</span>
-              <span className="rounded-md bg-white/10 px-2 py-1 font-mono text-xs uppercase tracking-[0.16em] text-orange-200">
-                {status}
-              </span>
-            </div>
-            <p className="mt-2 text-xs leading-6 text-slate-300">
-              模型供应商现在优先读取系统设置页保存的浏览器本地配置；
-              如果没有保存，再回退到服务端环境变量。
-            </p>
-          </div>
         </aside>
 
         <section className="flex min-h-[75vh] flex-1 flex-col overflow-hidden rounded-xl border border-black/10 bg-white/75 shadow-[0_20px_80px_rgba(15,23,42,0.10)] backdrop-blur">
           <header className="border-b border-black/10 px-5 py-4">
-            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
               <div>
                 <p className="text-xs uppercase tracking-[0.28em] text-slate-500">
                   对话区
                 </p>
                 <h2 className="text-2xl font-semibold">最小 Agent 回路</h2>
               </div>
-              <p className="max-w-xl text-sm leading-6 text-slate-600">
-                先观察工具调用是怎么发生的，再继续接数据库、长期记忆和更多外部工具。
-              </p>
             </div>
           </header>
 
