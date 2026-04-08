@@ -327,20 +327,48 @@ export type ConversationSummary = {
   lastMessageAt: string;
 };
 
-export async function getAllConversations(): Promise<ConversationSummary[]> {
+export type ConversationQueryOptions = {
+  query?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type ConversationQueryResult = {
+  conversations: ConversationSummary[];
+  hasMore: boolean;
+};
+
+export async function getAllConversations(
+  options: ConversationQueryOptions = {},
+): Promise<ConversationQueryResult> {
   await ensureDatabase();
 
+  const query = options.query?.trim() ?? "";
+  const limit = Math.max(1, options.limit ?? 100);
+  const offset = Math.max(0, options.offset ?? 0);
+  const whereClause = query
+    ? sql`lower(coalesce(${conversations.title}, '')) like ${`%${query.toLocaleLowerCase()}%`}`
+    : undefined;
+
   const rows = db.select().from(conversations)
+    .where(whereClause)
     .orderBy(desc(conversations.lastMessageAt))
+    .limit(limit + 1)
+    .offset(offset)
     .all();
 
-  return rows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    createdAt: toIsoString(row.createdAt),
-    updatedAt: toIsoString(row.updatedAt),
-    lastMessageAt: toIsoString(row.lastMessageAt),
-  }));
+  const visibleRows = rows.slice(0, limit);
+
+  return {
+    conversations: visibleRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      createdAt: toIsoString(row.createdAt),
+      updatedAt: toIsoString(row.updatedAt),
+      lastMessageAt: toIsoString(row.lastMessageAt),
+    })),
+    hasMore: rows.length > limit,
+  };
 }
 
 export async function getBuiltInToolUsageCounts(): Promise<Record<string, number>> {

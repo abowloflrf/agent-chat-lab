@@ -10,7 +10,9 @@ import { ChatMessage } from "@/components/chat-message";
 import { ConversationList } from "@/components/conversation-list";
 import {
   agentObservabilitySchema,
+  finalizeInterruptedMessage,
   getMessageTimestamp,
+  isInterruptedMessage,
   parseAgentObservability,
   type ChatUIMessage,
 } from "@/lib/observability";
@@ -25,6 +27,7 @@ const starterPrompts = [
 
 const MIN_TEXTAREA_ROWS = 1;
 const MAX_TEXTAREA_ROWS = 6;
+const STREAM_RECOVERY_IDLE_MS = 20000;
 
 type ChatShellProps = {
   initialConversationId: string;
@@ -62,6 +65,18 @@ function extractMessageText(message: ChatUIMessage) {
     .trim();
 }
 
+function normalizeRecoveredMessages(chatMessages: ChatUIMessage[]) {
+  return chatMessages.map((message) => finalizeInterruptedMessage(message));
+}
+
+function findLastUserMessageText(chatMessages: ChatUIMessage[]) {
+  const latestUserMessage = [...chatMessages]
+    .reverse()
+    .find((message) => message.role === "user");
+
+  return latestUserMessage ? extractMessageText(latestUserMessage) : "";
+}
+
 export function ChatShell({
   initialConversationId,
   initialConversationTitle,
@@ -76,9 +91,15 @@ export function ChatShell({
   const [conversationTitle, setConversationTitle] =
     useState(initialConversationTitle);
   const [currentMessages, setCurrentMessages] =
-    useState<ChatUIMessage[]>(initialMessages);
+    useState<ChatUIMessage[]>(() => normalizeRecoveredMessages(initialMessages));
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const [interruptedRunDetected, setInterruptedRunDetected] = useState(() => {
+    return normalizeRecoveredMessages(initialMessages).some((message) =>
+      isInterruptedMessage(message.metadata),
+    );
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const streamActivityAtRef = useRef(0);
   const conversationId = routeConversationId ?? localConversationId;
 
   const transport = new DefaultChatTransport({
@@ -93,7 +114,7 @@ export function ChatShell({
     }),
   });
 
-  const { messages, sendMessage, status, error, stop, setMessages } =
+  const { messages, sendMessage, status, error, stop, setMessages, clearError } =
     useChat<ChatUIMessage>({
       id: conversationId,
       messages: currentMessages,
@@ -114,13 +135,18 @@ export function ChatShell({
         .then((data) => {
           setLocalConversationId(routeConversationId);
           if (data.conversation) {
+            const recoveredMessages = normalizeRecoveredMessages(data.conversation.messages);
             setConversationTitle(data.conversation.title ?? null);
-            setCurrentMessages(data.conversation.messages);
-            setMessages(data.conversation.messages);
+            setCurrentMessages(recoveredMessages);
+            setMessages(recoveredMessages);
+            setInterruptedRunDetected(
+              recoveredMessages.some((message) => isInterruptedMessage(message.metadata)),
+            );
           } else {
             setConversationTitle(null);
             setCurrentMessages([]);
             setMessages([]);
+            setInterruptedRunDetected(false);
           }
         })
         .catch((fetchError) => {
@@ -129,9 +155,14 @@ export function ChatShell({
           setConversationTitle(null);
           setCurrentMessages([]);
           setMessages([]);
+          setInterruptedRunDetected(false);
         });
     }
   }, [localConversationId, routeConversationId, setMessages]);
+
+  useEffect(() => {
+    streamActivityAtRef.current = Date.now();
+  }, [messages, status]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -184,7 +215,45 @@ export function ChatShell({
     );
   }, [messages, setMessages]);
 
-  const isBusy = status !== "ready";
+  const isBusy = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    const hasStreamingAssistant = messages.some((message) => {
+      const observability = parseAgentObservability(message.metadata);
+      return message.role === "assistant" && observability?.status === "streaming";
+    });
+    const latestUserIndex = [...messages]
+      .map((message, index) => ({ message, index }))
+      .reverse()
+      .find(({ message }) => message.role === "user")?.index;
+    const hasPendingUserTurn =
+      latestUserIndex !== undefined &&
+      messages[latestUserIndex]?.role === "user" &&
+      !messages.slice(latestUserIndex + 1).some((message) => message.role === "assistant");
+
+    if (!isBusy || (!hasStreamingAssistant && !hasPendingUserTurn)) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (Date.now() - streamActivityAtRef.current < STREAM_RECOVERY_IDLE_MS) {
+        return;
+      }
+
+      stop();
+      clearError();
+      const recoveredMessages = normalizeRecoveredMessages(messages);
+      setCurrentMessages(recoveredMessages);
+      setMessages(recoveredMessages);
+      setInterruptedRunDetected(true);
+    }, STREAM_RECOVERY_IDLE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [clearError, isBusy, messages, setMessages, status, stop]);
+  const latestUserMessageText = findLastUserMessageText(messages);
+  const canReplayLatestTurn = !isBusy && latestUserMessageText.length > 0;
   const userMessageCount = messages.filter(
     (message) => message.role === "user",
   ).length;
@@ -243,6 +312,8 @@ export function ChatShell({
     }
 
     setDraft("");
+    clearError();
+    setInterruptedRunDetected(false);
     await sendMessage({ text });
   }
 
@@ -251,6 +322,8 @@ export function ChatShell({
       return;
     }
 
+    clearError();
+    setInterruptedRunDetected(false);
     await sendMessage({ text: prompt });
   }
 
@@ -286,7 +359,33 @@ export function ChatShell({
       setCurrentMessages(nextMessages);
       setMessages(nextMessages);
     });
+    clearError();
+    setInterruptedRunDetected(false);
     await sendMessage({ text: userText });
+  }
+
+  async function handleReplayLatestTurn() {
+    if (!latestUserMessageText || isBusy) {
+      return;
+    }
+
+    const latestUserIndex = [...messages]
+      .map((message, index) => ({ message, index }))
+      .reverse()
+      .find(({ message }) => message.role === "user")?.index;
+
+    if (latestUserIndex === undefined) {
+      return;
+    }
+
+    const nextMessages = messages.slice(0, latestUserIndex);
+    flushSync(() => {
+      setCurrentMessages(nextMessages);
+      setMessages(nextMessages);
+    });
+    clearError();
+    setInterruptedRunDetected(false);
+    await sendMessage({ text: latestUserMessageText });
   }
 
   function handleNewConversation() {
@@ -430,6 +529,20 @@ export function ChatShell({
           </div>
 
           <div className="relative border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.92)] px-4 py-4">
+            {interruptedRunDetected && !isBusy ? (
+              <div className="mb-3 flex items-center justify-between gap-3 rounded-[18px] border border-[#ead4ba] bg-[#fff6ea] px-4 py-3 text-sm text-[#805126]">
+                <span>检测到上一次 Agent 执行被中断，当前已恢复为可继续操作状态。</span>
+                <button
+                  type="button"
+                  onClick={() => void handleReplayLatestTurn()}
+                  disabled={!canReplayLatestTurn}
+                  className="shrink-0 rounded-full border border-[#d7b38e] px-3 py-1.5 text-xs font-medium text-[#7f4218] transition hover:border-[#b86b36] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  重新生成上一条回复
+                </button>
+              </div>
+            ) : null}
+
             {error ? (
               <div className="mb-3 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-4 py-3 text-sm text-[#9a3818]">
                 {error.message}

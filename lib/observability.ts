@@ -37,8 +37,9 @@ export const agentObservabilitySchema = z.object({
 
 export type AgentTimelineStep = z.infer<typeof agentTimelineStepSchema>;
 export type AgentObservability = z.infer<typeof agentObservabilitySchema>;
-export type ChatMessageMetadata = AgentObservability & {
+export type ChatMessageMetadata = Partial<AgentObservability> & {
   createdAt?: number;
+  interrupted?: boolean;
 };
 export type ChatUIMessage = UIMessage<ChatMessageMetadata>;
 
@@ -68,4 +69,46 @@ export function getMessageTimestamp(metadata: unknown): number | null {
   }
 
   return null;
+}
+
+export function isInterruptedMessage(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== "object") {
+    return false;
+  }
+
+  const record = metadata as { interrupted?: unknown };
+  return record.interrupted === true;
+}
+
+export function finalizeInterruptedMessage(
+  message: ChatUIMessage,
+): ChatUIMessage {
+  if (message.role !== "assistant") {
+    return message;
+  }
+
+  const observability = parseAgentObservability(message.metadata);
+
+  if (!observability || observability.status !== "streaming") {
+    return message;
+  }
+
+  const lastStepFinishedAt = observability.timeline.reduce<number | null>((maxValue, step) => {
+    return maxValue === null ? step.finishedAt : Math.max(maxValue, step.finishedAt);
+  }, null);
+  const finishedAt = Math.max(
+    observability.startedAt,
+    lastStepFinishedAt ?? observability.startedAt,
+  );
+
+  return {
+    ...message,
+    metadata: {
+      ...message.metadata,
+      status: "finished",
+      finishedAt,
+      totalDurationMs: Math.max(0, finishedAt - observability.startedAt),
+      interrupted: true,
+    },
+  };
 }
