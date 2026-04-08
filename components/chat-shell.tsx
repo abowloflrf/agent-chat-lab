@@ -4,10 +4,14 @@ import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChatMessage } from "@/components/chat-message";
 import { ConversationList } from "@/components/conversation-list";
-import { agentObservabilitySchema, type ChatUIMessage } from "@/lib/observability";
+import {
+  agentObservabilitySchema,
+  parseAgentObservability,
+  type ChatUIMessage,
+} from "@/lib/observability";
 import { loadProviderConfigFromStorage } from "@/lib/provider-config";
 
 const starterPrompts = [
@@ -17,8 +21,12 @@ const starterPrompts = [
   "帮我回忆一下和 Agent 学习有关的笔记",
 ];
 
+const MIN_TEXTAREA_ROWS = 1;
+const MAX_TEXTAREA_ROWS = 6;
+
 type ChatShellProps = {
   initialConversationId: string;
+  initialConversationTitle: string | null;
   initialMessages: ChatUIMessage[];
 };
 
@@ -30,8 +38,21 @@ function generateUUID() {
   });
 }
 
+function formatContextLength(tokenCount: number | null) {
+  if (tokenCount === null) {
+    return "--";
+  }
+
+  return new Intl.NumberFormat("zh-CN").format(tokenCount);
+}
+
+function formatShortConversationId(conversationId: string) {
+  return conversationId.slice(0, 8);
+}
+
 export function ChatShell({
   initialConversationId,
+  initialConversationTitle,
   initialMessages,
 }: ChatShellProps) {
   const router = useRouter();
@@ -40,9 +61,12 @@ export function ChatShell({
   const [draft, setDraft] = useState("");
   const [localConversationId, setLocalConversationId] =
     useState(initialConversationId);
+  const [conversationTitle, setConversationTitle] =
+    useState(initialConversationTitle);
   const [currentMessages, setCurrentMessages] =
     useState<ChatUIMessage[]>(initialMessages);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const conversationId = routeConversationId ?? localConversationId;
 
   const transport = new DefaultChatTransport({
@@ -78,9 +102,11 @@ export function ChatShell({
         .then((data) => {
           setLocalConversationId(routeConversationId);
           if (data.conversation) {
+            setConversationTitle(data.conversation.title ?? null);
             setCurrentMessages(data.conversation.messages);
             setMessages(data.conversation.messages);
           } else {
+            setConversationTitle(null);
             setCurrentMessages([]);
             setMessages([]);
           }
@@ -88,11 +114,37 @@ export function ChatShell({
         .catch((fetchError) => {
           console.error("Failed to load conversation:", fetchError);
           setLocalConversationId(routeConversationId);
+          setConversationTitle(null);
           setCurrentMessages([]);
           setMessages([]);
         });
     }
   }, [localConversationId, routeConversationId, setMessages]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    const computedStyle = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(computedStyle.lineHeight) || 28;
+    const paddingTop = Number.parseFloat(computedStyle.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(computedStyle.paddingBottom) || 0;
+    const verticalPadding = paddingTop + paddingBottom;
+    const minHeight = lineHeight * MIN_TEXTAREA_ROWS + verticalPadding;
+    const maxHeight = lineHeight * MAX_TEXTAREA_ROWS + verticalPadding;
+
+    textarea.style.height = "0px";
+    const nextHeight = Math.min(
+      Math.max(textarea.scrollHeight, minHeight),
+      maxHeight,
+    );
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [draft]);
 
   const isBusy = status !== "ready";
   const userMessageCount = messages.filter(
@@ -106,6 +158,43 @@ export function ChatShell({
       ).length
     );
   }, 0);
+  const currentContextLength = messages.reduce<number | null>((maxTokens, message) => {
+    const observability = parseAgentObservability(message.metadata);
+    const messageMaxInputTokens = observability?.timeline.reduce((messageMax, step) => {
+      return Math.max(messageMax, step.usage.inputTokens);
+    }, 0);
+
+    if (messageMaxInputTokens === undefined) {
+      return maxTokens;
+    }
+
+    return maxTokens === null
+      ? messageMaxInputTokens
+      : Math.max(maxTokens, messageMaxInputTokens);
+  }, null);
+  const sessionStats = [
+    {
+      label: "总上下文",
+      value: formatContextLength(currentContextLength),
+      unit: "tokens",
+    },
+    {
+      label: "消息",
+      value: String(messages.length),
+      unit: "条",
+    },
+    {
+      label: "工具步",
+      value: String(toolStepCount),
+      unit: "次",
+    },
+    {
+      label: "输入轮次",
+      value: String(userMessageCount),
+      unit: "轮",
+    },
+  ];
+  const displayConversationTitle = conversationTitle || "未命名会话";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -166,33 +255,6 @@ export function ChatShell({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 border-b border-white/8 py-4 text-center">
-              <div>
-                <p className="font-mono text-[18px] text-[#fff4ea]">
-                  {messages.length}
-                </p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#a99b8a]">
-                  消息
-                </p>
-              </div>
-              <div>
-                <p className="font-mono text-[18px] text-[#fff4ea]">
-                  {toolStepCount}
-                </p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#a99b8a]">
-                  工具步
-                </p>
-              </div>
-              <div>
-                <p className="font-mono text-[18px] text-[#fff4ea]">
-                  {userMessageCount}
-                </p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#a99b8a]">
-                  输入轮次
-                </p>
-              </div>
-            </div>
-
             <section className="min-h-0 flex-1 pt-4">
               <ConversationList
                 currentConversationId={conversationId}
@@ -206,24 +268,37 @@ export function ChatShell({
 
         <section className="glass-panel rise-in relative flex h-full min-h-0 flex-col overflow-hidden">
           <header className="relative border-b border-[rgba(23,23,23,0.08)] px-4 py-4">
-            <div className="flex justify-end">
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-[#5c544a]">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#978b7e]">
-                    会话 ID
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <p className="truncate text-lg font-semibold tracking-[-0.02em] text-[#241c15]">
+                    {displayConversationTitle}
                   </p>
-                  <p className="mt-1 font-mono text-xs text-[#352d25]">
-                    {conversationId.slice(0, 8)}
-                  </p>
+                  <span className="inline-flex items-center rounded-full border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.52)] px-2.5 py-1 font-mono text-[11px] text-[#6c6156]">
+                    {formatShortConversationId(conversationId)}
+                  </span>
                 </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#978b7e]">
-                    状态
-                  </p>
-                  <p className="mt-1 font-mono text-xs text-[#352d25]">
-                    {status}
-                  </p>
-                </div>
+              </div>
+
+              <div className="grid w-full gap-x-5 gap-y-3 border-t border-[rgba(23,23,23,0.08)] pt-3 text-sm text-[#5c544a] sm:grid-cols-2 lg:w-auto lg:grid-cols-4 lg:border-t-0 lg:pt-0">
+                {sessionStats.map((stat) => (
+                  <div
+                    key={stat.label}
+                    className="min-w-[108px] border-l border-[rgba(23,23,23,0.08)] pl-3 first:border-l-0 first:pl-0"
+                  >
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#978b7e]">
+                      {stat.label}
+                    </p>
+                    <div className="mt-1 flex items-end gap-1.5 text-[#352d25]">
+                      <span className="font-mono text-lg leading-none">
+                        {stat.value}
+                      </span>
+                      <span className="pb-0.5 text-[11px] uppercase tracking-[0.16em] text-[#8f8377]">
+                        {stat.unit}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </header>
@@ -288,10 +363,16 @@ export function ChatShell({
               <label className="block">
                 <span className="sr-only">输入消息</span>
                 <textarea
+                  ref={textareaRef}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   placeholder="输入消息，例如：帮我记住今天要继续完善 Agent 的工具调用演示。"
-                  className="min-h-28 w-full resize-y rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-5 py-4 text-[15px] leading-7 text-[#171717] outline-none transition placeholder:text-[#9f968b] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
+                  rows={MIN_TEXTAREA_ROWS}
+                  className="w-full resize-none rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-2.5 text-[15px] leading-7 text-[#171717] outline-none transition placeholder:text-[#9f968b] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
+                  style={{
+                    minHeight: `calc(${MIN_TEXTAREA_ROWS}lh + 1.25rem)`,
+                    maxHeight: `calc(${MAX_TEXTAREA_ROWS}lh + 1.25rem)`,
+                  }}
                   disabled={isBusy}
                 />
               </label>

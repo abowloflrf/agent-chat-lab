@@ -39,6 +39,7 @@
 - [x] 记录每一步耗时
 - [x] 记录 step finish 事件
 - [x] 在页面展示完整 Agent timeline
+- [x] 在会话详情状态区展示当前总上下文长度
 
 ### 工程化
 - [x] 更新 `README.md`
@@ -47,9 +48,6 @@
 - [x] 当前代码可通过 `pnpm build`
 
 ## 未完成
-
-### More Tools
-- [ ] `read_url`
 
 ### Better Agent Design
 - [ ] 增加 tool 选择约束

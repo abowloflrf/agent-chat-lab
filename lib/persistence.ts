@@ -30,6 +30,7 @@ type TodoRecord = {
 
 type ChatSnapshot = {
   conversationId: string;
+  title: string | null;
   messages: ChatUIMessage[];
 };
 
@@ -369,6 +370,7 @@ export async function getConversation(conversationId: string): Promise<ChatSnaps
 
   return {
     conversationId: conversation.id,
+    title: conversation.title,
     messages: rows.map(toStoredMessage),
   };
 }
