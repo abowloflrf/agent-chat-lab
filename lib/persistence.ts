@@ -137,10 +137,18 @@ function extractConversationTitle(chatMessages: ChatUIMessage[]) {
 }
 
 function toStoredMessage(row: typeof messages.$inferSelect): ChatUIMessage {
+  const metadata = parseJson<ChatUIMessage["metadata"] | undefined>(
+    row.metadataJson,
+    undefined,
+  );
+
   return {
     id: row.id,
     role: row.role as UIMessage["role"],
-    metadata: parseJson<ChatUIMessage["metadata"] | undefined>(row.metadataJson, undefined),
+    metadata: {
+      ...(metadata ?? {}),
+      createdAt: row.createdAt,
+    },
     parts: parseJson<UIMessage["parts"]>(row.partsJson, []),
   };
 }

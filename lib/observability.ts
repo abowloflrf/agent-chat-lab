@@ -37,11 +37,35 @@ export const agentObservabilitySchema = z.object({
 
 export type AgentTimelineStep = z.infer<typeof agentTimelineStepSchema>;
 export type AgentObservability = z.infer<typeof agentObservabilitySchema>;
-export type ChatUIMessage = UIMessage<AgentObservability>;
+export type ChatMessageMetadata = AgentObservability & {
+  createdAt?: number;
+};
+export type ChatUIMessage = UIMessage<ChatMessageMetadata>;
 
 export function parseAgentObservability(
   metadata: unknown,
 ): AgentObservability | null {
   const parsed = agentObservabilitySchema.safeParse(metadata);
   return parsed.success ? parsed.data : null;
+}
+
+export function getMessageTimestamp(metadata: unknown): number | null {
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+
+  const record = metadata as {
+    createdAt?: unknown;
+    startedAt?: unknown;
+  };
+
+  if (typeof record.createdAt === "number") {
+    return record.createdAt;
+  }
+
+  if (typeof record.startedAt === "number") {
+    return record.startedAt;
+  }
+
+  return null;
 }

@@ -171,6 +171,7 @@ export async function POST(request: Request) {
     messageMetadata: ({ part }) => {
       if (part.type === "start") {
         return {
+          createdAt: requestStartedAt,
           status: "streaming" as const,
           startedAt: requestStartedAt,
           timeline: [],
@@ -179,6 +180,7 @@ export async function POST(request: Request) {
 
       if (part.type === "finish-step") {
         return {
+          createdAt: requestStartedAt,
           status: "streaming" as const,
           startedAt: requestStartedAt,
           timeline,
@@ -189,6 +191,7 @@ export async function POST(request: Request) {
         requestFinishedAt ??= Date.now();
 
         return {
+          createdAt: requestStartedAt,
           status: "finished" as const,
           startedAt: requestStartedAt,
           finishedAt: requestFinishedAt,

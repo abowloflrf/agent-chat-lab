@@ -1,9 +1,12 @@
+"use client";
+
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
+import { Children, isValidElement, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AgentTimeline } from "@/components/agent-timeline";
 import { ToolCallCard } from "@/components/tool-call-card";
-import { parseAgentObservability } from "@/lib/observability";
+import { getMessageTimestamp, parseAgentObservability } from "@/lib/observability";
 
 const markdownTextStyles = {
   user: {
@@ -17,12 +20,12 @@ const markdownTextStyles = {
     strong: "font-semibold text-[#fffdf9]",
     emphasis: "italic text-[#f6ded0]",
     inlineCode: "rounded bg-white/10 px-1.5 py-0.5 font-mono text-xs text-[#fff8f2]",
-    codeFrame: "my-4 overflow-hidden rounded-[14px] border border-white/8 bg-[#211712]",
+    codeFrame: "my-4 overflow-hidden rounded-[14px] border border-white/10 bg-[rgba(255,248,241,0.08)]",
     codeHeader:
-      "flex items-center justify-between border-b border-white/8 bg-[rgba(255,255,255,0.04)] px-4 py-2",
-    codeLabel: "font-mono text-[11px] uppercase tracking-[0.18em] text-[#d8c1b2]",
-    pre: "overflow-x-auto px-4 py-4 text-[#faf6f1]",
-    codeInPre: "bg-transparent px-0 py-0 text-[13px] leading-6 text-[#faf6f1]",
+      "flex items-center justify-between border-b border-white/10 bg-[rgba(255,255,255,0.04)] px-3 py-1.5",
+    codeLabel: "font-mono text-[10px] uppercase tracking-[0.14em] text-[#d8c1b2]",
+    pre: "overflow-x-auto px-3 py-2 text-[#fff6ef] leading-[1.4]",
+    codeInPre: "bg-transparent px-0 py-0 font-mono text-[13px] leading-[1.4] text-[#fff6ef]",
     link: "font-medium text-[#ffe0cc] underline decoration-white/30 underline-offset-4 transition hover:text-white",
     tableWrap:
       "my-4 overflow-x-auto rounded-[14px] border border-white/10 bg-[rgba(255,255,255,0.04)]",
@@ -44,12 +47,12 @@ const markdownTextStyles = {
     inlineCode:
       "rounded bg-[#f1e7db] px-1.5 py-0.5 font-mono text-xs text-[#6b3718]",
     codeFrame:
-      "my-4 overflow-hidden rounded-[14px] border border-[rgba(23,23,23,0.08)] bg-[#171717]",
+      "my-4 overflow-hidden rounded-[14px] border border-[rgba(23,23,23,0.08)] bg-[rgba(250,246,240,0.96)]",
     codeHeader:
-      "flex items-center justify-between border-b border-white/8 bg-[rgba(255,255,255,0.04)] px-4 py-2",
-    codeLabel: "font-mono text-[11px] uppercase tracking-[0.18em] text-[#d7c0b1]",
-    pre: "overflow-x-auto px-4 py-4 text-[#faf6f1]",
-    codeInPre: "bg-transparent px-0 py-0 text-[13px] leading-6 text-[#faf6f1]",
+      "flex items-center justify-between border-b border-[rgba(23,23,23,0.06)] bg-[rgba(255,255,255,0.65)] px-3 py-1.5",
+    codeLabel: "font-mono text-[10px] uppercase tracking-[0.14em] text-[#8c7767]",
+    pre: "overflow-x-auto px-3 py-2 text-[#332922] leading-[1.4]",
+    codeInPre: "bg-transparent px-0 py-0 font-mono text-[13px] leading-[1.4] text-[#332922]",
     link: "font-medium text-[#9c5626] underline decoration-[#d7b195] underline-offset-4 transition hover:text-[#7f4218]",
     tableWrap:
       "my-4 overflow-x-auto rounded-[14px] border border-[rgba(23,23,23,0.08)] bg-[rgba(250,246,240,0.88)]",
@@ -78,22 +81,246 @@ function roleLabel(role: UIMessage["role"]) {
   }
 }
 
+function formatMessageTime(timestamp: number) {
+  return new Date(timestamp).toLocaleString("zh-CN", {
+    hour12: false,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDuration(durationMs: number) {
+  if (durationMs < 1000) {
+    return `${durationMs}ms`;
+  }
+
+  const seconds = durationMs / 1000;
+  return `${seconds.toFixed(seconds >= 10 ? 0 : 1)}s`;
+}
+
+function formatRate(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+
+  return value >= 100 ? value.toFixed(0) : value.toFixed(1);
+}
+
+function formatTokenCount(value: number) {
+  return new Intl.NumberFormat("zh-CN").format(value);
+}
+
+function getAssistantStats(observability: ReturnType<typeof parseAgentObservability>) {
+  if (!observability || observability.timeline.length === 0) {
+    return null;
+  }
+
+  const totalOutputTokens = observability.timeline.reduce((sum, step) => {
+    return sum + step.usage.outputTokens;
+  }, 0);
+  const totalDurationMs = observability.totalDurationMs
+    ?? Math.max(0, (observability.finishedAt ?? observability.startedAt) - observability.startedAt);
+  const firstStep = [...observability.timeline].sort((a, b) => a.stepNumber - b.stepNumber)[0];
+  const ttftMs = firstStep
+    ? Math.max(0, firstStep.finishedAt - observability.startedAt)
+    : null;
+  const tokensPerSecond = totalDurationMs > 0
+    ? (totalOutputTokens * 1000) / totalDurationMs
+    : 0;
+
+  return {
+    totalOutputTokens,
+    totalDurationMs,
+    ttftMs,
+    tokensPerSecond,
+  };
+}
+
+async function copyText(text: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  if (typeof document === "undefined") {
+    throw new Error("Clipboard API is unavailable.");
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "-9999px";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  try {
+    const copied = document.execCommand("copy");
+
+    if (!copied) {
+      throw new Error("execCommand copy failed.");
+    }
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 type ToolLikePart = ToolUIPart | DynamicToolUIPart;
 
 function isToolPart(part: UIMessage["parts"][number]): part is ToolLikePart {
   return part.type === "dynamic-tool" || part.type.startsWith("tool-");
 }
 
-export function ChatMessage({ message }: { message: UIMessage }) {
+function CodeBlock({
+  className,
+  children,
+  styles,
+}: {
+  className?: string;
+  children: ReactNode;
+  styles: (typeof markdownTextStyles)[keyof typeof markdownTextStyles];
+}) {
+  const [copied, setCopied] = useState(false);
+  const [wrapped, setWrapped] = useState(false);
+  const codeText = Children.toArray(children).join("");
+
+  async function handleCopyCode() {
+    try {
+      await copyText(codeText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch (error) {
+      console.error("Failed to copy code block:", error);
+    }
+  }
+
+  return (
+    <div className={styles.codeFrame}>
+      <div className={styles.codeHeader}>
+        <span className={styles.codeLabel}>
+          {getCodeLanguage(className) ?? "code"}
+        </span>
+        <div className="flex items-center gap-2 text-[10px] text-[#8c7767]">
+          <button
+            type="button"
+            onClick={() => setWrapped((value) => !value)}
+            className={`inline-flex h-5 items-center rounded-full border px-2 transition ${
+              wrapped
+                ? "border-[rgba(156,86,38,0.28)] bg-[rgba(156,86,38,0.08)] text-[#9c5626]"
+                : "border-[rgba(23,23,23,0.08)] text-[#8c7767] hover:text-[#9c5626]"
+            }`}
+            aria-label={wrapped ? "关闭代码换行" : "开启代码换行"}
+            title={wrapped ? "关闭代码换行" : "开启代码换行"}
+            aria-pressed={wrapped}
+          >
+            <span className="font-medium leading-none">
+              {wrapped ? "换行开" : "换行关"}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleCopyCode()}
+            className="inline-flex h-5 w-5 items-center justify-center transition hover:text-[#9c5626]"
+            aria-label="复制代码块内容"
+            title={copied ? "已复制" : "复制代码块内容"}
+          >
+            {copied ? (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                fill="none"
+                className="h-3.5 w-3.5"
+              >
+                <path
+                  d="M4.5 10.5 8 14l7.5-8"
+                  className="stroke-current"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ) : (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                fill="none"
+                className="h-3.5 w-3.5"
+              >
+                <rect
+                  x="7"
+                  y="3"
+                  width="9"
+                  height="11"
+                  rx="2"
+                  className="stroke-current"
+                  strokeWidth="1.4"
+                />
+                <rect
+                  x="4"
+                  y="6"
+                  width="9"
+                  height="11"
+                  rx="2"
+                  className="stroke-current"
+                  strokeWidth="1.4"
+                />
+              </svg>
+            )}
+          </button>
+        </div>
+      </div>
+      <pre className={`${styles.pre} ${wrapped ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
+        <code className={styles.codeInPre}>{children}</code>
+      </pre>
+    </div>
+  );
+}
+
+export function ChatMessage({
+  message,
+  onRegenerate,
+  canRegenerate = false,
+}: {
+  message: UIMessage;
+  onRegenerate?: () => void;
+  canRegenerate?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
   const observability = !isUser ? parseAgentObservability(message.metadata) : null;
   const markdownStyles = isUser
     ? markdownTextStyles.user
     : markdownTextStyles.assistant;
+  const messageTimestamp = getMessageTimestamp(message.metadata);
+  const assistantStats = !isUser ? getAssistantStats(observability) : null;
+  const rawText = message.parts
+    .filter((part): part is Extract<UIMessage["parts"][number], { type: "text" }> => {
+      return part.type === "text" && part.text.trim() !== "";
+    })
+    .map((part) => part.text)
+    .join("\n\n");
+
+  async function handleCopy() {
+    if (!rawText) {
+      return;
+    }
+
+    try {
+      await copyText(rawText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch (error) {
+      console.error("Failed to copy message text:", error);
+    }
+  }
 
   return (
     <article
-      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+      className={`group/message flex ${isUser ? "justify-end" : "justify-start"}`}
       data-role={message.role}
     >
       <div
@@ -158,26 +385,34 @@ export function ChatMessage({ message }: { message: UIMessage }) {
                         p: ({ children }) => (
                           <p className={markdownStyles.paragraph}>{children}</p>
                         ),
-                        pre: ({ children }) => <>{children}</>,
+                        pre: ({ children }) => {
+                          const child = Children.only(children);
+                          const className =
+                            isValidElement<{ className?: string }>(child)
+                              ? child.props.className
+                              : undefined;
+                          const codeChildren =
+                            isValidElement<{ children?: ReactNode }>(child)
+                              ? child.props.children
+                              : children;
+
+                          return (
+                            <CodeBlock
+                              className={className}
+                              styles={markdownStyles}
+                            >
+                              {codeChildren}
+                            </CodeBlock>
+                          );
+                        },
                         code: ({ className, children }) => (
-                          className ? (
-                            <div className={markdownStyles.codeFrame}>
-                              <div className={markdownStyles.codeHeader}>
-                                <span className={markdownStyles.codeLabel}>
-                                  {getCodeLanguage(className) ?? "code"}
-                                </span>
-                              </div>
-                              <pre className={markdownStyles.pre}>
-                                <code className={markdownStyles.codeInPre}>
-                                  {children}
-                                </code>
-                              </pre>
-                            </div>
-                          ) : (
-                            <code className={markdownStyles.inlineCode}>
-                              {children}
-                            </code>
-                          )
+                          <code
+                            className={
+                              className ? markdownStyles.codeInPre : markdownStyles.inlineCode
+                            }
+                          >
+                            {children}
+                          </code>
                         ),
                         strong: ({ children }) => (
                           <strong className={markdownStyles.strong}>{children}</strong>
@@ -259,6 +494,123 @@ export function ChatMessage({ message }: { message: UIMessage }) {
               return null;
             })}
         </div>
+
+        {rawText ? (
+          <div
+            className={`mt-2 flex w-full items-center ${
+              isUser ? "justify-end" : "justify-start"
+            }`}
+          >
+            <div className={`flex items-center gap-1 ${isUser ? "" : "ml-auto"}`}>
+              {!isUser && assistantStats ? (
+                <div className="pointer-events-none mr-2 flex items-center gap-1.5 text-[11px] text-[#8f8172] opacity-0 transition-opacity duration-150 group-hover/message:opacity-100">
+                  <span>
+                    {formatTokenCount(assistantStats.totalOutputTokens)} tokens
+                  </span>
+                  <span>
+                    TTFT {assistantStats.ttftMs === null ? "--" : formatDuration(assistantStats.ttftMs)}
+                  </span>
+                  <span>
+                    {formatRate(assistantStats.tokensPerSecond)} tok/s
+                  </span>
+                  <span>
+                    {formatDuration(assistantStats.totalDurationMs)}
+                  </span>
+                </div>
+              ) : null}
+
+              {messageTimestamp ? (
+                <div
+                  className={`pointer-events-none mr-1 text-[11px] transition-opacity duration-150 group-hover/message:opacity-100 ${
+                    isUser ? "text-[#8c7d70] opacity-0" : "text-[#8f8172] opacity-0"
+                  }`}
+                >
+                  {isUser ? "发送于" : "回复于"} {formatMessageTime(messageTimestamp)}
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={handleCopy}
+                aria-label="复制原始消息内容"
+                title={copied ? "已复制" : "复制原始消息内容"}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition ${
+                  isUser
+                    ? "text-[#8c7d70] hover:text-[#4a3328]"
+                    : "text-[#8f8172] hover:text-[#9c5626]"
+                }`}
+              >
+                {copied ? (
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    className="h-4 w-4"
+                  >
+                    <path
+                      d="M4.5 10.5 8 14l7.5-8"
+                      className="stroke-current"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    className="h-4 w-4"
+                  >
+                    <rect
+                      x="7"
+                      y="3"
+                      width="9"
+                      height="11"
+                      rx="2"
+                      className="stroke-current"
+                      strokeWidth="1.4"
+                    />
+                    <rect
+                      x="4"
+                      y="6"
+                      width="9"
+                      height="11"
+                      rx="2"
+                      className="stroke-current"
+                      strokeWidth="1.4"
+                    />
+                  </svg>
+                )}
+              </button>
+
+              {!isUser && canRegenerate ? (
+                <button
+                  type="button"
+                  onClick={onRegenerate}
+                  aria-label="从这条回复重新生成"
+                  title="从这条回复重新生成"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#8f8172] transition hover:text-[#9c5626]"
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    className="h-4 w-4"
+                  >
+                    <path
+                      d="M15.5 6.5V3.5m0 0h-3m3 0-3.1 3.1a5.5 5.5 0 1 0 1.15 5.9"
+                      className="stroke-current"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         {!isUser && observability ? (
           <div className="mt-3">

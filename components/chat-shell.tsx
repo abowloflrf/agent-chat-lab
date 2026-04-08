@@ -5,10 +5,12 @@ import { useChat } from "@ai-sdk/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { ChatMessage } from "@/components/chat-message";
 import { ConversationList } from "@/components/conversation-list";
 import {
   agentObservabilitySchema,
+  getMessageTimestamp,
   parseAgentObservability,
   type ChatUIMessage,
 } from "@/lib/observability";
@@ -48,6 +50,16 @@ function formatContextLength(tokenCount: number | null) {
 
 function formatShortConversationId(conversationId: string) {
   return conversationId.slice(0, 8);
+}
+
+function extractMessageText(message: ChatUIMessage) {
+  return message.parts
+    .filter((part): part is Extract<ChatUIMessage["parts"][number], { type: "text" }> => {
+      return part.type === "text";
+    })
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
 }
 
 export function ChatShell({
@@ -146,6 +158,32 @@ export function ChatShell({
       textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [draft]);
 
+  useEffect(() => {
+    const hasMissingTimestamp = messages.some((message) => {
+      return message.role === "user" && getMessageTimestamp(message.metadata) === null;
+    });
+
+    if (!hasMissingTimestamp) {
+      return;
+    }
+
+    setMessages((currentMessages) =>
+      currentMessages.map((message) => {
+        if (message.role !== "user" || getMessageTimestamp(message.metadata) !== null) {
+          return message;
+        }
+
+        return {
+          ...message,
+          metadata: {
+            ...(message.metadata ?? {}),
+            createdAt: Date.now(),
+          },
+        };
+      }),
+    );
+  }, [messages, setMessages]);
+
   const isBusy = status !== "ready";
   const userMessageCount = messages.filter(
     (message) => message.role === "user",
@@ -214,6 +252,41 @@ export function ChatShell({
     }
 
     await sendMessage({ text: prompt });
+  }
+
+  async function handleRegenerateFromMessage(messageId: string) {
+    if (isBusy) {
+      return;
+    }
+
+    const assistantIndex = messages.findIndex((message) => message.id === messageId);
+
+    if (assistantIndex <= 0) {
+      return;
+    }
+
+    const userIndex = [...messages]
+      .slice(0, assistantIndex)
+      .map((message, index) => ({ message, index }))
+      .reverse()
+      .find(({ message }) => message.role === "user")?.index;
+
+    if (userIndex === undefined) {
+      return;
+    }
+
+    const userText = extractMessageText(messages[userIndex]);
+
+    if (!userText) {
+      return;
+    }
+
+    const nextMessages = messages.slice(0, userIndex);
+    flushSync(() => {
+      setCurrentMessages(nextMessages);
+      setMessages(nextMessages);
+    });
+    await sendMessage({ text: userText });
   }
 
   function handleNewConversation() {
@@ -345,7 +418,11 @@ export function ChatShell({
                     className="rise-in"
                     style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}
                   >
-                    <ChatMessage message={message} />
+                    <ChatMessage
+                      message={message}
+                      canRegenerate={message.role === "assistant"}
+                      onRegenerate={() => void handleRegenerateFromMessage(message.id)}
+                    />
                   </div>
                 ))}
               </div>
