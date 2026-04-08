@@ -324,7 +324,7 @@ export function ProviderSettingsForm() {
                             </p>
                           ) : (
                             <p className="mt-2 text-xs text-[#8a8176]">
-                              模型名称将保存在本地存储中，下次访问时自动保留。
+                              配置将自动保存。
                             </p>
                           )}
                         </div>
@@ -333,14 +333,7 @@ export function ProviderSettingsForm() {
                   </div>
                 </section>
 
-                <div className="flex items-center justify-between border-t border-[rgba(23,23,23,0.08)] pt-5">
-                  <div className="text-sm text-[#6e665d]">
-                    {saveMessage ? (
-                      <span className="text-[#2f6a35]">{saveMessage}</span>
-                    ) : (
-                      <span>配置保存在浏览器本地存储中。</span>
-                    )}
-                  </div>
+                <div className="flex items-center justify-end border-t border-[rgba(23,23,23,0.08)] pt-5">
 
                   <button
                     type="submit"
