@@ -4,16 +4,11 @@ import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { ChatMessage } from "@/components/chat-message";
 import { ConversationList } from "@/components/conversation-list";
 import { agentObservabilitySchema, type ChatUIMessage } from "@/lib/observability";
-import {
-  defaultProviderConfig,
-  loadProviderConfigFromStorage,
-  providerConfigChangedEvent,
-  providerConfigStorageKey,
-} from "@/lib/provider-config";
+import { loadProviderConfigFromStorage } from "@/lib/provider-config";
 
 const starterPrompts = [
   "现在几点了？",
@@ -22,29 +17,18 @@ const starterPrompts = [
   "帮我回忆一下和 Agent 学习有关的笔记",
 ];
 
-const builtInTools = [
-  {
-    name: "get_current_time",
-    description: "读取当前时间，演示 Agent 如何访问运行时环境。",
-  },
-  {
-    name: "calculator",
-    description: "执行受限数学表达式计算，演示确定性工具。",
-  },
-  {
-    name: "create_note",
-    description: "写入一条持久化笔记，演示 Agent 修改状态。",
-  },
-  {
-    name: "search_notes",
-    description: "检索已有持久化笔记，演示最小记忆能力。",
-  },
-];
-
 type ChatShellProps = {
   initialConversationId: string;
   initialMessages: ChatUIMessage[];
 };
+
+function generateUUID() {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 export function ChatShell({
   initialConversationId,
@@ -54,31 +38,13 @@ export function ChatShell({
   const searchParams = useSearchParams();
   const routeConversationId = searchParams.get("conversationId");
   const [draft, setDraft] = useState("");
-  const [localConversationId, setLocalConversationId] = useState(initialConversationId);
-  const [currentMessages, setCurrentMessages] = useState<ChatUIMessage[]>(initialMessages);
+  const [localConversationId, setLocalConversationId] =
+    useState(initialConversationId);
+  const [currentMessages, setCurrentMessages] =
+    useState<ChatUIMessage[]>(initialMessages);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const conversationId = routeConversationId ?? localConversationId;
 
-  const providerConfig = useSyncExternalStore(
-    (onStoreChange) => {
-      const handleStorageChange = (event: StorageEvent) => {
-        if (event.key === providerConfigStorageKey) {
-          onStoreChange();
-        }
-      };
-
-      window.addEventListener("storage", handleStorageChange);
-      window.addEventListener(providerConfigChangedEvent, onStoreChange);
-
-      return () => {
-        window.removeEventListener("storage", handleStorageChange);
-        window.removeEventListener(providerConfigChangedEvent, onStoreChange);
-      };
-    },
-    () => JSON.stringify(loadProviderConfigFromStorage()),
-    () => JSON.stringify(defaultProviderConfig),
-  );
-  const providerConfigObj = JSON.parse(providerConfig);
   const transport = new DefaultChatTransport({
     api: "/api/chat",
     prepareSendMessagesRequest: ({ body, id, messages }) => ({
@@ -90,12 +56,15 @@ export function ChatShell({
       },
     }),
   });
-  const { messages, sendMessage, status, error, stop, setMessages } = useChat<ChatUIMessage>({
-    id: conversationId,
-    messages: currentMessages,
-    messageMetadataSchema: agentObservabilitySchema,
-    transport,
-  });
+
+  const { messages, sendMessage, status, error, stop, setMessages } =
+    useChat<ChatUIMessage>({
+      id: conversationId,
+      messages: currentMessages,
+      messageMetadataSchema: agentObservabilitySchema,
+      transport,
+    });
+
   const shouldRefreshTitle =
     status === "ready" &&
     messages.filter((message) => message.role === "user").length === 1 &&
@@ -112,13 +81,24 @@ export function ChatShell({
             setMessages(data.conversation.messages);
           }
         })
-        .catch((error) => {
-          console.error("Failed to load conversation:", error);
+        .catch((fetchError) => {
+          console.error("Failed to load conversation:", fetchError);
         });
     }
   }, [localConversationId, routeConversationId, setMessages]);
 
   const isBusy = status !== "ready";
+  const userMessageCount = messages.filter(
+    (message) => message.role === "user",
+  ).length;
+  const toolStepCount = messages.reduce((count, message) => {
+    return (
+      count +
+      message.parts.filter(
+        (part) => part.type === "dynamic-tool" || part.type.startsWith("tool-"),
+      ).length
+    );
+  }, 0);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -156,41 +136,53 @@ export function ChatShell({
     setIsCreatingConversation(false);
   }
 
-  function generateUUID() {
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === "x" ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
-  }
-
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(240,94,35,0.24),_transparent_30%),linear-gradient(180deg,_#f4efe7_0%,_#efe6d8_48%,_#e8ddcd_100%)] text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 px-4 py-4 lg:flex-row lg:px-6">
-        <aside className="flex w-full flex-col justify-between rounded-xl border border-black/10 bg-black/[0.04] p-4 backdrop-blur lg:max-w-sm">
-          <div className="space-y-8">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+    <main className="app-shell h-screen overflow-hidden text-[#171717]">
+      <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <aside className="dark-panel rise-in relative h-full overflow-hidden border-r border-white/10 p-4 lg:p-4">
+          <div className="relative flex h-full flex-col">
+            <div className="border-b border-white/8 pb-4">
+              <div>
+                <p className="text-[28px] font-semibold leading-[0.95] text-[#fff7ef]">
                   Agent Chat Lab
                 </p>
                 <Link
                   href="/settings"
-                  className="rounded-md border border-black/10 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-700 transition hover:bg-black/5"
+                  className="mt-3 inline-flex rounded-md border border-white/12 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-[#f3dfcf] transition hover:border-[#d98a52] hover:bg-white/6"
                 >
                   系统设置
                 </Link>
               </div>
-              <h1 className="max-w-xs text-3xl font-semibold leading-tight">
-                从 0 开始学习一个最小可解释 Agent
-              </h1>
-              <p className="max-w-sm text-sm leading-7 text-slate-700">
-                这个项目故意保持简单：一个聊天界面、一个模型、四个工具。
-                重点不是炫技，而是让你看清 Agent 的基本流程。
-              </p>
             </div>
 
-            <section className="h-64 min-h-0 flex-1">
+            <div className="grid grid-cols-3 gap-2 border-b border-white/8 py-4 text-center">
+              <div>
+                <p className="font-mono text-[18px] text-[#fff4ea]">
+                  {messages.length}
+                </p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#a99b8a]">
+                  消息
+                </p>
+              </div>
+              <div>
+                <p className="font-mono text-[18px] text-[#fff4ea]">
+                  {toolStepCount}
+                </p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#a99b8a]">
+                  工具步
+                </p>
+              </div>
+              <div>
+                <p className="font-mono text-[18px] text-[#fff4ea]">
+                  {userMessageCount}
+                </p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#a99b8a]">
+                  输入轮次
+                </p>
+              </div>
+            </div>
+
+            <section className="min-h-0 flex-1 pt-4">
               <ConversationList
                 currentConversationId={conversationId}
                 onNewConversation={handleNewConversation}
@@ -198,176 +190,118 @@ export function ChatShell({
                 isCreatingConversation={isCreatingConversation}
               />
             </section>
-
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
-                  当前模型配置
-                </h2>
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                  {providerConfigObj.model ? "已配置" : "未配置"}
-                </span>
-              </div>
-              <div className="rounded-lg border border-black/10 bg-white/70 p-3 text-sm leading-6 text-slate-700">
-                <p>
-                  <span className="font-medium text-slate-900">Base URL:</span>{" "}
-                  <span className="font-mono text-xs">
-                    {providerConfigObj.baseUrl || "未设置"}
-                  </span>
-                </p>
-                <p className="mt-1">
-                  <span className="font-medium text-slate-900">模型:</span>{" "}
-                  <span className="font-mono text-xs">
-                    {providerConfigObj.model || "未设置"}
-                  </span>
-                </p>
-              </div>
-            </section>
-
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
-                  内置 Tools
-                </h2>
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                  4 个
-                </span>
-              </div>
-              <div className="space-y-3">
-                {builtInTools.map((tool) => (
-                  <div
-                    key={tool.name}
-                    className="rounded-lg border border-black/10 bg-white/70 p-3"
-                  >
-                    <div className="font-mono text-xs text-orange-700">
-                      {tool.name}
-                    </div>
-                    <p className="mt-1 text-sm leading-6 text-slate-700">
-                      {tool.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
-                学习顺序
-              </h2>
-              <ol className="space-y-2 text-sm leading-6 text-slate-700">
-                <li>1. 用户输入进入 `/api/chat`</li>
-                <li>2. 服务端拼接 system prompt 与历史消息</li>
-                <li>3. 模型判断是否需要调用工具</li>
-                <li>4. 本地工具执行并返回结构化结果</li>
-                <li>5. 模型基于工具结果继续回答</li>
-              </ol>
-            </section>
           </div>
-
         </aside>
 
-        <section className="flex min-h-[75vh] flex-1 flex-col overflow-hidden rounded-xl border border-black/10 bg-white/75 shadow-[0_20px_80px_rgba(15,23,42,0.10)] backdrop-blur">
-          <header className="border-b border-black/10 px-5 py-4">
-            <div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-slate-500">
-                  对话区
-                </p>
-                <div className="flex items-center gap-3">
-                  <h2 className="text-2xl font-semibold">最小 Agent 回路</h2>
-                  {messages.length > 0 && (
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
-                      {messages.length} 条消息
-                    </span>
-                  )}
+        <section className="glass-panel rise-in relative flex h-full min-h-0 flex-col overflow-hidden">
+          <header className="relative border-b border-[rgba(23,23,23,0.08)] px-4 py-4">
+            <div className="flex justify-end">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-[#5c544a]">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#978b7e]">
+                    会话 ID
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-[#352d25]">
+                    {conversationId.slice(0, 8)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#978b7e]">
+                    状态
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-[#352d25]">
+                    {status}
+                  </p>
                 </div>
               </div>
             </div>
           </header>
 
-          <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="relative flex-1 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
-              <div className="flex h-full flex-col justify-between gap-8">
-                <div className="max-w-2xl space-y-4">
-                  <div className="inline-flex rounded-md border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-orange-700">
-                    Stage 1
+              <div className="flex min-h-[520px] items-center justify-center">
+                <section className="w-full max-w-3xl">
+                  <div className="mb-4">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                      Quick Starts
+                    </p>
                   </div>
-                  <h3 className="text-4xl font-semibold leading-tight text-slate-900">
-                    先把一个能调用工具的聊天应用跑起来。
-                  </h3>
-                  <p className="max-w-xl text-base leading-8 text-slate-600">
-                    你现在看到的是一个教学型起点。发一条普通消息、数学问题、
-                    时间查询，或者让它记住一条笔记，然后观察工具调用卡片是怎样出现在消息流中的。
-                  </p>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  {starterPrompts.map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      onClick={() => void handleStarterPrompt(prompt)}
-                      disabled={isBusy}
-                      className="rounded-lg border border-black/10 bg-stone-50 p-4 text-left text-sm leading-7 text-slate-700 transition hover:-translate-y-0.5 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {starterPrompts.map((prompt, index) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        onClick={() => void handleStarterPrompt(prompt)}
+                        disabled={isBusy}
+                        className="group flex items-start justify-between gap-4 rounded-lg border border-[rgba(23,23,23,0.12)] px-4 py-4 text-left transition hover:border-[rgba(201,106,43,0.45)] hover:bg-white/55 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <div>
+                          <p className="font-mono text-[11px] text-[#9e9285]">
+                            0{index + 1}
+                          </p>
+                          <p className="mt-2 text-base leading-7 text-[#282019] transition group-hover:text-[#9c5626]">
+                            {prompt}
+                          </p>
+                        </div>
+                        <span className="mt-1 text-lg text-[#b7a99a] transition group-hover:translate-x-1 group-hover:text-[#9c5626]">
+                          ↗
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
               </div>
             ) : (
-              <div className="space-y-6 animate-in fade-in duration-300">
-                {messages.map((message) => (
-                  <ChatMessage key={message.id} message={message} />
+              <div className="mx-auto max-w-4xl space-y-6">
+                {messages.map((message, index) => (
+                  <div
+                    key={message.id}
+                    className="rise-in"
+                    style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}
+                  >
+                    <ChatMessage message={message} />
+                  </div>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="border-t border-black/10 px-5 py-4">
+          <div className="relative border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.92)] px-4 py-4">
             {error ? (
-              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+              <div className="mb-3 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-4 py-3 text-sm text-[#9a3818]">
                 {error.message}
               </div>
             ) : null}
 
-            <form onSubmit={handleSubmit} className="space-y-3">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <label className="block">
-                <span className="mb-2 block text-xs uppercase tracking-[0.24em] text-slate-500">
-                  输入消息
-                </span>
+                <span className="sr-only">输入消息</span>
                 <textarea
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder="例如：帮我记住一条笔记，标题是下周计划，内容是先补 tool calling 和 persistence。"
-                  className="min-h-28 w-full resize-none rounded-xl border border-black/10 bg-stone-50 px-4 py-4 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:bg-white"
+                  placeholder="输入消息，例如：帮我记住今天要继续完善 Agent 的工具调用演示。"
+                  className="min-h-28 w-full resize-y rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-5 py-4 text-[15px] leading-7 text-[#171717] outline-none transition placeholder:text-[#9f968b] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
                   disabled={isBusy}
                 />
               </label>
 
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <p className="text-xs leading-6 text-slate-500">
-                  当前已接入 SQLite 持久化，支持多会话管理，笔记与工具调用会记录到本地数据库。
-                </p>
-
-                <div className="flex items-center gap-3">
-                  {isBusy ? (
-                    <button
-                      type="button"
-                      onClick={() => void stop()}
-                      className="rounded-md border border-black/10 px-4 py-2 text-sm text-slate-700 transition hover:bg-black/5"
-                    >
-                      停止生成
-                    </button>
-                  ) : null}
+              <div className="flex items-center justify-end gap-2">
+                {isBusy ? (
                   <button
-                    type="submit"
-                    disabled={isBusy || draft.trim().length === 0}
-                    className="rounded-md bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    type="button"
+                    onClick={() => void stop()}
+                    className="rounded-full border border-[rgba(23,23,23,0.14)] px-3.5 py-1.5 text-xs font-medium text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626]"
                   >
-                    {isBusy ? "生成中..." : "发送消息"}
+                    停止
                   </button>
-                </div>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={isBusy || draft.trim().length === 0}
+                  className="rounded-lg bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isBusy ? "生成中..." : "发送"}
+                </button>
               </div>
             </form>
           </div>

@@ -8,7 +8,7 @@ import { parseAgentObservability } from "@/lib/observability";
 function roleLabel(role: UIMessage["role"]) {
   switch (role) {
     case "user":
-      return "你";
+      return "操作员";
     case "assistant":
       return "Agent";
     case "system":
@@ -33,13 +33,23 @@ export function ChatMessage({ message }: { message: UIMessage }) {
       className={`flex ${isUser ? "justify-end" : "justify-start"}`}
       data-role={message.role}
     >
-      <div className="max-w-3xl space-y-2">
+      <div
+        className={`${
+          isUser
+            ? "ml-auto flex w-full max-w-2xl flex-col items-end"
+            : "w-full max-w-3xl"
+        }`}
+      >
         <div
-          className={`text-xs uppercase tracking-[0.22em] ${
-            isUser ? "text-right text-slate-500" : "text-slate-500"
+          className={`mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] ${
+            isUser ? "justify-end text-[#9f9283]" : "text-[#8f8172]"
           }`}
         >
-          {roleLabel(message.role)}
+          {!isUser ? (
+            <span className="h-2 w-2 rounded-full bg-[#c96a2b]" />
+          ) : null}
+          <span>{roleLabel(message.role)}</span>
+          {isUser ? <span className="h-2 w-2 rounded-full bg-[#171717]" /> : null}
         </div>
 
         <div className="space-y-3">
@@ -50,10 +60,12 @@ export function ChatMessage({ message }: { message: UIMessage }) {
                 return (
                   <div
                     key={`${message.id}-text-${index}`}
-                    className={`rounded-xl px-4 py-3 text-sm leading-7 shadow-sm ${
+                    className={`${
+                      isUser ? "w-fit max-w-full" : ""
+                    } rounded-[16px] px-4 py-3 text-[15px] leading-7 ${
                       isUser
-                        ? "bg-slate-950 text-white"
-                        : "border border-black/10 bg-stone-50 text-slate-800"
+                        ? "bg-[#4a3328] text-[#fff8f2] shadow-[0_16px_40px_rgba(74,51,40,0.14)]"
+                        : "border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.72)] text-[#2b231b]"
                     }`}
                   >
                     <ReactMarkdown
@@ -63,14 +75,26 @@ export function ChatMessage({ message }: { message: UIMessage }) {
                           <p className="whitespace-pre-wrap">{children}</p>
                         ),
                         pre: ({ children }) => (
-                          <pre className="my-2 overflow-x-auto rounded-lg bg-slate-900 p-3 text-slate-100">
+                          <pre className="my-3 overflow-x-auto rounded-[14px] bg-[#171717] p-4 text-[#faf6f1]">
                             {children}
                           </pre>
                         ),
                         code: ({ children }) => (
-                          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm font-mono text-slate-800">
+                          <code
+                            className={`rounded px-1.5 py-0.5 text-xs font-mono ${
+                              isUser
+                                ? "bg-white/10 text-[#fff8f2]"
+                                : "bg-[#f1e7db] text-[#6b3718]"
+                            }`}
+                          >
                             {children}
                           </code>
+                        ),
+                        ul: ({ children }) => (
+                          <ul className="list-disc space-y-1 pl-5">{children}</ul>
+                        ),
+                        ol: ({ children }) => (
+                          <ol className="list-decimal space-y-1 pl-5">{children}</ol>
                         ),
                       }}
                     >
@@ -80,11 +104,7 @@ export function ChatMessage({ message }: { message: UIMessage }) {
                 );
               }
 
-              if (part.type === "source-url") {
-                return null;
-              }
-
-              if (part.type === "source-document") {
+              if (part.type === "source-url" || part.type === "source-document") {
                 return null;
               }
 
@@ -92,12 +112,12 @@ export function ChatMessage({ message }: { message: UIMessage }) {
                 return (
                   <details
                     key={`${message.id}-reasoning-${index}`}
-                    className="rounded-lg border border-black/10 bg-amber-50/80 px-4 py-3 text-sm text-slate-700"
+                    className="rounded-[16px] border border-[rgba(201,106,43,0.18)] bg-[rgba(255,241,229,0.72)] px-4 py-3 text-sm text-[#4c3829]"
                   >
-                    <summary className="cursor-pointer font-medium text-amber-800">
-                      模型推理片段
+                    <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-[0.22em] text-[#a44d16]">
+                      推理轨迹
                     </summary>
-                    <pre className="mt-3 whitespace-pre-wrap font-mono text-xs leading-6 text-slate-700">
+                    <pre className="mt-3 whitespace-pre-wrap font-mono text-xs leading-6 text-[#6b5340]">
                       {"text" in part ? part.text : JSON.stringify(part, null, 2)}
                     </pre>
                   </details>
@@ -118,7 +138,9 @@ export function ChatMessage({ message }: { message: UIMessage }) {
         </div>
 
         {!isUser && observability ? (
-          <AgentTimeline observability={observability} />
+          <div className="mt-3">
+            <AgentTimeline observability={observability} />
+          </div>
         ) : null}
       </div>
     </article>

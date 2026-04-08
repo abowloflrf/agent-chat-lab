@@ -50,43 +50,43 @@ export function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
   const failed = invocation.state === "output-error";
 
   return (
-    <section className="rounded-lg border border-black/10 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+    <section className="rounded-[18px] border border-[rgba(23,23,23,0.08)] bg-[rgba(255,248,241,0.82)] p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="font-mono text-xs uppercase tracking-[0.18em] text-orange-700">
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#a44d16]">
             {toolName}
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-900">
-            Tool Call #{invocation.toolCallId.slice(0, 8)}
+          <p className="mt-1 text-sm text-[#2f261d]">
+            调用 #{invocation.toolCallId.slice(0, 6)}
           </p>
         </div>
 
         <span
-          className={`rounded-md px-3 py-1 text-xs font-medium ${
+          className={`w-fit rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-[0.14em] ${
             failed
-              ? "bg-red-100 text-red-700"
-              : "bg-emerald-100 text-emerald-700"
+              ? "bg-[#fee2e2] text-[#991b1b]"
+              : "bg-[#e7f4e5] text-[#36643a]"
           }`}
         >
           {stateLabel(invocation.state)}
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div className="rounded-lg bg-stone-50 p-3">
-          <div className="mb-2 text-xs uppercase tracking-[0.18em] text-slate-500">
+      <div className="mt-4 grid gap-3 border-t border-[rgba(23,23,23,0.08)] pt-4 md:grid-cols-2">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
             Input
-          </div>
-          <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs leading-6 text-slate-700">
+          </p>
+          <pre className="mt-2 overflow-x-auto rounded-[14px] bg-white px-4 py-3 font-mono text-[11px] leading-6 text-[#4b3f35]">
             {formatJson(invocation.input)}
           </pre>
         </div>
 
-        <div className="rounded-lg bg-stone-50 p-3">
-          <div className="mb-2 text-xs uppercase tracking-[0.18em] text-slate-500">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
             Output
-          </div>
-          <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs leading-6 text-slate-700">
+          </p>
+          <pre className="mt-2 overflow-x-auto rounded-[14px] bg-white px-4 py-3 font-mono text-[11px] leading-6 text-[#4b3f35]">
             {failed ? invocation.errorText : formatJson(invocation.output)}
           </pre>
         </div>

@@ -33,74 +33,71 @@ type AgentTimelineProps = {
 
 export function AgentTimeline({ observability }: AgentTimelineProps) {
   return (
-    <section className="rounded-xl border border-black/10 bg-white/80 p-4 shadow-sm">
+    <section className="rounded-[18px] border border-[rgba(23,23,23,0.08)] bg-[rgba(248,242,235,0.8)] p-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-[#8e8070]">
             Agent Timeline
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-900">
-            {observability.timeline.length} 个 step
+          <p className="mt-1 text-sm text-[#2e251c]">
+            {observability.timeline.length} 步
             {observability.totalDurationMs !== undefined
-              ? ` · 总耗时 ${formatDuration(observability.totalDurationMs)}`
-              : " · 运行中"}
+              ? ` · ${formatDuration(observability.totalDurationMs)}`
+              : ""}
           </p>
         </div>
 
         <span
-          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+          className={`w-fit rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-[0.14em] ${
             observability.status === "finished"
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-amber-100 text-amber-700"
+              ? "bg-[#e7f4e5] text-[#36643a]"
+              : "bg-[#f5e5c8] text-[#93591d]"
           }`}
         >
-          {observability.status === "finished" ? "已完成" : "观测中"}
+          {observability.status === "finished" ? "完成" : "运行中"}
         </span>
       </div>
 
       {observability.timeline.length === 0 ? (
-        <p className="mt-4 rounded-lg bg-stone-50 px-3 py-2 text-sm text-slate-600">
-          等待第一个 step finish 事件...
+        <p className="mt-4 border-t border-[rgba(23,23,23,0.08)] pt-4 text-sm text-[#6d6257]">
+          等待下一步执行记录...
         </p>
       ) : (
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 space-y-4 border-t border-[rgba(23,23,23,0.08)] pt-4">
           {observability.timeline.map((step) => (
             <article
               key={`${step.event}-${step.stepNumber}-${step.finishedAt}`}
-              className="rounded-lg border border-black/10 bg-stone-50 p-4"
+              className="border-t border-[rgba(23,23,23,0.08)] pt-4 first:border-t-0 first:pt-0"
             >
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-900">
+                    <span className="font-mono text-xs text-[#a44d16]">
                       Step {step.stepNumber + 1}
                     </span>
-                    <span className="rounded-md bg-slate-200 px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-slate-700">
+                    <span className="rounded-full bg-[rgba(23,23,23,0.05)] px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-[#6b6157]">
                       {step.event}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs leading-6 text-slate-600">
-                    {step.provider} / {step.modelId} · {formatTime(step.startedAt)} -{" "}
-                    {formatTime(step.finishedAt)}
+                  <p className="mt-1 text-xs text-[#7a6e62]">
+                    {step.provider} · {formatTime(step.startedAt)}
                   </p>
                 </div>
 
                 <div className="text-left md:text-right">
-                  <p className="text-sm font-medium text-slate-900">
+                  <p className="text-sm text-[#2b231b]">
                     {formatDuration(step.durationMs)}
                   </p>
-                  <p className="text-xs text-slate-600">
-                    finish reason: {step.finishReason}
-                  </p>
+                  <p className="text-xs text-[#7a6e62]">{step.finishReason}</p>
                 </div>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-700">
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#584d43]">
                 <span className="rounded-full bg-white px-2.5 py-1">
-                  Input {step.usage.inputTokens}
+                  In {step.usage.inputTokens}
                 </span>
                 <span className="rounded-full bg-white px-2.5 py-1">
-                  Output {step.usage.outputTokens}
+                  Out {step.usage.outputTokens}
                 </span>
                 <span className="rounded-full bg-white px-2.5 py-1">
                   Total {step.usage.totalTokens}
@@ -112,21 +109,21 @@ export function AgentTimeline({ observability }: AgentTimelineProps) {
                 ) : null}
                 {step.usage.cachedInputTokens > 0 ? (
                   <span className="rounded-full bg-white px-2.5 py-1">
-                    Cache Read {step.usage.cachedInputTokens}
+                    Cache {step.usage.cachedInputTokens}
                   </span>
                 ) : null}
               </div>
 
               {step.toolCalls.length > 0 ? (
                 <div className="mt-3">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
                     Tools
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {step.toolCalls.map((toolCall) => (
                       <span
                         key={toolCall.toolCallId}
-                        className="rounded-full bg-orange-100 px-2.5 py-1 font-mono text-xs text-orange-700"
+                        className="rounded-full bg-[rgba(201,106,43,0.12)] px-2.5 py-1 font-mono text-[11px] text-[#9c5626]"
                       >
                         {toolCall.toolName}
                       </span>
@@ -135,7 +132,7 @@ export function AgentTimeline({ observability }: AgentTimelineProps) {
                 </div>
               ) : null}
 
-              <div className="mt-3 rounded-lg bg-white px-3 py-2 text-sm leading-6 text-slate-700">
+              <div className="mt-3 rounded-[14px] bg-white px-4 py-3 text-sm leading-6 text-[#53483d]">
                 {formatPreview(step.text)}
               </div>
             </article>

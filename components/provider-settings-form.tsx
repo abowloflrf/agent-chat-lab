@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { builtInTools } from "@/lib/built-in-tools";
 import {
   defaultProviderConfig,
   DEBOUNCE_DELAY_MS,
@@ -17,6 +18,8 @@ type FetchModelsState =
   | { status: "success"; error: string | null }
   | { status: "error"; error: string };
 
+type SettingsSection = "model" | "tools";
+
 export function ProviderSettingsForm() {
   const [form, setForm] = useState<ProviderConfig>(defaultProviderConfig);
   const [models, setModels] = useState<string[]>([]);
@@ -26,6 +29,7 @@ export function ProviderSettingsForm() {
     error: null,
   });
   const [isCustomModel, setIsCustomModel] = useState(false);
+  const [activeSection, setActiveSection] = useState<SettingsSection>("model");
   const initialLoadDone = useRef(false);
 
   useEffect(() => {
@@ -130,133 +134,235 @@ export function ProviderSettingsForm() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(15,23,42,0.12),_transparent_26%),linear-gradient(180deg,_#f3ede4_0%,_#ece2d4_55%,_#e7d8c2_100%)] text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 px-4 py-6 lg:px-6">
-        <header className="flex flex-col gap-4 rounded-[2rem] border border-black/10 bg-white/70 p-6 backdrop-blur">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="space-y-2">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">
-                System Settings
+    <main className="app-shell h-screen overflow-hidden text-[#171717]">
+      <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <aside className="dark-panel rise-in relative h-full overflow-hidden border-r border-white/10 p-4">
+          <div className="relative flex h-full flex-col">
+            <div className="border-b border-white/8 pb-4">
+              <p className="text-[11px] uppercase tracking-[0.28em] text-[#c4b6a4]">
+                Agent Chat Lab
               </p>
-              <h1 className="text-3xl font-semibold">模型供应商配置</h1>
-            </div>
-
-            <Link
-              href="/"
-              className="inline-flex rounded-full border border-black/10 px-4 py-2 text-sm text-slate-700 transition hover:bg-black/5"
-            >
-              返回聊天页
-            </Link>
-          </div>
-        </header>
-
-        <section>
-          <form
-            onSubmit={handleSave}
-            className="rounded-[2rem] border border-black/10 bg-white/80 p-6 shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur"
-          >
-            <div className="space-y-5">
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.24em] text-slate-500">
-                  Base URL
-                </label>
-                <input
-                  value={form.baseUrl}
-                  onChange={(event) =>
-                    updateField("baseUrl", event.target.value)
-                  }
-                  placeholder="https://api.openai.com/v1"
-                  className="w-full rounded-2xl border border-black/10 bg-stone-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.24em] text-slate-500">
-                  API Key
-                </label>
-                <input
-                  type="password"
-                  value={form.apiKey}
-                  onChange={(event) =>
-                    updateField("apiKey", event.target.value)
-                  }
-                  placeholder="sk-..."
-                  className="w-full rounded-2xl border border-black/10 bg-stone-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.24em] text-slate-500">
-                  Model
-                </label>
-                <div className="flex gap-3">
-                  <select
-                    value={isCustomModel ? "" : form.model}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      if (value === "__custom__") {
-                        setIsCustomModel(true);
-                        updateField("model", "");
-                      } else {
-                        setIsCustomModel(false);
-                        updateField("model", value);
-                      }
-                    }}
-                    className="w-full rounded-2xl border border-black/10 bg-stone-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-orange-300 focus:bg-white"
-                  >
-                    <option value="">
-                      {models.length > 0
-                        ? "请选择模型或手动输入"
-                        : "等待自动拉取 models 列表"}
-                    </option>
-                    {models.map((model) => (
-                      <option key={model} value={model}>
-                        {model}
-                      </option>
-                    ))}
-                    <option value="__custom__">自定义模型...</option>
-                  </select>
-                  {isCustomModel && (
-                    <input
-                      type="text"
-                      value={form.model}
-                      onChange={(event) =>
-                        updateField("model", event.target.value)
-                      }
-                      placeholder="输入自定义模型名称"
-                      className="w-full rounded-2xl border border-black/10 bg-stone-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:bg-white"
-                      autoFocus
-                    />
-                  )}
-                </div>
-                {fetchState.status === "loading" ? (
-                  <p className="mt-2 text-xs leading-6 text-slate-500">
-                    正在拉取模型列表...
-                  </p>
-                ) : null}
-                {fetchState.status === "error" ? (
-                  <p className="mt-2 text-xs leading-6 text-red-600">
-                    {fetchState.error}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end border-t border-black/10 pt-5">
-              <button
-                type="submit"
-                className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+              <h1 className="mt-3 text-[28px] font-semibold leading-[0.95] text-[#fff7ef]">
+                系统设置
+              </h1>
+              <Link
+                href="/"
+                className="mt-3 inline-flex rounded-md border border-white/12 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[#f3dfcf] transition hover:border-[#d98a52] hover:bg-white/6"
               >
-                保存配置
-              </button>
+                返回聊天
+              </Link>
             </div>
 
-            {saveMessage ? (
-              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
-                {saveMessage}
+            <div className="pt-4">
+              <div className="space-y-1 border-b border-white/8 pb-4">
+                <button
+                  type="button"
+                  onClick={() => setActiveSection("model")}
+                  className={`flex w-full cursor-pointer items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
+                    activeSection === "model"
+                      ? "border-white/16 bg-white/10 text-[#fff7ef]"
+                      : "border-transparent text-[#cabfb2] hover:border-white/10 hover:bg-white/6 hover:text-[#fff7ef]"
+                  }`}
+                >
+                  <span
+                    className={`text-sm font-medium ${
+                      activeSection === "model" ? "text-[#fff7ef]" : "text-[#e2d7ca]"
+                    }`}
+                  >
+                    模型配置
+                  </span>
+                  <span className="text-xs">↗</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveSection("tools")}
+                  className={`flex w-full cursor-pointer items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
+                    activeSection === "tools"
+                      ? "border-white/16 bg-white/10 text-[#fff7ef]"
+                      : "border-transparent text-[#cabfb2] hover:border-white/10 hover:bg-white/6 hover:text-[#fff7ef]"
+                  }`}
+                >
+                  <span
+                    className={`text-sm font-medium ${
+                      activeSection === "tools" ? "text-[#fff7ef]" : "text-[#e2d7ca]"
+                    }`}
+                  >
+                    内置 Tools
+                  </span>
+                  <span className="text-xs">↗</span>
+                </button>
               </div>
-            ) : null}
-          </form>
+            </div>
+          </div>
+        </aside>
+
+        <section className="glass-panel rise-in flex h-full min-h-0 flex-col overflow-hidden">
+          <div className="border-b border-[rgba(23,23,23,0.08)] px-4 py-4">
+            <p className="text-[11px] uppercase tracking-[0.28em] text-[#8a8176]">
+              System Settings
+            </p>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <form onSubmit={handleSave} className="max-w-3xl space-y-6">
+            {activeSection === "model" ? (
+              <>
+                <section className="border-t border-[rgba(23,23,23,0.08)] pt-6 first:border-t-0 first:pt-0">
+                  <div className="mb-5">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                      模型配置
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+                      配置 Base URL、API Key 和默认模型。Base URL 与 API Key 可用时会自动尝试拉取模型列表。
+                    </p>
+                  </div>
+
+                  <div className="grid gap-6">
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                        Base URL
+                      </span>
+                      <input
+                        value={form.baseUrl}
+                        onChange={(event) =>
+                          updateField("baseUrl", event.target.value)
+                        }
+                        placeholder="https://api.openai.com/v1"
+                        className="w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                        API Key
+                      </span>
+                      <input
+                        type="password"
+                        value={form.apiKey}
+                        onChange={(event) =>
+                          updateField("apiKey", event.target.value)
+                        }
+                        placeholder="sk-..."
+                        className="w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
+                      />
+                    </label>
+
+                    <div>
+                      <span className="mb-2 block text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                        Model
+                      </span>
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                        <select
+                          value={isCustomModel ? "" : form.model}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            if (value === "__custom__") {
+                              setIsCustomModel(true);
+                              updateField("model", "");
+                            } else {
+                              setIsCustomModel(false);
+                              updateField("model", value);
+                            }
+                          }}
+                          className="w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
+                        >
+                          <option value="">
+                            {models.length > 0
+                              ? "选择模型或手动输入"
+                              : "等待拉取模型列表"}
+                          </option>
+                          {models.map((model) => (
+                            <option key={model} value={model}>
+                              {model}
+                            </option>
+                          ))}
+                          <option value="__custom__">自定义...</option>
+                        </select>
+
+                        {isCustomModel ? (
+                          <input
+                            type="text"
+                            value={form.model}
+                            onChange={(event) =>
+                              updateField("model", event.target.value)
+                            }
+                            placeholder="模型名称"
+                            className="w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
+                            autoFocus
+                          />
+                        ) : (
+                          <div className="rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(248,242,235,0.8)] px-4 py-3 text-sm text-[#6e665d]">
+                            {fetchState.status === "loading"
+                              ? "正在拉取模型列表..."
+                              : fetchState.status === "success"
+                                ? "已拿到模型列表，可直接选择。"
+                                : "如未能拉取，可改为手动输入模型名。"}
+                          </div>
+                        )}
+                      </div>
+
+                      {fetchState.status === "error" ? (
+                        <p className="mt-2 text-sm text-[#b2411d]">
+                          {fetchState.error}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </section>
+
+                <div className="flex items-center justify-between border-t border-[rgba(23,23,23,0.08)] pt-5">
+                  <div className="text-sm text-[#6e665d]">
+                    {saveMessage ? (
+                      <span className="text-[#2f6a35]">{saveMessage}</span>
+                    ) : (
+                      <span>配置保存在浏览器本地存储中。</span>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="rounded-full bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d]"
+                  >
+                    保存
+                  </button>
+                </div>
+              </>
+            ) : (
+              <section className="border-t border-[rgba(23,23,23,0.08)] pt-6 first:border-t-0 first:pt-0">
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                      内置 Tools
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+                      这里只展示当前应用内置的工具能力，不提供额外配置项。
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-[rgba(23,23,23,0.1)] px-3 py-1 text-[11px] text-[#6e665d]">
+                    {builtInTools.length} 个
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {builtInTools.map((tool) => (
+                    <div
+                      key={tool.name}
+                      className="rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.64)] px-4 py-4"
+                    >
+                      <p className="font-mono text-[12px] text-[#9c5626]">
+                        {tool.name}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[#4d4339]">
+                        {tool.description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+            </form>
+          </div>
         </section>
       </div>
     </main>

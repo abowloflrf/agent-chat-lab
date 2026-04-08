@@ -87,89 +87,114 @@ export function ConversationList({
 
     if (minutes < 1) {
       return "刚刚";
-    } else if (minutes < 60) {
-      return `${minutes} 分钟前`;
-    } else if (hours < 24) {
-      return `${hours} 小时前`;
-    } else if (days < 7) {
-      return `${days} 天前`;
-    } else {
-      return date.toLocaleDateString("zh-CN", {
-        month: "short",
-        day: "numeric",
-      });
     }
+    if (minutes < 60) {
+      return `${minutes} 分钟前`;
+    }
+    if (hours < 24) {
+      return `${hours} 小时前`;
+    }
+    if (days < 7) {
+      return `${days} 天前`;
+    }
+
+    return date.toLocaleDateString("zh-CN", {
+      month: "short",
+      day: "numeric",
+    });
   }
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
-          会话列表
-        </h2>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-[#a99b8a]">
+            会话索引
+          </p>
+          <p className="mt-1 text-sm text-[#f5eee6]">
+            {conversations.length} 个持久化上下文
+          </p>
+        </div>
         <button
           type="button"
           onClick={onNewConversation}
           disabled={isCreatingConversation}
-          className="rounded-md border border-black/10 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-700 transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-full border border-white/12 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-[#f3dfcf] transition hover:border-[#d98a52] hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50"
           suppressHydrationWarning
         >
-          {isCreatingConversation ? "新建中..." : "新建会话"}
+          {isCreatingConversation ? "新建中" : "新建"}
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="scrollbar-hidden mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
         {isLoading ? (
-          <div className="py-4 text-center text-sm text-slate-500">
-            加载中...
+          <div className="border-t border-white/8 py-4 text-sm text-[#a99b8a]">
+            正在读取会话...
           </div>
         ) : conversations.length === 0 ? (
-          <div className="py-4 text-center text-sm text-slate-500">
-            暂无会话
+          <div className="border-t border-white/8 py-4 text-sm text-[#a99b8a]">
+            还没有历史会话，直接从右侧发起第一轮对话。
           </div>
         ) : (
-          <ul className="space-y-1">
-            {conversations.map((conversation) => (
-              <li key={conversation.id}>
-                <div
-                  onClick={() => handleClick(conversation.id)}
-                  className={`group flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition ${
-                    conversation.id === currentConversationId
-                      ? "border-orange-200 bg-orange-50"
-                      : "border-black/10 bg-white/70 hover:bg-white"
-                  } ${conversation.id !== currentConversationId ? "cursor-pointer" : ""}`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-slate-900">
-                      {conversation.title || "未命名会话"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {formatTime(conversation.lastMessageAt)}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => handleDelete(e, conversation.id)}
-                    className="ml-2 hidden rounded p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600 group-hover:block"
-                    title="删除会话"
+          <ul>
+            {conversations.map((conversation) => {
+              const active = conversation.id === currentConversationId;
+
+              return (
+                <li key={conversation.id} className="border-t border-white/8">
+                  <div
+                    onClick={() => handleClick(conversation.id)}
+                    className={`group flex items-start justify-between gap-3 rounded-lg px-2 py-3 transition ${
+                      active ? "cursor-default" : "cursor-pointer"
+                    }`}
                   >
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-2 w-2 rounded-full transition ${
+                            active ? "bg-[#d28042]" : "bg-white/20"
+                          }`}
+                        />
+                        <p
+                          className={`truncate text-sm transition ${
+                            active
+                              ? "text-[#fff6ee]"
+                              : "text-[#dacdbf] group-hover:text-white"
+                          }`}
+                        >
+                          {conversation.title || "未命名会话"}
+                        </p>
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-3 text-[11px] text-[#9f9180]">
+                        <span>{formatTime(conversation.lastMessageAt)}</span>
+                        <span className="font-mono">{conversation.id.slice(0, 6)}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(event) => handleDelete(event, conversation.id)}
+                      className="rounded-full p-1.5 text-[#9f9180] opacity-0 transition hover:bg-[#5c2418] hover:text-[#ffd8ca] group-hover:opacity-100"
+                      title="删除会话"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </li>
-            ))}
+                      <svg
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
