@@ -35,6 +35,21 @@ const defaultNotes = [
   },
 ];
 
+const defaultTodos = [
+  {
+    title: "补齐更多内置 Tools",
+    content: "优先实现 TodoRead / TodoWrite，再评估 read-only 文件工具。",
+    status: "in_progress",
+    priority: "high",
+  },
+  {
+    title: "验证 Tavily 联网工具",
+    content: "拿真实 API Key 跑一次 WebSearch 和 WebFetch 联调。",
+    status: "todo",
+    priority: "medium",
+  },
+];
+
 function seedDefaultNotes() {
   const existingNote = db.select({ id: schema.notes.id }).from(schema.notes).limit(1).all()[0];
 
@@ -56,11 +71,35 @@ function seedDefaultNotes() {
   ).run();
 }
 
+function seedDefaultTodos() {
+  const existingTodo = db.select({ id: schema.todos.id }).from(schema.todos).limit(1).all()[0];
+
+  if (existingTodo) {
+    return;
+  }
+
+  const now = Date.now();
+
+  db.insert(schema.todos).values(
+    defaultTodos.map((todo) => ({
+      id: crypto.randomUUID(),
+      title: todo.title,
+      content: todo.content,
+      status: todo.status,
+      priority: todo.priority,
+      createdAt: now,
+      updatedAt: now,
+      completedAt: todo.status === "done" ? now : null,
+    })),
+  ).run();
+}
+
 export async function ensureDatabase() {
   if (!initializationPromise) {
     initializationPromise = Promise.resolve().then(() => {
       migrate(db, { migrationsFolder: migrationsFolderPath });
       seedDefaultNotes();
+      seedDefaultTodos();
     });
   }
 

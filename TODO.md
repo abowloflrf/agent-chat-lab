@@ -14,6 +14,10 @@
 - [x] `calculator`
 - [x] `create_note`
 - [x] `search_notes`
+- [x] `WebSearch`
+- [x] `WebFetch`
+- [x] `TodoWrite`
+- [x] `TodoRead`
 
 ### 模型配置
 - [x] 新增系统设置页 `/settings`
@@ -45,9 +49,7 @@
 ## 未完成
 
 ### More Tools
-- [ ] `web_search`
 - [ ] `read_url`
-- [ ] `todo_manager`
 
 ### Better Agent Design
 - [ ] 增加 tool 选择约束

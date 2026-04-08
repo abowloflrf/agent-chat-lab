@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, asc, desc, eq, notInArray } from "drizzle-orm";
+import { and, asc, desc, eq, notInArray, sql } from "drizzle-orm";
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
 import { db, ensureDatabase } from "@/lib/db/client";
-import { conversations, messages, notes, toolCalls } from "@/lib/db/schema";
+import { conversations, messages, notes, todos, toolCalls } from "@/lib/db/schema";
 import type { ChatUIMessage } from "@/lib/observability";
 
 type NoteRecord = {
@@ -12,6 +12,20 @@ type NoteRecord = {
   content: string;
   tags: string[];
   createdAt: string;
+};
+
+type TodoStatus = "todo" | "in_progress" | "done";
+type TodoPriority = "low" | "medium" | "high";
+
+type TodoRecord = {
+  id: string;
+  title: string;
+  content: string;
+  status: TodoStatus;
+  priority: TodoPriority;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
 };
 
 type ChatSnapshot = {
@@ -86,6 +100,25 @@ function scoreNote(note: NoteRecord, query: string) {
   return score;
 }
 
+function scoreTodo(todo: TodoRecord, query: string) {
+  const lowerQuery = query.toLowerCase();
+  let score = 0;
+
+  if (todo.title.toLowerCase().includes(lowerQuery)) {
+    score += 4;
+  }
+
+  if (todo.content.toLowerCase().includes(lowerQuery)) {
+    score += 3;
+  }
+
+  if (todo.status.includes(lowerQuery) || todo.priority.includes(lowerQuery)) {
+    score += 1;
+  }
+
+  return score;
+}
+
 function isToolPart(part: UIMessage["parts"][number]): part is ToolLikePart {
   return part.type === "dynamic-tool" || part.type.startsWith("tool-");
 }
@@ -118,6 +151,19 @@ function toStoredNote(row: typeof notes.$inferSelect): NoteRecord {
     content: row.content,
     tags: parseJson<string[]>(row.tagsJson, []),
     createdAt: toIsoString(row.createdAt),
+  };
+}
+
+function toStoredTodo(row: typeof todos.$inferSelect): TodoRecord {
+  return {
+    id: row.id,
+    title: row.title,
+    content: row.content,
+    status: row.status as TodoStatus,
+    priority: row.priority as TodoPriority,
+    createdAt: toIsoString(row.createdAt),
+    updatedAt: toIsoString(row.updatedAt),
+    completedAt: row.completedAt === null ? null : toIsoString(row.completedAt),
   };
 }
 
@@ -286,6 +332,23 @@ export async function getAllConversations(): Promise<ConversationSummary[]> {
     updatedAt: toIsoString(row.updatedAt),
     lastMessageAt: toIsoString(row.lastMessageAt),
   }));
+}
+
+export async function getBuiltInToolUsageCounts(): Promise<Record<string, number>> {
+  await ensureDatabase();
+
+  const rows = db
+    .select({
+      toolName: toolCalls.toolName,
+      count: sql<number>`count(*)`,
+    })
+    .from(toolCalls)
+    .groupBy(toolCalls.toolName)
+    .all();
+
+  return Object.fromEntries(
+    rows.map((row) => [row.toolName, Number(row.count) || 0]),
+  );
 }
 
 export async function getConversation(conversationId: string): Promise<ChatSnapshot | null> {
@@ -507,5 +570,151 @@ export async function searchNotes(query: string) {
     query,
     totalMatches: matches.length,
     matches,
+  };
+}
+
+export async function writeTodo(input: {
+  action: "create" | "update" | "complete" | "reopen" | "delete";
+  id?: string;
+  title?: string;
+  content?: string;
+  priority?: TodoPriority;
+}) {
+  await ensureDatabase();
+
+  const now = Date.now();
+
+  if (input.action === "create") {
+    const todo = {
+      id: crypto.randomUUID(),
+      title: input.title?.trim() || "未命名待办",
+      content: input.content?.trim() || "",
+      status: "todo",
+      priority: input.priority ?? "medium",
+      createdAt: toIsoString(now),
+      updatedAt: toIsoString(now),
+      completedAt: null,
+    } satisfies TodoRecord;
+
+    db.insert(todos)
+      .values({
+        id: todo.id,
+        title: todo.title,
+        content: todo.content,
+        status: todo.status,
+        priority: todo.priority,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: null,
+      })
+      .run();
+
+    return {
+      success: true,
+      action: input.action,
+      todo,
+    };
+  }
+
+  if (!input.id) {
+    return {
+      success: false,
+      action: input.action,
+      error: "除 create 外，其他操作都需要提供待办 id。",
+    };
+  }
+
+  const existingRow = db.select().from(todos).where(eq(todos.id, input.id)).limit(1).all()[0];
+
+  if (!existingRow) {
+    return {
+      success: false,
+      action: input.action,
+      error: "未找到对应的待办事项。",
+    };
+  }
+
+  const existingTodo = toStoredTodo(existingRow);
+
+  if (input.action === "delete") {
+    db.delete(todos).where(eq(todos.id, input.id)).run();
+
+    return {
+      success: true,
+      action: input.action,
+      todo: existingTodo,
+    };
+  }
+
+  const nextStatus: TodoStatus =
+    input.action === "complete"
+      ? "done"
+      : input.action === "reopen"
+        ? "todo"
+        : existingTodo.status;
+  const nextCompletedAt =
+    input.action === "complete"
+      ? now
+      : input.action === "reopen"
+        ? null
+        : existingRow.completedAt;
+
+  db.update(todos)
+    .set({
+      title: input.title?.trim() || existingTodo.title,
+      content:
+        input.content !== undefined ? input.content.trim() : existingTodo.content,
+      priority: input.priority ?? existingTodo.priority,
+      status: nextStatus,
+      updatedAt: now,
+      completedAt: nextCompletedAt,
+    })
+    .where(eq(todos.id, input.id))
+    .run();
+
+  const updatedRow = db.select().from(todos).where(eq(todos.id, input.id)).limit(1).all()[0];
+
+  return {
+    success: true,
+    action: input.action,
+    todo: toStoredTodo(updatedRow),
+  };
+}
+
+export async function readTodos(input?: {
+  query?: string;
+  status?: TodoStatus | "all";
+  limit?: number;
+}) {
+  await ensureDatabase();
+
+  const normalizedQuery = input?.query?.trim() ?? "";
+  const normalizedStatus = input?.status ?? "all";
+  const normalizedLimit = Math.min(Math.max(input?.limit ?? 10, 1), 50);
+
+  const allTodos = db.select().from(todos).orderBy(desc(todos.updatedAt)).all().map(toStoredTodo);
+
+  const filteredTodos = allTodos
+    .filter((todo) => normalizedStatus === "all" || todo.status === normalizedStatus)
+    .map((todo) => ({
+      todo,
+      score: normalizedQuery ? scoreTodo(todo, normalizedQuery) : 1,
+    }))
+    .filter((item) => !normalizedQuery || item.score > 0)
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      return right.todo.updatedAt.localeCompare(left.todo.updatedAt, "zh-CN");
+    })
+    .slice(0, normalizedLimit)
+    .map((item) => item.todo);
+
+  return {
+    query: normalizedQuery || null,
+    status: normalizedStatus,
+    totalMatches: filteredTodos.length,
+    todos: filteredTodos,
   };
 }

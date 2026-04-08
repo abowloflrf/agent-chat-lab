@@ -10,6 +10,7 @@ const envProviderConfig: ProviderConfig = normalizeProviderConfig({
   baseUrl: process.env.OPENAI_BASE_URL ?? defaultProviderConfig.baseUrl,
   apiKey: process.env.OPENAI_API_KEY ?? "",
   model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
+  tavilyApiKey: process.env.TAVILY_API_KEY ?? "",
 });
 
 export function resolveProviderConfig(input: unknown): ProviderConfig {
@@ -23,6 +24,7 @@ export function resolveProviderConfig(input: unknown): ProviderConfig {
     baseUrl: parsed.data.baseUrl || envProviderConfig.baseUrl,
     apiKey: parsed.data.apiKey || envProviderConfig.apiKey,
     model: parsed.data.model || envProviderConfig.model,
+    tavilyApiKey: parsed.data.tavilyApiKey || envProviderConfig.tavilyApiKey,
   });
 }
 

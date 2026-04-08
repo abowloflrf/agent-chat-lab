@@ -8,12 +8,14 @@ export const providerConfigSchema = z.object({
   baseUrl: z.string().trim().default("https://api.openai.com/v1"),
   apiKey: z.string().trim().default(""),
   model: z.string().trim().default(""),
+  tavilyApiKey: z.string().trim().default(""),
 });
 
 export const providerConfigInputSchema = z.object({
   baseUrl: z.string().trim().optional(),
   apiKey: z.string().trim().optional(),
   model: z.string().trim().optional(),
+  tavilyApiKey: z.string().trim().optional(),
 });
 
 export type ProviderConfig = z.infer<typeof providerConfigSchema>;
@@ -22,6 +24,7 @@ export const defaultProviderConfig: ProviderConfig = {
   baseUrl: "https://api.openai.com/v1",
   apiKey: "",
   model: "",
+  tavilyApiKey: "",
 };
 
 export function normalizeProviderConfig(config: ProviderConfig): ProviderConfig {
@@ -29,6 +32,7 @@ export function normalizeProviderConfig(config: ProviderConfig): ProviderConfig 
     baseUrl: (config.baseUrl || defaultProviderConfig.baseUrl).trim().replace(/\/+$/, ""),
     apiKey: config.apiKey.trim(),
     model: config.model.trim(),
+    tavilyApiKey: config.tavilyApiKey.trim(),
   };
 }
 

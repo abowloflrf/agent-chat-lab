@@ -27,13 +27,17 @@
 - 一个聊天 Web 界面
 - `/api/chat` Route Handler
 - 基于 `streamText` 的最小 Agent loop
-- 4 个内置工具:
+- 8 个内置工具:
   - `get_current_time`
   - `calculator`
   - `create_note`
   - `search_notes`
+  - `TodoWrite`
+  - `TodoRead`
+  - `WebSearch`
+  - `WebFetch`
 - 对工具调用过程的前端可视化
-- 一个系统设置页，可配置 OpenAI 兼容供应商的 `base URL / API Key / model`
+- 一个系统设置页，可配置 OpenAI 兼容供应商的 `base URL / API Key / model`，以及 Tavily 的 `API Key`
 - 通过 `/models` 接口自动拉取模型列表并选择
 - 基于 SQLite + Drizzle 的 conversation/message/tool_call/note 持久化
 - 首页自动恢复最近一次会话
@@ -80,7 +84,7 @@ cp .env.example .env.local
 
 你可以二选一:
 
-- 方式 A: 在 `.env.local` 里填 `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL`
+- 方式 A: 在 `.env.local` 里填 `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL`，如需联网搜索再补充 `TAVILY_API_KEY`
 - 方式 B: 启动项目后，打开 `/settings` 页面，在浏览器里配置
 
 如果两者都存在，聊天页请求会优先使用系统设置页里保存的配置。
@@ -121,11 +125,12 @@ http://localhost:3000
 - 输入 `API Key`
 - 等待页面自动调用 `/models` 拉回模型列表
 - 选择模型并保存
+- 如果要启用联网搜索，再填写 Tavily `API Key`
 
 ## 当前限制
 
 - 还没有用户系统
-- 还没有 RAG、联网搜索、文件上传
+- 还没有 RAG、文件上传
 - 还没有测试
 - 设置当前保存在浏览器本地，不适合多用户共享
 
@@ -141,7 +146,6 @@ http://localhost:3000
 
 ### Stage 4: More Tools
 
-- `web_search`
 - `read_url`
 - `todo_manager`
 

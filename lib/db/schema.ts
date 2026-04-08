@@ -72,3 +72,21 @@ export const notes = sqliteTable(
   },
   (table) => [index("notes_created_at_idx").on(table.createdAt)],
 );
+
+export const todos = sqliteTable(
+  "todos",
+  {
+    id: text("id").primaryKey(),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    status: text("status").notNull(),
+    priority: text("priority").notNull(),
+    createdAt: integer("created_at", { mode: "number" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "number" }).notNull(),
+    completedAt: integer("completed_at", { mode: "number" }),
+  },
+  (table) => [
+    index("todos_created_at_idx").on(table.createdAt),
+    index("todos_status_updated_idx").on(table.status, table.updatedAt),
+  ],
+);

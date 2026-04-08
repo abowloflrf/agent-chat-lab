@@ -23,7 +23,7 @@ type SettingsSection = "model" | "tools";
 export function ProviderSettingsForm() {
   const [form, setForm] = useState<ProviderConfig>(defaultProviderConfig);
   const [models, setModels] = useState<string[]>([]);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [toolUsageCounts, setToolUsageCounts] = useState<Record<string, number>>({});
   const [fetchState, setFetchState] = useState<FetchModelsState>({
     status: "idle",
     error: null,
@@ -37,6 +37,35 @@ export function ProviderSettingsForm() {
     const config = loadProviderConfigFromStorage();
     setForm(config);
     initialLoadDone.current = true;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadToolUsageCounts() {
+      try {
+        const response = await fetch("/api/tool-stats");
+        const payload = (await response.json()) as {
+          counts?: Record<string, number>;
+        };
+
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        setToolUsageCounts(payload.counts ?? {});
+      } catch {
+        if (!cancelled) {
+          setToolUsageCounts({});
+        }
+      }
+    }
+
+    void loadToolUsageCounts();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -54,7 +83,6 @@ export function ProviderSettingsForm() {
     const nextProviderConfig = {
       baseUrl: form.baseUrl,
       apiKey: form.apiKey,
-      model: form.model,
     };
     const timeout = window.setTimeout(async () => {
       try {
@@ -107,7 +135,6 @@ export function ProviderSettingsForm() {
     key: Key,
     value: ProviderConfig[Key],
   ) {
-    setSaveMessage(null);
     setForm((current) => ({
       ...current,
       [key]: value,
@@ -119,7 +146,6 @@ export function ProviderSettingsForm() {
     const nextConfig = normalizeProviderConfig(form);
     saveProviderConfigToStorage(nextConfig);
     setForm(nextConfig);
-    setSaveMessage("已保存。");
   }
 
   return (
@@ -351,12 +377,32 @@ export function ProviderSettingsForm() {
                       内置 Tools
                     </p>
                     <p className="mt-2 text-sm leading-6 text-[#6e665d]">
-                      这里只展示当前应用内置的工具能力，不提供额外配置项。
+                      这里展示当前应用内置的工具能力。部分工具支持单独配置，例如 WebSearch 依赖 Tavily API Key。
                     </p>
                   </div>
                   <span className="rounded-full border border-[rgba(23,23,23,0.1)] px-3 py-1 text-[11px] text-[#6e665d]">
                     {builtInTools.length} 个
                   </span>
+                </div>
+
+                <div className="mb-5 rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.72)] p-4">
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                      Tavily API Key
+                    </span>
+                    <input
+                      type="password"
+                      value={form.tavilyApiKey}
+                      onChange={(event) =>
+                        updateField("tavilyApiKey", event.target.value)
+                      }
+                      placeholder="tvly-..."
+                      className="w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
+                    />
+                  </label>
+                  <p className="mt-2 text-xs leading-5 text-[#8a8176]">
+                    `WebSearch` 会在需要联网查询最新网页信息时自动调用。此 Key 保存在当前浏览器本地存储；未填写时，服务端会回退到环境变量 `TAVILY_API_KEY`。
+                  </p>
                 </div>
 
                 <div className="space-y-3">
@@ -365,14 +411,28 @@ export function ProviderSettingsForm() {
                       key={tool.name}
                       className="rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.64)] px-4 py-4"
                     >
-                      <p className="font-mono text-[12px] text-[#9c5626]">
-                        {tool.name}
-                      </p>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="font-mono text-[12px] text-[#9c5626]">
+                          {tool.name}
+                        </p>
+                        <span className="shrink-0 rounded-full border border-[rgba(23,23,23,0.1)] px-2.5 py-1 text-[11px] text-[#6e665d]">
+                          调用 {toolUsageCounts[tool.name] ?? 0} 次
+                        </span>
+                      </div>
                       <p className="mt-2 text-sm leading-6 text-[#4d4339]">
                         {tool.description}
                       </p>
                     </div>
                   ))}
+                </div>
+
+                <div className="flex items-center justify-end border-t border-[rgba(23,23,23,0.08)] pt-5">
+                  <button
+                    type="submit"
+                    className="rounded-full bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d]"
+                  >
+                    保存
+                  </button>
                 </div>
               </section>
             )}

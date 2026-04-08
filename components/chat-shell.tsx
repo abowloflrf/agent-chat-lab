@@ -76,13 +76,20 @@ export function ChatShell({
       fetch(`/api/conversations/${routeConversationId}`)
         .then((res) => res.json())
         .then((data) => {
+          setLocalConversationId(routeConversationId);
           if (data.conversation) {
             setCurrentMessages(data.conversation.messages);
             setMessages(data.conversation.messages);
+          } else {
+            setCurrentMessages([]);
+            setMessages([]);
           }
         })
         .catch((fetchError) => {
           console.error("Failed to load conversation:", fetchError);
+          setLocalConversationId(routeConversationId);
+          setCurrentMessages([]);
+          setMessages([]);
         });
     }
   }, [localConversationId, routeConversationId, setMessages]);
@@ -120,20 +127,24 @@ export function ChatShell({
     await sendMessage({ text: prompt });
   }
 
-  async function handleNewConversation() {
+  function handleNewConversation() {
     if (isCreatingConversation) {
+      return;
+    }
+
+    if (messages.length === 0) {
       return;
     }
 
     setIsCreatingConversation(true);
     const newId = crypto.randomUUID ? crypto.randomUUID() : generateUUID();
-    setLocalConversationId(newId);
-    setCurrentMessages([]);
-    setMessages([]);
     router.push(`/?conversationId=${newId}`, {
       scroll: false,
     });
-    setIsCreatingConversation(false);
+    
+    setTimeout(() => {
+      setIsCreatingConversation(false);
+    }, 100);
   }
 
   return (
