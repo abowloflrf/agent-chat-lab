@@ -28,6 +28,56 @@ function stripMessageId(message: ChatUIMessage): Omit<ChatUIMessage, "id"> {
   return rest;
 }
 
+/**
+ * Auto-reject any tool calls still in "approval-requested" state.
+ *
+ * When a high-risk Bash command is blocked and the user sends a new message
+ * without clicking "Reject", the conversation history contains a tool call
+ * with no tool result.  `convertToModelMessages` faithfully emits the
+ * tool-call but never emits a matching tool-result, which makes the model
+ * API return "Tool result is missing for tool call …".
+ *
+ * This function patches those dangling parts to "output-denied" so the SDK
+ * can generate a proper tool-result / tool-approval-response pair.
+ */
+function autoRejectPendingApprovals(messages: ChatUIMessage[]): ChatUIMessage[] {
+  return messages.map((message) => {
+    if (message.role !== "assistant") {
+      return message;
+    }
+
+    let changed = false;
+    const nextParts = message.parts.map((part) => {
+      const isToolPart =
+        part.type === "dynamic-tool" || part.type.startsWith("tool-");
+      if (
+        !isToolPart ||
+        !("state" in part) ||
+        part.state !== "approval-requested"
+      ) {
+        return part;
+      }
+
+      changed = true;
+      const toolCallId = part.toolCallId;
+      const existingApproval = part.approval as { id: string } | undefined;
+      const approvalId = existingApproval?.id ?? `auto-reject-${toolCallId}`;
+
+      return {
+        ...part,
+        state: "output-denied" as const,
+        approval: {
+          id: approvalId,
+          approved: false as const,
+          reason: "工具调用未经用户审批，已自动拒绝。",
+        },
+      };
+    });
+
+    return changed ? { ...message, parts: nextParts } : message;
+  });
+}
+
 function toNonNegativeInt(value: number | undefined) {
   return value === undefined ? 0 : Math.max(0, Math.round(value));
 }
@@ -87,8 +137,9 @@ export async function POST(request: Request) {
   const agentTools = createAgentTools(providerConfig);
   const runtimeSystemPrompt = buildRuntimeSystemPrompt(parsed.data.messages);
 
+  const sanitizedMessages = autoRejectPendingApprovals(parsed.data.messages);
   const modelMessages = await convertToModelMessages(
-    parsed.data.messages.map(stripMessageId),
+    sanitizedMessages.map(stripMessageId),
     {
       tools: agentTools,
     },
@@ -104,7 +155,7 @@ export async function POST(request: Request) {
     );
   }
 
-  await persistIncomingMessages(parsed.data.conversationId, parsed.data.messages);
+  await persistIncomingMessages(parsed.data.conversationId, sanitizedMessages);
 
   const requestStartedAt = Date.now();
   const stepStartTimes = new Map<number, number>();
