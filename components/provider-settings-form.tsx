@@ -6,7 +6,10 @@ import { builtInTools } from "@/lib/built-in-tools";
 import {
   defaultProviderSettings,
   defaultSystemSettings,
+  providerProtocolLabels,
+  providerProtocols,
   type ProviderModel,
+  type ProviderProtocol,
   type ProviderSettings,
   type SystemSettings,
 } from "@/lib/provider-config";
@@ -509,6 +512,26 @@ export function ProviderSettingsForm() {
                                       placeholder="sk-..."
                                       className={inputClass}
                                     />
+                                  </label>
+
+                                  {/* Protocol */}
+                                  <label className="block">
+                                    <span className={labelClass}>协议</span>
+                                    <select
+                                      value={provider.protocol}
+                                      onChange={(e) =>
+                                        updateProvider(provider.id, {
+                                          protocol: e.target.value as ProviderProtocol,
+                                        })
+                                      }
+                                      className={inputClass}
+                                    >
+                                      {providerProtocols.map((p) => (
+                                        <option key={p} value={p}>
+                                          {providerProtocolLabels[p]}
+                                        </option>
+                                      ))}
+                                    </select>
                                   </label>
 
                                   {/* Toggle row */}

@@ -2,6 +2,22 @@ import { z } from "zod";
 
 export const DEBOUNCE_DELAY_MS = 450;
 
+export const providerProtocols = [
+  "chat-completion",
+  "openai-response",
+  "anthropic-message",
+] as const;
+
+export type ProviderProtocol = (typeof providerProtocols)[number];
+
+export const providerProtocolLabels: Record<ProviderProtocol, string> = {
+  "chat-completion": "Chat Completion",
+  "openai-response": "OpenAI Response",
+  "anthropic-message": "Anthropic Message",
+};
+
+export const providerProtocolSchema = z.enum(providerProtocols).default("chat-completion");
+
 export const providerModelSchema = z.object({
   id: z.string().trim().min(1),
   modelId: z.string().trim().min(1),
@@ -21,6 +37,7 @@ export const providerSettingsSchema = z.object({
   name: z.string().trim().min(1).default("OpenAI Compatible"),
   baseUrl: z.string().trim().default("https://api.openai.com/v1"),
   apiKey: z.string().trim().default(""),
+  protocol: providerProtocolSchema,
   isEnabled: z.boolean().default(true),
   isDefault: z.boolean().default(false),
   models: z.array(providerModelSchema).default([]),
@@ -31,6 +48,7 @@ export const providerSettingsInputSchema = z.object({
   name: z.string().trim().optional(),
   baseUrl: z.string().trim().optional(),
   apiKey: z.string().trim().optional(),
+  protocol: z.enum(providerProtocols).optional(),
   isEnabled: z.boolean().optional(),
   isDefault: z.boolean().optional(),
   models: z.array(providerModelInputSchema).optional(),
@@ -50,6 +68,7 @@ export const providerConfigSchema = z.object({
   baseUrl: z.string().trim().default("https://api.openai.com/v1"),
   apiKey: z.string().trim().default(""),
   model: z.string().trim().default(""),
+  protocol: providerProtocolSchema,
   tavilyApiKey: z.string().trim().default(""),
 });
 
@@ -57,6 +76,7 @@ export const providerConfigInputSchema = z.object({
   baseUrl: z.string().trim().optional(),
   apiKey: z.string().trim().optional(),
   model: z.string().trim().optional(),
+  protocol: z.enum(providerProtocols).optional(),
   tavilyApiKey: z.string().trim().optional(),
 });
 
@@ -69,6 +89,7 @@ export const defaultProviderConfig: ProviderConfig = {
   baseUrl: "https://api.openai.com/v1",
   apiKey: "",
   model: "",
+  protocol: "chat-completion",
   tavilyApiKey: "",
 };
 
@@ -77,6 +98,7 @@ export const defaultProviderSettings: ProviderSettings = {
   name: "OpenAI Compatible",
   baseUrl: "https://api.openai.com/v1",
   apiKey: "",
+  protocol: "chat-completion",
   isEnabled: true,
   isDefault: true,
   models: [],
@@ -92,6 +114,7 @@ export function normalizeProviderConfig(config: ProviderConfig): ProviderConfig 
     baseUrl: (config.baseUrl || defaultProviderConfig.baseUrl).trim().replace(/\/+$/, ""),
     apiKey: config.apiKey.trim(),
     model: config.model.trim(),
+    protocol: config.protocol || "chat-completion",
     tavilyApiKey: config.tavilyApiKey.trim(),
   };
 }
@@ -119,6 +142,7 @@ export function normalizeProviderSettings(input: ProviderSettings): ProviderSett
     name: input.name.trim() || defaultProviderSettings.name,
     baseUrl: (input.baseUrl || defaultProviderSettings.baseUrl).trim().replace(/\/+$/, ""),
     apiKey: input.apiKey.trim(),
+    protocol: input.protocol || "chat-completion",
     isEnabled: input.isEnabled,
     isDefault: input.isDefault,
     models: normalizedModels.map((model) => ({

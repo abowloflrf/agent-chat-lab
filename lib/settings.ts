@@ -21,6 +21,7 @@ const envProviderConfig: ProviderConfig = normalizeProviderConfig({
   baseUrl: process.env.OPENAI_BASE_URL ?? defaultProviderConfig.baseUrl,
   apiKey: process.env.OPENAI_API_KEY ?? "",
   model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
+  protocol: "chat-completion",
   tavilyApiKey: process.env.TAVILY_API_KEY ?? "",
 });
 
@@ -74,6 +75,31 @@ function pickActiveModel(provider: ProviderSettings | null) {
     ?? null;
 }
 
+function buildProviderConfigFromSettings(
+  settings: SystemSettings,
+  provider: ProviderSettings,
+  modelId: string,
+): ProviderConfig {
+  return normalizeProviderConfig({
+    baseUrl: provider.baseUrl || envProviderConfig.baseUrl,
+    apiKey: provider.apiKey || envProviderConfig.apiKey,
+    model: modelId || envProviderConfig.model,
+    protocol: provider.protocol || envProviderConfig.protocol,
+    tavilyApiKey: settings.tavilyApiKey || envProviderConfig.tavilyApiKey,
+  });
+}
+
+function getRuntimeProviderConfigFromSettings(settings: SystemSettings): ProviderConfig {
+  const provider = pickActiveProvider(settings.providers);
+  const model = pickActiveModel(provider);
+
+  if (!provider || !model) {
+    return envProviderConfig;
+  }
+
+  return buildProviderConfigFromSettings(settings, provider, model.modelId);
+}
+
 function parseSettingsInput(input: unknown) {
   const parsed = systemSettingsInputSchema.safeParse(input);
 
@@ -88,6 +114,7 @@ function parseSettingsInput(input: unknown) {
       name: provider.name?.trim() || defaultProviderSettings.name,
       baseUrl: provider.baseUrl?.trim() || defaultProviderSettings.baseUrl,
       apiKey: provider.apiKey?.trim() || "",
+      protocol: provider.protocol ?? "chat-completion",
       isEnabled: provider.isEnabled ?? true,
       isDefault: provider.isDefault ?? false,
       models: (provider.models ?? []).map((model) => ({
@@ -138,6 +165,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
       name: providerRow.name,
       baseUrl: providerRow.baseUrl,
       apiKey: providerRow.apiKey,
+      protocol: (providerRow.protocol as ProviderConfig["protocol"]) || "chat-completion",
       isEnabled: toBool(providerRow.isEnabled),
       isDefault: toBool(providerRow.isDefault),
       models: (modelsByProviderId.get(providerRow.id) ?? []).map((modelRow) => ({
@@ -183,6 +211,7 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
           name: provider.name,
           baseUrl: provider.baseUrl,
           apiKey: provider.apiKey,
+          protocol: provider.protocol || "chat-completion",
           isEnabled: toInt(provider.isEnabled),
           isDefault: toInt(provider.isDefault),
           createdAt: now,
@@ -211,19 +240,22 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
 
 export async function getRuntimeProviderConfig(): Promise<ProviderConfig> {
   const settings = await getSystemSettings();
-  const provider = pickActiveProvider(settings.providers);
-  const model = pickActiveModel(provider);
+  return getRuntimeProviderConfigFromSettings(settings);
+}
+
+export async function getProviderConfigByOverride(
+  providerId: string,
+  modelId: string,
+): Promise<ProviderConfig> {
+  const settings = await getSystemSettings();
+  const provider = settings.providers.find((p) => p.id === providerId && p.isEnabled);
+  const model = provider?.models.find((item) => item.modelId === modelId && item.isEnabled);
 
   if (!provider || !model) {
-    return envProviderConfig;
+    return getRuntimeProviderConfigFromSettings(settings);
   }
 
-  return normalizeProviderConfig({
-    baseUrl: provider.baseUrl || envProviderConfig.baseUrl,
-    apiKey: provider.apiKey || envProviderConfig.apiKey,
-    model: model.modelId || envProviderConfig.model,
-    tavilyApiKey: settings.tavilyApiKey || envProviderConfig.tavilyApiKey,
-  });
+  return buildProviderConfigFromSettings(settings, provider, model.modelId);
 }
 
 export function resolveProviderConfig(input: unknown): ProviderConfig {
@@ -237,6 +269,7 @@ export function resolveProviderConfig(input: unknown): ProviderConfig {
     baseUrl: parsed.data.baseUrl || envProviderConfig.baseUrl,
     apiKey: parsed.data.apiKey || envProviderConfig.apiKey,
     model: parsed.data.model || envProviderConfig.model,
+    protocol: parsed.data.protocol || envProviderConfig.protocol,
     tavilyApiKey: parsed.data.tavilyApiKey || envProviderConfig.tavilyApiKey,
   });
 }

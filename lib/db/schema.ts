@@ -105,6 +105,7 @@ export const modelProviders = sqliteTable(
     name: text("name").notNull(),
     baseUrl: text("base_url").notNull(),
     apiKey: text("api_key").notNull(),
+    protocol: text("protocol").notNull().default("chat-completion"),
     isEnabled: integer("is_enabled", { mode: "number" }).notNull(),
     isDefault: integer("is_default", { mode: "number" }).notNull(),
     createdAt: integer("created_at", { mode: "number" }).notNull(),

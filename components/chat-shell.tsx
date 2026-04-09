@@ -12,6 +12,10 @@ import { flushSync } from "react-dom";
 import { ChatMessage } from "@/components/chat-message";
 import { ConversationList } from "@/components/conversation-list";
 import {
+  ModelSelector,
+  type ModelSelection,
+} from "@/components/model-selector";
+import {
   agentObservabilitySchema,
   finalizeInterruptedMessage,
   getMessageTimestamp,
@@ -19,6 +23,7 @@ import {
   parseAgentObservability,
   type ChatUIMessage,
 } from "@/lib/observability";
+import type { ProviderSettings } from "@/lib/provider-config";
 
 const starterPrompts = [
   "现在几点了？",
@@ -36,6 +41,18 @@ type ChatShellProps = {
   initialConversationTitle: string | null;
   initialMessages: ChatUIMessage[];
 };
+
+class ModelOverrideStore {
+  #value: ModelSelection | null = null;
+
+  get() {
+    return this.#value;
+  }
+
+  set(value: ModelSelection | null) {
+    this.#value = value;
+  }
+}
 
 function generateUUID() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -100,20 +117,69 @@ export function ChatShell({
       isInterruptedMessage(message.metadata),
     );
   });
+  const [providers, setProviders] = useState<ProviderSettings[]>([]);
+  const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(null);
+  const [modelOverrideStore] = useState(() => new ModelOverrideStore());
+  const [transport] = useState(
+    () =>
+      new DefaultChatTransport<ChatUIMessage>({
+        api: "/api/chat",
+        prepareSendMessagesRequest: ({ body, id, messages }) => {
+          const override = modelOverrideStore.get();
+          return {
+            body: {
+              ...body,
+              conversationId: id,
+              messages,
+              ...(override
+                ? {
+                    modelOverride: {
+                      providerId: override.providerId,
+                      modelId: override.modelId,
+                    },
+                  }
+                : {}),
+            },
+          };
+        },
+      }),
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const streamActivityAtRef = useRef(0);
   const conversationId = routeConversationId ?? localConversationId;
 
-  const transport = new DefaultChatTransport({
-    api: "/api/chat",
-    prepareSendMessagesRequest: ({ body, id, messages }) => ({
-      body: {
-        ...body,
-        conversationId: id,
-        messages,
-      },
-    }),
-  });
+  useEffect(() => {
+    modelOverrideStore.set(selectedModel);
+  }, [modelOverrideStore, selectedModel]);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        const settingsProviders: ProviderSettings[] =
+          data.settings?.providers ?? [];
+        setProviders(settingsProviders);
+
+        const defaultProvider =
+          settingsProviders.find((p) => p.isEnabled && p.isDefault) ??
+          settingsProviders.find((p) => p.isEnabled);
+
+        if (!defaultProvider) return;
+
+        const defaultModel =
+          defaultProvider.models.find((m) => m.isEnabled && m.isDefault) ??
+          defaultProvider.models.find((m) => m.isEnabled);
+
+        if (!defaultModel) return;
+
+        setSelectedModel({
+          providerId: defaultProvider.id,
+          providerName: defaultProvider.name,
+          modelId: defaultModel.modelId,
+        });
+      })
+      .catch((err) => console.error("Failed to load model settings:", err));
+  }, []);
 
   const {
     messages,
@@ -589,23 +655,31 @@ export function ChatShell({
                 />
               </label>
 
-              <div className="flex items-center justify-end gap-2">
-                {isBusy ? (
+              <div className="flex items-center justify-between gap-2">
+                <ModelSelector
+                  providers={providers}
+                  selected={selectedModel}
+                  onSelect={setSelectedModel}
+                  disabled={isBusy}
+                />
+                <div className="flex items-center gap-2">
+                  {isBusy ? (
+                    <button
+                      type="button"
+                      onClick={() => void stop()}
+                      className="rounded-full border border-[rgba(23,23,23,0.14)] px-3.5 py-1.5 text-xs font-medium text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626]"
+                    >
+                      停止
+                    </button>
+                  ) : null}
                   <button
-                    type="button"
-                    onClick={() => void stop()}
-                    className="rounded-full border border-[rgba(23,23,23,0.14)] px-3.5 py-1.5 text-xs font-medium text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626]"
+                    type="submit"
+                    disabled={isBusy || draft.trim().length === 0}
+                    className="rounded-lg bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    停止
+                    {isBusy ? "生成中..." : "发送"}
                   </button>
-                ) : null}
-                <button
-                  type="submit"
-                  disabled={isBusy || draft.trim().length === 0}
-                  className="rounded-lg bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isBusy ? "生成中..." : "发送"}
-                </button>
+                </div>
               </div>
             </form>
           </div>

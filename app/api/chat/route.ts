@@ -10,14 +10,20 @@ import {
 import { createAgentTools } from "@/lib/ai/tools";
 import { persistFinishedConversation, persistIncomingMessages, generateConversationTitle } from "@/lib/persistence";
 import type { AgentTimelineStep, ChatUIMessage } from "@/lib/observability";
-import { getRuntimeProviderConfig } from "@/lib/settings";
+import { getRuntimeProviderConfig, getProviderConfigByOverride } from "@/lib/settings";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+const modelOverrideSchema = z.object({
+  providerId: z.string().trim().min(1),
+  modelId: z.string().trim().min(1),
+});
+
 const requestSchema = z.object({
   conversationId: z.string().trim().min(1),
   messages: z.array(z.custom<ChatUIMessage>()),
+  modelOverride: modelOverrideSchema.optional(),
 });
 
 const urlPattern = /https?:\/\/[^\s)>"'`]+/gi;
@@ -133,7 +139,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const providerConfig = await getRuntimeProviderConfig();
+  const providerConfig = parsed.data.modelOverride
+    ? await getProviderConfigByOverride(parsed.data.modelOverride.providerId, parsed.data.modelOverride.modelId)
+    : await getRuntimeProviderConfig();
   const agentTools = createAgentTools(providerConfig);
   const runtimeSystemPrompt = buildRuntimeSystemPrompt(parsed.data.messages);
 

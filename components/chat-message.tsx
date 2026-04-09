@@ -120,12 +120,14 @@ function getAssistantStats(observability: ReturnType<typeof parseAgentObservabil
   const tokensPerSecond = totalDurationMs > 0
     ? (totalOutputTokens * 1000) / totalDurationMs
     : 0;
+  const modelId = firstStep?.modelId ?? null;
 
   return {
     totalOutputTokens,
     totalDurationMs,
     ttftMs,
     tokensPerSecond,
+    modelId,
   };
 }
 
@@ -498,6 +500,11 @@ export function ChatMessage({
             <div className={`flex items-center gap-1 ${isUser ? "" : "ml-auto"}`}>
               {!isUser && assistantStats ? (
                 <div className="pointer-events-none mr-2 flex items-center gap-1.5 text-[11px] text-[#8f8172] opacity-0 transition-opacity duration-150 group-hover/message:opacity-100">
+                  {assistantStats.modelId ? (
+                    <span className="rounded border border-[rgba(201,106,43,0.2)] bg-[rgba(201,106,43,0.06)] px-1.5 py-0.5 font-mono text-[10px] text-[#9c5626]">
+                      {assistantStats.modelId}
+                    </span>
+                  ) : null}
                   <span>
                     {formatTokenCount(assistantStats.totalOutputTokens)} tokens
                   </span>
