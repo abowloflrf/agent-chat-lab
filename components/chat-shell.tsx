@@ -145,6 +145,7 @@ export function ChatShell({
       }),
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const streamActivityAtRef = useRef(0);
   const conversationId = routeConversationId ?? localConversationId;
 
@@ -374,8 +375,14 @@ export function ChatShell({
   ];
   const displayConversationTitle = conversationTitle || "未命名会话";
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function scrollToBottom() {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
+  }
+
+  async function submitMessage() {
     const text = draft.trim();
 
     if (!text || isBusy) {
@@ -385,7 +392,26 @@ export function ChatShell({
     setDraft("");
     clearError();
     setInterruptedRunDetected(false);
+    scrollToBottom();
     await sendMessage({ text });
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitMessage();
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.nativeEvent.isComposing
+    ) {
+      event.preventDefault();
+      void submitMessage();
+    }
   }
 
   async function handleStarterPrompt(prompt: string) {
@@ -560,7 +586,7 @@ export function ChatShell({
             </div>
           </header>
 
-          <div className="relative flex-1 overflow-y-auto px-4 py-4">
+          <div ref={scrollContainerRef} className="relative flex-1 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
               <div className="flex min-h-[520px] items-center justify-center">
                 <section className="w-full max-w-3xl">
@@ -644,6 +670,7 @@ export function ChatShell({
                   ref={textareaRef}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={handleKeyDown}
                   placeholder="输入消息，例如：帮我记住今天要继续完善 Agent 的工具调用演示。"
                   rows={MIN_TEXTAREA_ROWS}
                   className="w-full resize-none rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-2.5 text-[15px] leading-7 text-[#171717] outline-none transition placeholder:text-[#9f968b] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
@@ -651,17 +678,21 @@ export function ChatShell({
                     minHeight: `calc(${MIN_TEXTAREA_ROWS}lh + 1.25rem)`,
                     maxHeight: `calc(${MAX_TEXTAREA_ROWS}lh + 1.25rem)`,
                   }}
-                  disabled={isBusy}
                 />
               </label>
 
               <div className="flex items-center justify-between gap-2">
-                <ModelSelector
-                  providers={providers}
-                  selected={selectedModel}
-                  onSelect={setSelectedModel}
-                  disabled={isBusy}
-                />
+                <div className="flex items-center gap-3">
+                  <ModelSelector
+                    providers={providers}
+                    selected={selectedModel}
+                    onSelect={setSelectedModel}
+                    disabled={isBusy}
+                  />
+                  <span className="hidden text-[11px] text-[#9f968b] sm:inline">
+                    Enter 发送 · Shift+Enter 换行
+                  </span>
+                </div>
                 <div className="flex items-center gap-2">
                   {isBusy ? (
                     <button
