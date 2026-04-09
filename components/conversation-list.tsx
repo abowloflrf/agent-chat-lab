@@ -13,7 +13,7 @@ type ConversationSummary = {
 };
 
 type ConversationListProps = {
-  currentConversationId: string;
+  currentConversationId: string | null;
   onNewConversation: () => void;
   onConversationTitleChange?: (title: string | null) => void;
   refreshTrigger?: string | number;

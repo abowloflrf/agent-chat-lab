@@ -36,9 +36,10 @@ const starterPrompts = [
 const MIN_TEXTAREA_ROWS = 1;
 const MAX_TEXTAREA_ROWS = 6;
 const STREAM_RECOVERY_IDLE_MS = 20000;
+const CHAT_INSTANCE_ID = "chat-shell";
 
 type ChatShellProps = {
-  initialConversationId: string;
+  initialConversationId: string | null;
   initialConversationTitle: string | null;
   initialMessages: ChatUIMessage[];
 };
@@ -53,14 +54,6 @@ class ModelOverrideStore {
   set(value: ModelSelection | null) {
     this.#value = value;
   }
-}
-
-function generateUUID() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
 }
 
 function formatContextLength(tokenCount: number | null) {
@@ -102,6 +95,7 @@ export function ChatShell({
   initialConversationTitle,
   initialMessages,
 }: ChatShellProps) {
+  const initialRecoveredMessages = normalizeRecoveredMessages(initialMessages);
   const router = useRouter();
   const searchParams = useSearchParams();
   const routeConversationId = searchParams.get("conversationId");
@@ -111,11 +105,13 @@ export function ChatShell({
   const [conversationTitle, setConversationTitle] =
     useState(initialConversationTitle);
   const [currentMessages, setCurrentMessages] =
-    useState<ChatUIMessage[]>(() => normalizeRecoveredMessages(initialMessages));
+    useState<ChatUIMessage[]>(() => initialRecoveredMessages);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [conversationCreationError, setConversationCreationError] =
+    useState<string | null>(null);
   const [interruptedRunDetected, setInterruptedRunDetected] = useState(() => {
-    return normalizeRecoveredMessages(initialMessages).some((message) =>
+    return initialRecoveredMessages.some((message) =>
       isInterruptedMessage(message.metadata),
     );
   });
@@ -128,10 +124,11 @@ export function ChatShell({
         api: "/api/chat",
         prepareSendMessagesRequest: ({ body, id, messages }) => {
           const override = modelOverrideStore.get();
+          const requestConversationId = conversationIdRef.current ?? id;
           return {
             body: {
               ...body,
-              conversationId: id,
+              conversationId: requestConversationId,
               messages,
               ...(override
                 ? {
@@ -149,7 +146,13 @@ export function ChatShell({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const streamActivityAtRef = useRef(0);
+  const conversationIdRef = useRef<string | null>(initialConversationId);
+  const previousRouteConversationIdRef = useRef<string | null>(routeConversationId);
   const conversationId = routeConversationId ?? localConversationId;
+
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
 
   useEffect(() => {
     modelOverrideStore.set(selectedModel);
@@ -195,7 +198,7 @@ export function ChatShell({
     addToolApprovalResponse,
   } =
     useChat<ChatUIMessage>({
-      id: conversationId,
+      id: CHAT_INSTANCE_ID,
       messages: currentMessages,
       messageMetadataSchema: agentObservabilitySchema,
       transport,
@@ -208,6 +211,23 @@ export function ChatShell({
   }, [routeConversationId]);
 
   useEffect(() => {
+    const previousRouteConversationId = previousRouteConversationIdRef.current;
+    previousRouteConversationIdRef.current = routeConversationId;
+
+    if (
+      previousRouteConversationId !== null &&
+      routeConversationId === null &&
+      localConversationId !== null
+    ) {
+      conversationIdRef.current = null;
+      setLocalConversationId(null);
+      setConversationTitle(null);
+      setCurrentMessages([]);
+      setMessages([]);
+      setInterruptedRunDetected(false);
+      return;
+    }
+
     if (routeConversationId && routeConversationId !== localConversationId) {
       fetch(`/api/conversations/${routeConversationId}`)
         .then((res) => res.json())
@@ -389,6 +409,49 @@ export function ChatShell({
     }
   }
 
+  async function ensureConversationId() {
+    if (conversationIdRef.current) {
+      return conversationIdRef.current;
+    }
+
+    setIsCreatingConversation(true);
+    setConversationCreationError(null);
+
+    try {
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed: ${res.status}`);
+      }
+
+      const data = await res.json();
+      const nextConversationId = data.conversation?.id;
+
+      if (typeof nextConversationId !== "string" || nextConversationId.length === 0) {
+        throw new Error("Missing conversation id.");
+      }
+
+      conversationIdRef.current = nextConversationId;
+      setLocalConversationId(nextConversationId);
+      router.replace(`/?conversationId=${nextConversationId}`, {
+        scroll: false,
+      });
+      return nextConversationId;
+    } catch (creationError) {
+      console.error("Failed to create conversation:", creationError);
+      setConversationCreationError("创建新会话失败，请重试。");
+      throw creationError;
+    } finally {
+      setIsCreatingConversation(false);
+    }
+  }
+
   async function submitMessage() {
     const text = draft.trim();
 
@@ -396,10 +459,12 @@ export function ChatShell({
       return;
     }
 
-    setDraft("");
     clearError();
+    setConversationCreationError(null);
     setInterruptedRunDetected(false);
     scrollToBottom();
+    await ensureConversationId();
+    setDraft("");
     await sendMessage({ text });
   }
 
@@ -427,7 +492,10 @@ export function ChatShell({
     }
 
     clearError();
+    setConversationCreationError(null);
     setInterruptedRunDetected(false);
+    scrollToBottom();
+    await ensureConversationId();
     await sendMessage({ text: prompt });
   }
 
@@ -464,6 +532,7 @@ export function ChatShell({
       setMessages(nextMessages);
     });
     clearError();
+    setConversationCreationError(null);
     setInterruptedRunDetected(false);
     await sendMessage({ text: userText });
   }
@@ -488,6 +557,7 @@ export function ChatShell({
       setMessages(nextMessages);
     });
     clearError();
+    setConversationCreationError(null);
     setInterruptedRunDetected(false);
     await sendMessage({ text: latestUserMessageText });
   }
@@ -510,19 +580,22 @@ export function ChatShell({
       return;
     }
 
-    if (messages.length === 0) {
+    if (!conversationId && messages.length === 0) {
       return;
     }
 
-    setIsCreatingConversation(true);
-    const newId = crypto.randomUUID ? crypto.randomUUID() : generateUUID();
-    router.push(`/?conversationId=${newId}`, {
+    conversationIdRef.current = null;
+    setConversationCreationError(null);
+    setConversationTitle(null);
+    setCurrentMessages([]);
+    setMessages([]);
+    setInterruptedRunDetected(false);
+    clearError();
+    setDraft("");
+    setLocalConversationId(null);
+    router.push("/", {
       scroll: false,
     });
-    
-    setTimeout(() => {
-      setIsCreatingConversation(false);
-    }, 100);
   }
 
   return (
@@ -598,9 +671,11 @@ export function ChatShell({
                   <p className="truncate text-lg font-semibold tracking-[-0.02em] text-[#241c15]">
                     {displayConversationTitle}
                   </p>
-                  <span className="hidden items-center rounded-full border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.52)] px-2.5 py-1 font-mono text-[11px] text-[#6c6156] sm:inline-flex">
-                    {formatShortConversationId(conversationId)}
-                  </span>
+                  {conversationId ? (
+                    <span className="hidden items-center rounded-full border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.52)] px-2.5 py-1 font-mono text-[11px] text-[#6c6156] sm:inline-flex">
+                      {formatShortConversationId(conversationId)}
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -695,6 +770,12 @@ export function ChatShell({
                 >
                   重新生成上一条回复
                 </button>
+              </div>
+            ) : null}
+
+            {conversationCreationError ? (
+              <div className="mb-3 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-4 py-3 text-sm text-[#9a3818]">
+                {conversationCreationError}
               </div>
             ) : null}
 

@@ -17,7 +17,7 @@ export default async function Home({
 
   return (
     <ChatShell
-      initialConversationId={conversation?.conversationId ?? crypto.randomUUID()}
+      initialConversationId={conversation?.conversationId ?? null}
       initialConversationTitle={conversation?.title ?? null}
       initialMessages={conversation?.messages ?? []}
     />
