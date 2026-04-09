@@ -220,34 +220,6 @@ function evaluateExpression(expression: string) {
 
 export function createAgentTools(config: ProviderConfig) {
   return {
-    get_current_time: tool({
-      description: "读取当前系统时间，可选指定 IANA 时区，例如 Asia/Shanghai。",
-      inputSchema: z.object({
-        timezone: z
-          .string()
-          .trim()
-          .optional()
-          .describe("可选 IANA 时区，例如 Asia/Shanghai 或 America/New_York。"),
-      }),
-      execute: async ({ timezone }) => {
-        const now = new Date();
-        const resolvedTimeZone =
-          timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-        const formatted = new Intl.DateTimeFormat("zh-CN", {
-          dateStyle: "full",
-          timeStyle: "long",
-          timeZone: resolvedTimeZone,
-        }).format(now);
-
-        return {
-          now: now.toISOString(),
-          timezone: resolvedTimeZone,
-          formatted,
-        };
-      },
-    }),
-
     calculator: tool({
       description: "计算基础数学表达式，仅支持 + - * / () 和小数。",
       inputSchema: z.object({

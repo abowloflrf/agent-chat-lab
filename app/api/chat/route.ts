@@ -2,7 +2,11 @@ import { streamText, convertToModelMessages, stepCountIs } from "ai";
 import { after } from "next/server";
 import { z } from "zod";
 import { getChatModel, resolveProviderConfig } from "@/lib/ai/model";
-import { systemPrompt } from "@/lib/ai/system-prompt";
+import {
+  buildTimeContextPrompt,
+  buildUrlContextPrompt,
+  systemPrompt,
+} from "@/lib/ai/system-prompt";
 import { createAgentTools } from "@/lib/ai/tools";
 import { persistFinishedConversation, persistIncomingMessages, generateConversationTitle } from "@/lib/persistence";
 import type { AgentTimelineStep, ChatUIMessage } from "@/lib/observability";
@@ -56,25 +60,15 @@ function buildRuntimeSystemPrompt(messages: ChatUIMessage[]) {
   }).format(now);
   const latestUserText = extractLatestUserText(messages);
   const urls = latestUserText.match(urlPattern) ?? [];
-  const basePrompt = `${systemPrompt}
+  const promptSections = [systemPrompt];
 
-当前系统时间（Asia/Shanghai）: ${currentDateTime}
-当前 ISO 时间: ${now.toISOString()}
-- 回答涉及“今天”“昨天”“明天”“本周”“最近”等相对时间时，要以上述当前时间为准理解用户问题
-- 如果需要调用 WebSearch 查询时效性信息，先用英文关键词搜索，再用用户所使用的语言总结回答`
-    .trim();
-
-  if (urls.length === 0) {
-    return basePrompt;
+  if (urls.length > 0) {
+    promptSections.push(buildUrlContextPrompt());
   }
 
-  return `${basePrompt}
+  promptSections.push(buildTimeContextPrompt(currentDateTime, now.toISOString()));
 
-本轮用户消息中已经提供了明确 URL。
-- 如果用户是在让你读取、总结、分析、核对、提取这个链接的内容，优先调用 WebFetch，不要先调用 WebSearch
-- 只有在该 URL 无法抓取、用户同时还要求补充更多外部来源，或给出的链接并不足以回答问题时，才再考虑调用 WebSearch
-- 如果提供了多个 URL，优先抓取与用户问题最相关的那个`
-    .trim();
+  return promptSections.join("\n\n").trim();
 }
 
 export async function POST(request: Request) {

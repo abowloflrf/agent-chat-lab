@@ -10,7 +10,6 @@
 - [x] 支持工具调用的前端可视化
 
 ### 内置 Tools
-- [x] `get_current_time`
 - [x] `calculator`
 - [x] `create_note`
 - [x] `search_notes`

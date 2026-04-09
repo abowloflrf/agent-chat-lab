@@ -1,9 +1,5 @@
 export const builtInTools = [
   {
-    name: "get_current_time",
-    description: "读取当前时间，演示 Agent 如何访问运行时环境。",
-  },
-  {
     name: "calculator",
     description: "执行受限数学表达式计算，演示确定性工具。",
   },

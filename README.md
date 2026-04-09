@@ -27,8 +27,7 @@
 - 一个聊天 Web 界面
 - `/api/chat` Route Handler
 - 基于 `streamText` 的最小 Agent loop
-- 8 个内置工具:
-  - `get_current_time`
+- 7 个内置工具:
   - `calculator`
   - `create_note`
   - `search_notes`
@@ -107,7 +106,7 @@ http://localhost:3000
 
 先试这几句:
 
-- `现在几点了？`
+- `今天是周几？`
 - `帮我计算 (18.5 + 7.2) * 3`
 - `记住一条笔记：标题是 Agent 学习目标，内容是先学会工具调用和状态管理`
 - `帮我回忆一下和 Agent 学习有关的笔记`
