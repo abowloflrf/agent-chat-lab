@@ -32,4 +32,11 @@ PRs should include:
 - validation notes (`pnpm lint`, `pnpm build`)
 
 ## Security & Configuration Tips
+This app is exposed to the public internet. All routes are protected by a static password authentication layer implemented in `proxy.ts`:
+- **Page routes**: unauthenticated requests are rewritten to `/login` at the proxy level, so no real page content is server-rendered or leaked.
+- **API routes**: unauthenticated requests receive a 401 response. The only exception is `/api/auth`, which handles login.
+- **Auth token**: stored as an HttpOnly cookie (`auth_token`), validated against `SHA-256(AUTH_PASSWORD)`.
+
+When adding new API routes or pages, they are automatically protected by the proxy. If a new route must be publicly accessible (like `/api/auth`), explicitly exclude it in the `proxy.ts` logic.
+
 Do not commit real API keys. Use `.env.local` for server defaults. Provider config and system settings are persisted server-side in SQLite via Drizzle ORM.
