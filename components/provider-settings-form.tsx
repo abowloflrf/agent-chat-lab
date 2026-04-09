@@ -54,6 +54,83 @@ const inputClass =
   "w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white";
 const labelClass = "mb-2 block text-[11px] uppercase tracking-[0.22em] text-[#8d8478]";
 
+function SecretInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (!value) return;
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <div className="relative">
+      <input
+        type={visible ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        autoComplete="off"
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
+        className={inputClass + " pr-20"}
+      />
+      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+        {/* Toggle visibility */}
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          className="rounded p-1.5 text-[#a39a90] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#6e665d]"
+          title={visible ? "隐藏" : "显示"}
+        >
+          {visible ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+              <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+              <line x1="1" y1="1" x2="23" y2="23" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          )}
+        </button>
+        {/* Copy to clipboard */}
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="rounded p-1.5 text-[#a39a90] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#6e665d]"
+          title="复制"
+        >
+          {copied ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ProviderSettingsForm() {
   const [settings, setSettings] = useState<SystemSettings>(defaultSystemSettings);
   const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
@@ -563,12 +640,10 @@ export function ProviderSettingsForm() {
                                   {/* API Key */}
                                   <label className="block">
                                     <span className={labelClass}>API Key</span>
-                                    <input
-                                      type="password"
+                                    <SecretInput
                                       value={provider.apiKey}
                                       onChange={(e) => updateProvider(provider.id, { apiKey: e.target.value })}
                                       placeholder="sk-..."
-                                      className={inputClass}
                                     />
                                   </label>
 
@@ -828,8 +903,7 @@ export function ProviderSettingsForm() {
                   <div className="mb-5 rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.72)] p-4">
                     <label className="block">
                       <span className={labelClass}>Tavily API Key</span>
-                      <input
-                        type="password"
+                      <SecretInput
                         value={settings.tavilyApiKey}
                         onChange={(e) =>
                           setSettings((current) => ({
@@ -838,7 +912,6 @@ export function ProviderSettingsForm() {
                           }))
                         }
                         placeholder="tvly-..."
-                        className={inputClass}
                       />
                     </label>
                     <p className="mt-2 text-xs leading-5 text-[#8a8176]">
