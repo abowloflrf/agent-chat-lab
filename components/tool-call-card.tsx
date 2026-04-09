@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  assessBashCommand,
+  BASH_TOOL_OUTPUT_LIMIT,
+  BASH_TOOL_TIMEOUT_MS,
+} from "@/lib/ai/bash-policy";
 
 type ToolInvocation = {
   type: string;
@@ -11,6 +16,11 @@ type ToolInvocation = {
   input?: unknown;
   output?: unknown;
   errorText?: string;
+  approval?: {
+    id: string;
+    approved?: boolean;
+    reason?: string;
+  };
 };
 
 function formatJson(value: unknown) {
@@ -48,6 +58,18 @@ function stateLabel(state: string) {
     default:
       return state;
   }
+}
+
+function extractBashCommand(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as {
+    command?: unknown;
+  };
+
+  return typeof record.command === "string" ? record.command : null;
 }
 
 function ContentModal({
@@ -107,7 +129,13 @@ function ContentModal({
   );
 }
 
-export function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
+export function ToolCallCard({
+  invocation,
+  onApprovalResponse,
+}: {
+  invocation: ToolInvocation;
+  onApprovalResponse?: (approvalId: string, approved: boolean) => Promise<void> | void;
+}) {
   const toolName = toToolName(invocation);
   const failed = invocation.state === "output-error";
   const [modalOpen, setModalOpen] = useState(false);
@@ -130,6 +158,11 @@ export function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
   const outputContent = failed
     ? invocation.errorText ?? ""
     : formatJson(invocation.output);
+  const bashCommand = toolName === "Bash" ? extractBashCommand(invocation.input) : null;
+  const bashAssessment = bashCommand ? assessBashCommand(bashCommand) : null;
+  const approvalId = invocation.approval?.id;
+  const isApprovalRequested = invocation.state === "approval-requested";
+  const isApprovalResponded = invocation.state === "approval-responded";
 
   return (
     <>
@@ -154,6 +187,112 @@ export function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
             {stateLabel(invocation.state)}
           </span>
         </div>
+
+        {toolName === "Bash" && bashAssessment ? (
+          <div className="mt-4 rounded-[16px] border border-[rgba(23,23,23,0.08)] bg-white/80 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
+                即将执行
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] ${
+                  bashAssessment.decision === "deny"
+                    ? "bg-[#fee2e2] text-[#991b1b]"
+                    : bashAssessment.riskLevel === "low"
+                      ? "bg-[#e7f4e5] text-[#36643a]"
+                      : "bg-[#fff1d6] text-[#9a5b05]"
+                }`}
+              >
+                {bashAssessment.decision === "deny"
+                  ? "高风险已拦截"
+                  : `风险 ${bashAssessment.riskLevel}`}
+              </span>
+            </div>
+
+            <pre className="mt-3 overflow-x-auto rounded-[14px] bg-[#1f1711] px-4 py-3 font-mono text-[12px] leading-6 text-[#fff4eb]">
+              {bashAssessment.normalizedCommand}
+            </pre>
+
+            <div className="mt-3 grid gap-3 text-[12px] text-[#4b3f35] md:grid-cols-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
+                  Workdir
+                </p>
+                <p className="mt-1 break-all font-mono">{bashAssessment.workdir}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
+                  Timeout
+                </p>
+                <p className="mt-1 font-mono">{BASH_TOOL_TIMEOUT_MS}ms</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
+                  Output Limit
+                </p>
+                <p className="mt-1 font-mono">{BASH_TOOL_OUTPUT_LIMIT} bytes</p>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
+                风险说明
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-[12px] leading-6 text-[#4b3f35]">
+                {bashAssessment.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+
+            {isApprovalRequested && approvalId ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void onApprovalResponse?.(approvalId, true)}
+                  disabled={bashAssessment.decision === "deny"}
+                  className="rounded-full bg-[#171717] px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:bg-[#b8afa6]"
+                >
+                  允许执行
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onApprovalResponse?.(approvalId, false)}
+                  className="rounded-full border border-[rgba(23,23,23,0.14)] px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626]"
+                >
+                  拒绝执行
+                </button>
+              </div>
+            ) : null}
+
+            {isApprovalResponded ? (
+              <p className="mt-4 text-[12px] text-[#6b5b4f]">
+                {invocation.approval?.approved
+                  ? "已提交允许执行，等待服务端继续处理。"
+                  : "已拒绝执行这条命令。"}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {toolName !== "Bash" && isApprovalRequested && approvalId ? (
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-[rgba(23,23,23,0.08)] pt-4">
+            <button
+              type="button"
+              onClick={() => void onApprovalResponse?.(approvalId, true)}
+              className="rounded-full bg-[#171717] px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d]"
+            >
+              允许执行
+            </button>
+            <button
+              type="button"
+              onClick={() => void onApprovalResponse?.(approvalId, false)}
+              className="rounded-full border border-[rgba(23,23,23,0.14)] px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626]"
+            >
+              拒绝执行
+            </button>
+          </div>
+        ) : null}
 
         <div className="mt-4 grid gap-3 border-t border-[rgba(23,23,23,0.08)] pt-4 md:grid-cols-2">
           <div>

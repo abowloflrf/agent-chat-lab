@@ -1,6 +1,9 @@
 "use client";
 
-import { DefaultChatTransport } from "ai";
+import {
+  DefaultChatTransport,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+} from "ai";
 import { useChat } from "@ai-sdk/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -114,12 +117,22 @@ export function ChatShell({
     }),
   });
 
-  const { messages, sendMessage, status, error, stop, setMessages, clearError } =
+  const {
+    messages,
+    sendMessage,
+    status,
+    error,
+    stop,
+    setMessages,
+    clearError,
+    addToolApprovalResponse,
+  } =
     useChat<ChatUIMessage>({
       id: conversationId,
       messages: currentMessages,
       messageMetadataSchema: agentObservabilitySchema,
       transport,
+      sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     });
 
   const shouldRefreshTitle =
@@ -388,6 +401,19 @@ export function ChatShell({
     await sendMessage({ text: latestUserMessageText });
   }
 
+  async function handleToolApprovalResponse(approvalId: string, approved: boolean) {
+    if (isBusy) {
+      return;
+    }
+
+    clearError();
+    await addToolApprovalResponse({
+      id: approvalId,
+      approved,
+      reason: approved ? "用户已允许执行此命令。" : "用户拒绝执行此命令。",
+    });
+  }
+
   function handleNewConversation() {
     if (isCreatingConversation) {
       return;
@@ -522,6 +548,9 @@ export function ChatShell({
                       message={message}
                       canRegenerate={message.role === "assistant"}
                       onRegenerate={() => void handleRegenerateFromMessage(message.id)}
+                      onToolApprovalResponse={(approvalId, approved) =>
+                        handleToolApprovalResponse(approvalId, approved)
+                      }
                     />
                   </div>
                 ))}

@@ -20,6 +20,10 @@ export const builtInTools = [
     description: "读取待办事项列表，支持按状态或关键词筛选。",
   },
   {
+    name: "Bash",
+    description: "执行受审批与风险判定约束的单条非交互命令。每次调用都必须先由用户明确允许。",
+  },
+  {
     name: "WebSearch",
     description: "使用 Tavily 联网搜索最新网页信息，适合处理时效性或外部事实查询。",
   },

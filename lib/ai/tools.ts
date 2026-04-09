@@ -1,5 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
+import {
+  assessBashCommand,
+  BASH_TOOL_MAX_COMMAND_LENGTH,
+} from "@/lib/ai/bash-policy";
+import { executeBashCommand } from "@/lib/ai/bash-server";
 import type { ProviderConfig } from "@/lib/provider-config";
 import { createNote, readTodos, searchNotes, writeTodo } from "@/lib/persistence";
 
@@ -314,6 +319,30 @@ export function createAgentTools(config: ProviderConfig) {
           .describe("返回条数上限。"),
       }),
       execute: async ({ query, status, limit }) => readTodos({ query, status, limit }),
+    }),
+
+    Bash: tool({
+      description:
+        "执行一条单段、非交互式 shell 命令。此工具每次都必须先获得用户批准，且高风险命令会被直接拒绝。",
+      inputSchema: z.object({
+        command: z
+          .string()
+          .trim()
+          .min(1)
+          .max(BASH_TOOL_MAX_COMMAND_LENGTH)
+          .describe("要执行的单条 shell 命令。只能是非交互、无管道和无重定向的单段命令。"),
+        reason: z
+          .string()
+          .trim()
+          .max(200)
+          .optional()
+          .describe("可选，说明为什么必须执行这条命令。"),
+      }),
+      needsApproval: true,
+      execute: async ({ command }) => executeBashCommand(command),
+      onInputAvailable: ({ input }) => {
+        assessBashCommand(input.command);
+      },
     }),
 
     WebSearch: tool({

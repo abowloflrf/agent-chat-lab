@@ -284,10 +284,12 @@ export function ChatMessage({
   message,
   onRegenerate,
   canRegenerate = false,
+  onToolApprovalResponse,
 }: {
   message: UIMessage;
   onRegenerate?: () => void;
   canRegenerate?: boolean;
+  onToolApprovalResponse?: (approvalId: string, approved: boolean) => Promise<void> | void;
 }) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
@@ -487,6 +489,7 @@ export function ChatMessage({
                   <ToolCallCard
                     key={`${message.id}-tool-${index}`}
                     invocation={part}
+                    onApprovalResponse={onToolApprovalResponse}
                   />
                 );
               }
