@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import {
   assessBashCommand,
@@ -262,18 +262,14 @@ export function ToolCallCard({
   const approvalId = invocation.approval?.id;
   const needsAttention = isApprovalRequested && !!approvalId;
 
-  const [expanded, setExpanded] = useState(needsAttention);
+  const [userExpanded, setUserExpanded] = useState(false);
+  const expanded = needsAttention || userExpanded;
+  const setExpanded = setUserExpanded;
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState<{
     title: string;
     content: string;
   } | null>(null);
-
-  useEffect(() => {
-    if (needsAttention) {
-      setExpanded(true);
-    }
-  }, [needsAttention]);
 
   const openModal = (title: string, content: string) => {
     setModalContent({ title, content });
