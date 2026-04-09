@@ -2,7 +2,6 @@
 
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { loadProviderConfigFromStorage } from "@/lib/provider-config";
 
 type ConversationSummary = {
   id: string;
@@ -410,9 +409,7 @@ export function ConversationList({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          providerConfig: loadProviderConfigFromStorage(),
-        }),
+        body: JSON.stringify({}),
       });
 
       if (!res.ok) {

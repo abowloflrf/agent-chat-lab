@@ -1,32 +1,8 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import {
-  defaultProviderConfig,
-  normalizeProviderConfig,
-  providerConfigInputSchema,
-  type ProviderConfig,
-} from "@/lib/provider-config";
+import type { ProviderConfig } from "@/lib/provider-config";
+import { resolveProviderConfig } from "@/lib/settings";
 
-const envProviderConfig: ProviderConfig = normalizeProviderConfig({
-  baseUrl: process.env.OPENAI_BASE_URL ?? defaultProviderConfig.baseUrl,
-  apiKey: process.env.OPENAI_API_KEY ?? "",
-  model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
-  tavilyApiKey: process.env.TAVILY_API_KEY ?? "",
-});
-
-export function resolveProviderConfig(input: unknown): ProviderConfig {
-  const parsed = providerConfigInputSchema.safeParse(input);
-
-  if (!parsed.success) {
-    return envProviderConfig;
-  }
-
-  return normalizeProviderConfig({
-    baseUrl: parsed.data.baseUrl || envProviderConfig.baseUrl,
-    apiKey: parsed.data.apiKey || envProviderConfig.apiKey,
-    model: parsed.data.model || envProviderConfig.model,
-    tavilyApiKey: parsed.data.tavilyApiKey || envProviderConfig.tavilyApiKey,
-  });
-}
+export { resolveProviderConfig };
 
 export function getChatModel(config: ProviderConfig) {
   const provider = createOpenAI({

@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { resolveProviderConfig } from "@/lib/ai/model";
 import { providerConfigInputSchema } from "@/lib/provider-config";
+import { getRuntimeProviderConfig, resolveProviderConfig } from "@/lib/settings";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const requestSchema = z.object({
-  providerConfig: providerConfigInputSchema,
+  providerConfig: providerConfigInputSchema.optional(),
 });
 
 type ModelsResponse =
@@ -31,7 +31,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const providerConfig = resolveProviderConfig(parsed.data.providerConfig);
+  const providerConfig = parsed.data.providerConfig
+    ? resolveProviderConfig(parsed.data.providerConfig)
+    : await getRuntimeProviderConfig();
 
   if (!providerConfig.baseUrl || !providerConfig.apiKey) {
     return Response.json(

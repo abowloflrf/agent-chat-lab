@@ -13,6 +13,12 @@
       "when": 1775692800000,
       "tag": "0001_todos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "when": 1775696400000,
+      "tag": "0002_system_settings",
+      "breakpoints": true
     }
   ]
 }

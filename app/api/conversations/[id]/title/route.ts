@@ -1,31 +1,13 @@
-import { z } from "zod";
-import { resolveProviderConfig } from "@/lib/ai/model";
 import { getConversation, generateConversationTitle } from "@/lib/persistence";
-import { providerConfigInputSchema } from "@/lib/provider-config";
+import { getRuntimeProviderConfig } from "@/lib/settings";
 
 export const runtime = "nodejs";
 
-const requestSchema = z.object({
-  providerConfig: providerConfigInputSchema.optional(),
-});
-
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const json = await request.json();
-  const parsed = requestSchema.safeParse(json);
-
-  if (!parsed.success) {
-    return Response.json(
-      {
-        error: "Invalid request: providerConfig is malformed.",
-      },
-      { status: 400 },
-    );
-  }
-
   const conversation = await getConversation(id);
 
   if (!conversation) {
@@ -37,7 +19,7 @@ export async function POST(
     );
   }
 
-  const providerConfig = resolveProviderConfig(parsed.data.providerConfig);
+  const providerConfig = await getRuntimeProviderConfig();
 
   if (!providerConfig.apiKey || !providerConfig.model) {
     return Response.json(

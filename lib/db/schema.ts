@@ -90,3 +90,49 @@ export const todos = sqliteTable(
     index("todos_status_updated_idx").on(table.status, table.updatedAt),
   ],
 );
+
+export const systemSettings = sqliteTable("system_settings", {
+  id: integer("id", { mode: "number" }).primaryKey(),
+  tavilyApiKey: text("tavily_api_key").notNull(),
+  createdAt: integer("created_at", { mode: "number" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "number" }).notNull(),
+});
+
+export const modelProviders = sqliteTable(
+  "model_providers",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    baseUrl: text("base_url").notNull(),
+    apiKey: text("api_key").notNull(),
+    isEnabled: integer("is_enabled", { mode: "number" }).notNull(),
+    isDefault: integer("is_default", { mode: "number" }).notNull(),
+    createdAt: integer("created_at", { mode: "number" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    index("model_providers_enabled_idx").on(table.isEnabled, table.updatedAt),
+  ],
+);
+
+export const providerModels = sqliteTable(
+  "provider_models",
+  {
+    id: text("id").primaryKey(),
+    providerId: text("provider_id")
+      .notNull()
+      .references(() => modelProviders.id, { onDelete: "cascade" }),
+    modelId: text("model_id").notNull(),
+    isEnabled: integer("is_enabled", { mode: "number" }).notNull(),
+    isDefault: integer("is_default", { mode: "number" }).notNull(),
+    createdAt: integer("created_at", { mode: "number" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    index("provider_models_provider_idx").on(table.providerId, table.updatedAt),
+    uniqueIndex("provider_models_provider_model_idx").on(
+      table.providerId,
+      table.modelId,
+    ),
+  ],
+);

@@ -1,7 +1,7 @@
 import { streamText, convertToModelMessages, stepCountIs } from "ai";
 import { after } from "next/server";
 import { z } from "zod";
-import { getChatModel, resolveProviderConfig } from "@/lib/ai/model";
+import { getChatModel } from "@/lib/ai/model";
 import {
   buildTimeContextPrompt,
   buildUrlContextPrompt,
@@ -10,7 +10,7 @@ import {
 import { createAgentTools } from "@/lib/ai/tools";
 import { persistFinishedConversation, persistIncomingMessages, generateConversationTitle } from "@/lib/persistence";
 import type { AgentTimelineStep, ChatUIMessage } from "@/lib/observability";
-import { providerConfigInputSchema } from "@/lib/provider-config";
+import { getRuntimeProviderConfig } from "@/lib/settings";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -18,7 +18,6 @@ export const maxDuration = 30;
 const requestSchema = z.object({
   conversationId: z.string().trim().min(1),
   messages: z.array(z.custom<ChatUIMessage>()),
-  providerConfig: providerConfigInputSchema.optional(),
 });
 
 const urlPattern = /https?:\/\/[^\s)>"'`]+/gi;
@@ -84,7 +83,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const providerConfig = resolveProviderConfig(parsed.data.providerConfig);
+  const providerConfig = await getRuntimeProviderConfig();
   const agentTools = createAgentTools(providerConfig);
   const runtimeSystemPrompt = buildRuntimeSystemPrompt(parsed.data.messages);
 

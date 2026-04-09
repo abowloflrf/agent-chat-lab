@@ -1,8 +1,50 @@
 import { z } from "zod";
 
 export const DEBOUNCE_DELAY_MS = 450;
-export const providerConfigStorageKey = "agent-chat-lab.provider-config";
-export const providerConfigChangedEvent = "agent-chat-lab:provider-config-changed";
+
+export const providerModelSchema = z.object({
+  id: z.string().trim().min(1),
+  modelId: z.string().trim().min(1),
+  isEnabled: z.boolean().default(true),
+  isDefault: z.boolean().default(false),
+});
+
+export const providerModelInputSchema = z.object({
+  id: z.string().trim().optional(),
+  modelId: z.string().trim().optional(),
+  isEnabled: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+});
+
+export const providerSettingsSchema = z.object({
+  id: z.string().trim().min(1),
+  name: z.string().trim().min(1).default("OpenAI Compatible"),
+  baseUrl: z.string().trim().default("https://api.openai.com/v1"),
+  apiKey: z.string().trim().default(""),
+  isEnabled: z.boolean().default(true),
+  isDefault: z.boolean().default(false),
+  models: z.array(providerModelSchema).default([]),
+});
+
+export const providerSettingsInputSchema = z.object({
+  id: z.string().trim().optional(),
+  name: z.string().trim().optional(),
+  baseUrl: z.string().trim().optional(),
+  apiKey: z.string().trim().optional(),
+  isEnabled: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+  models: z.array(providerModelInputSchema).optional(),
+});
+
+export const systemSettingsSchema = z.object({
+  tavilyApiKey: z.string().trim().default(""),
+  providers: z.array(providerSettingsSchema).default([]),
+});
+
+export const systemSettingsInputSchema = z.object({
+  tavilyApiKey: z.string().trim().optional(),
+  providers: z.array(providerSettingsInputSchema).optional(),
+});
 
 export const providerConfigSchema = z.object({
   baseUrl: z.string().trim().default("https://api.openai.com/v1"),
@@ -18,6 +60,9 @@ export const providerConfigInputSchema = z.object({
   tavilyApiKey: z.string().trim().optional(),
 });
 
+export type ProviderModel = z.infer<typeof providerModelSchema>;
+export type ProviderSettings = z.infer<typeof providerSettingsSchema>;
+export type SystemSettings = z.infer<typeof systemSettingsSchema>;
 export type ProviderConfig = z.infer<typeof providerConfigSchema>;
 
 export const defaultProviderConfig: ProviderConfig = {
@@ -25,6 +70,21 @@ export const defaultProviderConfig: ProviderConfig = {
   apiKey: "",
   model: "",
   tavilyApiKey: "",
+};
+
+export const defaultProviderSettings: ProviderSettings = {
+  id: "default-provider",
+  name: "OpenAI Compatible",
+  baseUrl: "https://api.openai.com/v1",
+  apiKey: "",
+  isEnabled: true,
+  isDefault: true,
+  models: [],
+};
+
+export const defaultSystemSettings: SystemSettings = {
+  tavilyApiKey: "",
+  providers: [defaultProviderSettings],
 };
 
 export function normalizeProviderConfig(config: ProviderConfig): ProviderConfig {
@@ -36,36 +96,53 @@ export function normalizeProviderConfig(config: ProviderConfig): ProviderConfig 
   };
 }
 
-export function loadProviderConfigFromStorage(): ProviderConfig {
-  if (typeof window === "undefined") {
-    return defaultProviderConfig;
-  }
-
-  const raw = window.localStorage.getItem(providerConfigStorageKey);
-
-  if (!raw) {
-    return defaultProviderConfig;
-  }
-
-  try {
-    const parsed = providerConfigSchema.safeParse(JSON.parse(raw));
-    return parsed.success
-      ? normalizeProviderConfig(parsed.data)
-      : defaultProviderConfig;
-  } catch {
-    return defaultProviderConfig;
-  }
+function normalizeProviderModel(input: ProviderModel): ProviderModel {
+  return {
+    id: input.id.trim(),
+    modelId: input.modelId.trim(),
+    isEnabled: input.isEnabled,
+    isDefault: input.isDefault,
+  };
 }
 
-export function saveProviderConfigToStorage(config: ProviderConfig) {
-  if (typeof window === "undefined") {
-    return;
-  }
+export function normalizeProviderSettings(input: ProviderSettings): ProviderSettings {
+  const normalizedModels = input.models
+    .map(normalizeProviderModel)
+    .filter((model) => model.id && model.modelId);
+  const enabledModels = normalizedModels.filter((model) => model.isEnabled);
+  const defaultModelId = enabledModels.find((model) => model.isDefault)?.id
+    ?? enabledModels[0]?.id
+    ?? null;
 
-  const normalized = normalizeProviderConfig(config);
-  window.localStorage.setItem(
-    providerConfigStorageKey,
-    JSON.stringify(normalized),
-  );
-  window.dispatchEvent(new Event(providerConfigChangedEvent));
+  return {
+    id: input.id.trim(),
+    name: input.name.trim() || defaultProviderSettings.name,
+    baseUrl: (input.baseUrl || defaultProviderSettings.baseUrl).trim().replace(/\/+$/, ""),
+    apiKey: input.apiKey.trim(),
+    isEnabled: input.isEnabled,
+    isDefault: input.isDefault,
+    models: normalizedModels.map((model) => ({
+      ...model,
+      isDefault: defaultModelId === model.id,
+    })),
+  };
+}
+
+export function normalizeSystemSettings(input: SystemSettings): SystemSettings {
+  const normalizedProviders = input.providers
+    .map(normalizeProviderSettings)
+    .filter((provider) => provider.id);
+  const enabledProviders = normalizedProviders.filter((provider) => provider.isEnabled);
+  const defaultProviderId = enabledProviders.find((provider) => provider.isDefault)?.id
+    ?? enabledProviders[0]?.id
+    ?? normalizedProviders[0]?.id
+    ?? null;
+
+  return {
+    tavilyApiKey: input.tavilyApiKey.trim(),
+    providers: normalizedProviders.map((provider) => ({
+      ...provider,
+      isDefault: defaultProviderId === provider.id,
+    })),
+  };
 }

@@ -19,7 +19,6 @@ import {
   parseAgentObservability,
   type ChatUIMessage,
 } from "@/lib/observability";
-import { loadProviderConfigFromStorage } from "@/lib/provider-config";
 
 const starterPrompts = [
   "现在几点了？",
@@ -112,7 +111,6 @@ export function ChatShell({
         ...body,
         conversationId: id,
         messages,
-        providerConfig: loadProviderConfigFromStorage(),
       },
     }),
   });

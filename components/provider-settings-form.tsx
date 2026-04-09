@@ -4,12 +4,11 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { builtInTools } from "@/lib/built-in-tools";
 import {
-  defaultProviderConfig,
-  DEBOUNCE_DELAY_MS,
-  loadProviderConfigFromStorage,
-  normalizeProviderConfig,
-  saveProviderConfigToStorage,
-  type ProviderConfig,
+  defaultProviderSettings,
+  defaultSystemSettings,
+  type ProviderModel,
+  type ProviderSettings,
+  type SystemSettings,
 } from "@/lib/provider-config";
 
 type FetchModelsState =
@@ -20,34 +19,100 @@ type FetchModelsState =
 
 type SettingsSection = "model" | "tools";
 
+function generateId() {
+  return crypto.randomUUID
+    ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+}
+
+function createProvider(): ProviderSettings {
+  return {
+    ...defaultProviderSettings,
+    id: generateId(),
+    isDefault: false,
+    models: [],
+  };
+}
+
+function createModel(modelId: string): ProviderModel {
+  return {
+    id: generateId(),
+    modelId,
+    isEnabled: true,
+    isDefault: false,
+  };
+}
+
+const inputClass =
+  "w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white";
+const labelClass = "mb-2 block text-[11px] uppercase tracking-[0.22em] text-[#8d8478]";
+
 export function ProviderSettingsForm() {
-  const [form, setForm] = useState<ProviderConfig>(defaultProviderConfig);
-  const [models, setModels] = useState<string[]>([]);
+  const [settings, setSettings] = useState<SystemSettings>(defaultSystemSettings);
+  const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
+  const [fetchStates, setFetchStates] = useState<Record<string, FetchModelsState>>({});
+  const [fetchedModels, setFetchedModels] = useState<Record<string, string[]>>({});
+  const [addingModelForProvider, setAddingModelForProvider] = useState<string | null>(null);
+  const [newModelId, setNewModelId] = useState("");
   const [toolUsageCounts, setToolUsageCounts] = useState<Record<string, number>>({});
-  const [fetchState, setFetchState] = useState<FetchModelsState>({
-    status: "idle",
-    error: null,
-  });
-  const [isCustomModel, setIsCustomModel] = useState(false);
   const [activeSection, setActiveSection] = useState<SettingsSection>("model");
-  const [manualFetchTrigger, setManualFetchTrigger] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const initialLoadDone = useRef(false);
 
+  // Load settings from server
   useEffect(() => {
-    const config = loadProviderConfigFromStorage();
-    setForm(config);
-    initialLoadDone.current = true;
+    let cancelled = false;
+
+    async function loadSettings() {
+      try {
+        const response = await fetch("/api/settings");
+        const payload = (await response.json()) as { settings?: SystemSettings };
+
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        const loaded = payload.settings ?? defaultSystemSettings;
+        setSettings(loaded);
+
+        // Auto-expand the default or first provider
+        const defaultProvider = loaded.providers.find((p) => p.isDefault) ?? loaded.providers[0];
+        if (defaultProvider) {
+          setExpandedProviderId(defaultProvider.id);
+        }
+      } catch {
+        if (!cancelled) {
+          setSettings(defaultSystemSettings);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+          initialLoadDone.current = true;
+        }
+      }
+    }
+
+    void loadSettings();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // Load tool usage counts
   useEffect(() => {
     let cancelled = false;
 
     async function loadToolUsageCounts() {
       try {
         const response = await fetch("/api/tool-stats");
-        const payload = (await response.json()) as {
-          counts?: Record<string, number>;
-        };
+        const payload = (await response.json()) as { counts?: Record<string, number> };
 
         if (!response.ok || cancelled) {
           return;
@@ -68,84 +133,204 @@ export function ProviderSettingsForm() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!initialLoadDone.current) {
-      return;
-    }
-
-    if (!form.baseUrl.trim() || !form.apiKey.trim()) {
-      setModels([]);
-      setFetchState({ status: "idle", error: null });
-      return;
-    }
-
-    const controller = new AbortController();
-    const nextProviderConfig = {
-      baseUrl: form.baseUrl,
-      apiKey: form.apiKey,
-    };
-    const timeout = window.setTimeout(async () => {
-      try {
-        setFetchState({ status: "loading", error: null });
-
-        const response = await fetch("/api/models", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            providerConfig: nextProviderConfig,
-          }),
-          signal: controller.signal,
-        });
-
-        const payload = (await response.json()) as {
-          models?: string[];
-          error?: string;
-        };
-
-        if (!response.ok) {
-          throw new Error(payload.error || "拉取模型失败。");
-        }
-
-        const nextModels = payload.models ?? [];
-        setModels(nextModels);
-        setFetchState({ status: "success", error: null });
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setModels([]);
-        setFetchState({
-          status: "error",
-          error:
-            error instanceof Error ? error.message : "拉取模型时发生未知错误。",
-        });
-      }
-    }, DEBOUNCE_DELAY_MS);
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(timeout);
-    };
-  }, [form.baseUrl, form.apiKey, manualFetchTrigger]);
-
-  function updateField<Key extends keyof ProviderConfig>(
-    key: Key,
-    value: ProviderConfig[Key],
-  ) {
-    setForm((current) => ({
+  function updateProvider(providerId: string, updates: Partial<ProviderSettings>) {
+    setSettings((current) => ({
       ...current,
-      [key]: value,
+      providers: current.providers.map((p) =>
+        p.id === providerId ? { ...p, ...updates } : p,
+      ),
     }));
   }
 
-  function handleSave(event: React.FormEvent<HTMLFormElement>) {
+  function setDefaultProvider(providerId: string) {
+    setSettings((current) => ({
+      ...current,
+      providers: current.providers.map((p) => ({
+        ...p,
+        isDefault: p.id === providerId,
+      })),
+    }));
+  }
+
+  function addProvider() {
+    const newProvider = createProvider();
+    setSettings((current) => ({
+      ...current,
+      providers: [...current.providers, newProvider],
+    }));
+    setExpandedProviderId(newProvider.id);
+  }
+
+  function removeProvider(providerId: string) {
+    setSettings((current) => {
+      const next = current.providers.filter((p) => p.id !== providerId);
+      // If we removed the default, make the first enabled one default
+      if (next.length > 0 && !next.some((p) => p.isDefault)) {
+        const firstEnabled = next.find((p) => p.isEnabled) ?? next[0];
+        return {
+          ...current,
+          providers: next.map((p) => ({
+            ...p,
+            isDefault: p.id === firstEnabled.id,
+          })),
+        };
+      }
+      return { ...current, providers: next };
+    });
+    if (expandedProviderId === providerId) {
+      setExpandedProviderId(null);
+    }
+  }
+
+  function addModelToProvider(providerId: string, modelId: string) {
+    if (!modelId.trim()) return;
+    setSettings((current) => ({
+      ...current,
+      providers: current.providers.map((p) => {
+        if (p.id !== providerId) return p;
+        // Skip if already exists
+        if (p.models.some((m) => m.modelId === modelId.trim())) return p;
+        const newModel = createModel(modelId.trim());
+        const isFirst = p.models.length === 0;
+        return {
+          ...p,
+          models: [...p.models, { ...newModel, isDefault: isFirst }],
+        };
+      }),
+    }));
+  }
+
+  function removeModelFromProvider(providerId: string, modelId: string) {
+    setSettings((current) => ({
+      ...current,
+      providers: current.providers.map((p) => {
+        if (p.id !== providerId) return p;
+        const next = p.models.filter((m) => m.id !== modelId);
+        // If we removed the default, make the first enabled one default
+        if (next.length > 0 && !next.some((m) => m.isDefault)) {
+          const firstEnabled = next.find((m) => m.isEnabled) ?? next[0];
+          return {
+            ...p,
+            models: next.map((m) => ({ ...m, isDefault: m.id === firstEnabled.id })),
+          };
+        }
+        return { ...p, models: next };
+      }),
+    }));
+  }
+
+  function toggleModelEnabled(providerId: string, modelId: string) {
+    setSettings((current) => ({
+      ...current,
+      providers: current.providers.map((p) => {
+        if (p.id !== providerId) return p;
+        return {
+          ...p,
+          models: p.models.map((m) =>
+            m.id === modelId ? { ...m, isEnabled: !m.isEnabled } : m,
+          ),
+        };
+      }),
+    }));
+  }
+
+  function setDefaultModel(providerId: string, modelId: string) {
+    setSettings((current) => ({
+      ...current,
+      providers: current.providers.map((p) => {
+        if (p.id !== providerId) return p;
+        return {
+          ...p,
+          models: p.models.map((m) => ({
+            ...m,
+            isDefault: m.id === modelId,
+          })),
+        };
+      }),
+    }));
+  }
+
+  function fetchModelsForProvider(provider: ProviderSettings) {
+    if (!provider.baseUrl.trim() || !provider.apiKey.trim()) return;
+
+    setFetchStates((prev) => ({
+      ...prev,
+      [provider.id]: { status: "loading", error: null },
+    }));
+
+    fetch("/api/models", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        providerConfig: {
+          baseUrl: provider.baseUrl,
+          apiKey: provider.apiKey,
+        },
+      }),
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as { models?: string[]; error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error || "拉取模型失败。");
+        }
+        const models = payload.models ?? [];
+        setFetchedModels((prev) => ({ ...prev, [provider.id]: models }));
+        setFetchStates((prev) => ({
+          ...prev,
+          [provider.id]: { status: "success", error: null },
+        }));
+      })
+      .catch((error) => {
+        setFetchStates((prev) => ({
+          ...prev,
+          [provider.id]: {
+            status: "error",
+            error: error instanceof Error ? error.message : "拉取模型时发生未知错误。",
+          },
+        }));
+      });
+  }
+
+  async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextConfig = normalizeProviderConfig(form);
-    saveProviderConfigToStorage(nextConfig);
-    setForm(nextConfig);
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+
+      const payload = (await response.json()) as { settings?: SystemSettings; error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "保存失败。");
+      }
+
+      if (payload.settings) {
+        setSettings(payload.settings);
+      }
+
+      setSaveMessage({ type: "success", text: "设置已保存。" });
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (error) {
+      setSaveMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "保存设置时发生未知错误。",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <main className="app-shell flex h-screen items-center justify-center text-[#171717]">
+        <p className="text-sm text-[#8a8176]">加载设置中...</p>
+      </main>
+    );
   }
 
   return (
@@ -221,221 +406,406 @@ export function ProviderSettingsForm() {
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             <form onSubmit={handleSave} className="max-w-3xl space-y-6">
-            {activeSection === "model" ? (
-              <>
-                <section className="border-t border-[rgba(23,23,23,0.08)] pt-6 first:border-t-0 first:pt-0">
-                  <div className="mb-5">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
-                      模型配置
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-[#6e665d]">
-                      配置 Base URL、API Key 和模型名称。支持从模型列表选择或手动输入，配置将保存在本地存储中。
-                    </p>
-                  </div>
-
-                  <div className="grid gap-6">
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
-                        Base URL
-                      </span>
-                      <input
-                        value={form.baseUrl}
-                        onChange={(event) =>
-                          updateField("baseUrl", event.target.value)
-                        }
-                        placeholder="https://api.openai.com/v1"
-                        className="w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
-                        API Key
-                      </span>
-                      <input
-                        type="password"
-                        value={form.apiKey}
-                        onChange={(event) =>
-                          updateField("apiKey", event.target.value)
-                        }
-                        placeholder="sk-..."
-                        className="w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
-                      />
-                    </label>
-
-                    <div>
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <span className="block text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
-                          Model
-                        </span>
-                        {fetchState.status === "success" && models.length > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => setManualFetchTrigger((prev) => prev + 1)}
-                            className="text-[11px] text-[#9c5626] transition hover:text-[#a44d16]"
-                          >
-                            刷新列表
-                          </button>
-                        ) : null}
-                      </div>
-
-                      {fetchState.status === "success" && models.length > 0 ? (
-                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                          <select
-                            value={isCustomModel ? "" : form.model}
-                            onChange={(event) => {
-                              const value = event.target.value;
-                              if (value === "__custom__") {
-                                setIsCustomModel(true);
-                                updateField("model", "");
-                              } else {
-                                setIsCustomModel(false);
-                                updateField("model", value);
-                              }
-                            }}
-                            className="w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
-                          >
-                            <option value="">
-                              {form.model && !models.includes(form.model)
-                                ? `当前：${form.model} (不在列表中)`
-                                : "选择模型"}
-                            </option>
-                            {models.map((model) => (
-                              <option key={model} value={model}>
-                                {model}
-                              </option>
-                            ))}
-                            <option value="__custom__">自定义...</option>
-                          </select>
-
-                          {isCustomModel ? (
-                            <input
-                              type="text"
-                              value={form.model}
-                              onChange={(event) =>
-                                updateField("model", event.target.value)
-                              }
-                              placeholder="模型名称"
-                              className="w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
-                              autoFocus
-                            />
-                          ) : (
-                            <div className="rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(248,242,235,0.8)] px-4 py-3 text-sm text-[#6e665d]">
-                              {form.model
-                                ? `已选择：${form.model}`
-                                : "从下拉列表选择或手动输入"}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div>
-                          <input
-                            value={form.model}
-                            onChange={(event) =>
-                              updateField("model", event.target.value)
-                            }
-                            placeholder="例如：gpt-4o"
-                            className="w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
-                          />
-                          {fetchState.status === "error" ? (
-                            <p className="mt-2 text-xs text-[#8a8176]">
-                              无法拉取模型列表，请手动输入模型名称。
-                              <button
-                                type="button"
-                                onClick={() => setManualFetchTrigger((prev) => prev + 1)}
-                                className="ml-2 text-[#9c5626] transition hover:text-[#a44d16]"
-                              >
-                                重试
-                              </button>
-                            </p>
-                          ) : (
-                            <p className="mt-2 text-xs text-[#8a8176]">
-                              配置将自动保存。
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </section>
-
-                <div className="flex items-center justify-end border-t border-[rgba(23,23,23,0.08)] pt-5">
-
-                  <button
-                    type="submit"
-                    className="rounded-full bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d]"
-                  >
-                    保存
-                  </button>
-                </div>
-              </>
-            ) : (
-              <section className="border-t border-[rgba(23,23,23,0.08)] pt-6 first:border-t-0 first:pt-0">
-                <div className="mb-5 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
-                      内置 Tools
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-[#6e665d]">
-                      这里展示当前应用内置的工具能力。部分工具支持单独配置，例如 WebSearch 依赖 Tavily API Key。
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-[rgba(23,23,23,0.1)] px-3 py-1 text-[11px] text-[#6e665d]">
-                    {builtInTools.length} 个
-                  </span>
-                </div>
-
-                <div className="mb-5 rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.72)] p-4">
-                  <label className="block">
-                    <span className="mb-2 block text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
-                      Tavily API Key
-                    </span>
-                    <input
-                      type="password"
-                      value={form.tavilyApiKey}
-                      onChange={(event) =>
-                        updateField("tavilyApiKey", event.target.value)
-                      }
-                      placeholder="tvly-..."
-                      className="w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
-                    />
-                  </label>
-                  <p className="mt-2 text-xs leading-5 text-[#8a8176]">
-                    `WebSearch` 会在需要联网查询最新网页信息时自动调用。此 Key 保存在当前浏览器本地存储；未填写时，服务端会回退到环境变量 `TAVILY_API_KEY`。
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  {builtInTools.map((tool) => (
-                    <div
-                      key={tool.name}
-                      className="rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.64)] px-4 py-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="font-mono text-[12px] text-[#9c5626]">
-                          {tool.name}
-                        </p>
-                        <span className="shrink-0 rounded-full border border-[rgba(23,23,23,0.1)] px-2.5 py-1 text-[11px] text-[#6e665d]">
-                          调用 {toolUsageCounts[tool.name] ?? 0} 次
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-[#4d4339]">
-                        {tool.description}
+              {activeSection === "model" ? (
+                <>
+                  <section className="pt-0">
+                    <div className="mb-5">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                        模型配置
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+                        管理多个供应商，每个供应商可配置多个模型。设置将持久化到服务端数据库。
                       </p>
                     </div>
-                  ))}
-                </div>
 
-                <div className="flex items-center justify-end border-t border-[rgba(23,23,23,0.08)] pt-5">
-                  <button
-                    type="submit"
-                    className="rounded-full bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d]"
-                  >
-                    保存
-                  </button>
-                </div>
-              </section>
-            )}
+                    <div className="space-y-3">
+                      {settings.providers.map((provider) => {
+                        const isExpanded = expandedProviderId === provider.id;
+                        const providerFetchState = fetchStates[provider.id] ?? { status: "idle", error: null };
+                        const providerModels = fetchedModels[provider.id] ?? [];
+                        const enabledModelCount = provider.models.filter((m) => m.isEnabled).length;
+
+                        return (
+                          <div
+                            key={provider.id}
+                            className={`rounded-lg border transition ${
+                              isExpanded
+                                ? "border-[rgba(201,106,43,0.3)] bg-[rgba(255,255,255,0.8)]"
+                                : "border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.64)]"
+                            }`}
+                          >
+                            {/* Provider header */}
+                            <div
+                              className="flex cursor-pointer items-center gap-3 px-4 py-3"
+                              onClick={() => setExpandedProviderId(isExpanded ? null : provider.id)}
+                            >
+                              <span className="text-xs text-[#8a8176]">{isExpanded ? "▼" : "▶"}</span>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-[#241c15]">
+                                    {provider.name}
+                                  </span>
+                                  {provider.isDefault && (
+                                    <span className="rounded-full bg-[#9c5626]/10 px-2 py-0.5 text-[10px] font-medium text-[#9c5626]">
+                                      默认
+                                    </span>
+                                  )}
+                                  {!provider.isEnabled && (
+                                    <span className="rounded-full bg-[#8a8176]/10 px-2 py-0.5 text-[10px] text-[#8a8176]">
+                                      已禁用
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="mt-0.5 truncate text-xs text-[#8a8176]">
+                                  {provider.baseUrl} · {enabledModelCount} 个已启用模型
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeProvider(provider.id);
+                                }}
+                                className="shrink-0 rounded-md px-2 py-1 text-xs text-[#8a8176] transition hover:bg-red-50 hover:text-red-600"
+                                title="删除供应商"
+                              >
+                                删除
+                              </button>
+                            </div>
+
+                            {/* Expanded content */}
+                            {isExpanded && (
+                              <div className="border-t border-[rgba(23,23,23,0.06)] px-4 py-4">
+                                <div className="grid gap-5">
+                                  {/* Provider name */}
+                                  <label className="block">
+                                    <span className={labelClass}>名称</span>
+                                    <input
+                                      value={provider.name}
+                                      onChange={(e) => updateProvider(provider.id, { name: e.target.value })}
+                                      placeholder="OpenAI Compatible"
+                                      className={inputClass}
+                                    />
+                                  </label>
+
+                                  {/* Base URL */}
+                                  <label className="block">
+                                    <span className={labelClass}>Base URL</span>
+                                    <input
+                                      value={provider.baseUrl}
+                                      onChange={(e) => updateProvider(provider.id, { baseUrl: e.target.value })}
+                                      placeholder="https://api.openai.com/v1"
+                                      className={inputClass}
+                                    />
+                                  </label>
+
+                                  {/* API Key */}
+                                  <label className="block">
+                                    <span className={labelClass}>API Key</span>
+                                    <input
+                                      type="password"
+                                      value={provider.apiKey}
+                                      onChange={(e) => updateProvider(provider.id, { apiKey: e.target.value })}
+                                      placeholder="sk-..."
+                                      className={inputClass}
+                                    />
+                                  </label>
+
+                                  {/* Toggle row */}
+                                  <div className="flex flex-wrap items-center gap-4">
+                                    <label className="flex items-center gap-2 text-sm text-[#4d4339]">
+                                      <input
+                                        type="checkbox"
+                                        checked={provider.isEnabled}
+                                        onChange={(e) => updateProvider(provider.id, { isEnabled: e.target.checked })}
+                                        className="accent-[#9c5626]"
+                                      />
+                                      启用
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDefaultProvider(provider.id)}
+                                      disabled={provider.isDefault}
+                                      className={`rounded-full border px-3 py-1 text-xs transition ${
+                                        provider.isDefault
+                                          ? "border-[#9c5626]/30 bg-[#9c5626]/10 text-[#9c5626]"
+                                          : "border-[rgba(23,23,23,0.12)] text-[#6e665d] hover:border-[#9c5626]/30 hover:text-[#9c5626]"
+                                      }`}
+                                    >
+                                      {provider.isDefault ? "默认供应商" : "设为默认"}
+                                    </button>
+                                  </div>
+
+                                  {/* Models section */}
+                                  <div>
+                                    <div className="mb-3 flex items-center justify-between">
+                                      <span className={labelClass}>模型列表</span>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => fetchModelsForProvider(provider)}
+                                          disabled={!provider.baseUrl.trim() || !provider.apiKey.trim() || providerFetchState.status === "loading"}
+                                          className="text-[11px] text-[#9c5626] transition hover:text-[#a44d16] disabled:opacity-50"
+                                        >
+                                          {providerFetchState.status === "loading" ? "拉取中..." : "从 API 拉取"}
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {providerFetchState.status === "error" && (
+                                      <p className="mb-2 text-xs text-red-500">
+                                        {providerFetchState.error}
+                                      </p>
+                                    )}
+
+                                    {/* Fetched models selector */}
+                                    {providerFetchState.status === "success" && providerModels.length > 0 && (
+                                      <div className="mb-3">
+                                        <select
+                                          onChange={(e) => {
+                                            if (e.target.value) {
+                                              addModelToProvider(provider.id, e.target.value);
+                                              e.target.value = "";
+                                            }
+                                          }}
+                                          className={inputClass}
+                                          defaultValue=""
+                                        >
+                                          <option value="">从已拉取的模型中选择添加...</option>
+                                          {providerModels
+                                            .filter((m) => !provider.models.some((pm) => pm.modelId === m))
+                                            .map((m) => (
+                                              <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                      </div>
+                                    )}
+
+                                    {/* Added models list */}
+                                    {provider.models.length > 0 && (
+                                      <div className="mb-3 space-y-1.5">
+                                        {provider.models.map((model) => (
+                                          <div
+                                            key={model.id}
+                                            className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                                              model.isEnabled
+                                                ? "border-[rgba(23,23,23,0.08)] bg-[rgba(248,242,235,0.6)]"
+                                                : "border-[rgba(23,23,23,0.06)] bg-[rgba(248,242,235,0.3)] opacity-60"
+                                            }`}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={model.isEnabled}
+                                              onChange={() => toggleModelEnabled(provider.id, model.id)}
+                                              className="accent-[#9c5626]"
+                                            />
+                                            <span className="min-w-0 flex-1 truncate font-mono text-xs text-[#241c15]">
+                                              {model.modelId}
+                                            </span>
+                                            {model.isDefault && (
+                                              <span className="shrink-0 rounded-full bg-[#9c5626]/10 px-2 py-0.5 text-[10px] font-medium text-[#9c5626]">
+                                                默认
+                                              </span>
+                                            )}
+                                            {!model.isDefault && (
+                                              <button
+                                                type="button"
+                                                onClick={() => setDefaultModel(provider.id, model.id)}
+                                                className="shrink-0 text-[10px] text-[#8a8176] transition hover:text-[#9c5626]"
+                                              >
+                                                设为默认
+                                              </button>
+                                            )}
+                                            <button
+                                              type="button"
+                                              onClick={() => removeModelFromProvider(provider.id, model.id)}
+                                              className="shrink-0 text-[10px] text-[#8a8176] transition hover:text-red-500"
+                                            >
+                                              移除
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {/* Manual add model */}
+                                    {addingModelForProvider === provider.id ? (
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="text"
+                                          value={newModelId}
+                                          onChange={(e) => setNewModelId(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                              e.preventDefault();
+                                              if (newModelId.trim()) {
+                                                addModelToProvider(provider.id, newModelId);
+                                                setNewModelId("");
+                                                setAddingModelForProvider(null);
+                                              }
+                                            }
+                                            if (e.key === "Escape") {
+                                              setNewModelId("");
+                                              setAddingModelForProvider(null);
+                                            }
+                                          }}
+                                          placeholder="输入模型名称，如 gpt-4o"
+                                          className={inputClass}
+                                          autoFocus
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (newModelId.trim()) {
+                                              addModelToProvider(provider.id, newModelId);
+                                              setNewModelId("");
+                                              setAddingModelForProvider(null);
+                                            }
+                                          }}
+                                          className="shrink-0 rounded-md border border-[rgba(23,23,23,0.12)] px-3 py-3 text-xs text-[#4d4339] transition hover:border-[#9c5626]/30 hover:text-[#9c5626]"
+                                        >
+                                          添加
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setNewModelId("");
+                                            setAddingModelForProvider(null);
+                                          }}
+                                          className="shrink-0 rounded-md px-2 py-3 text-xs text-[#8a8176] transition hover:text-[#4d4339]"
+                                        >
+                                          取消
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setAddingModelForProvider(provider.id);
+                                          setNewModelId("");
+                                        }}
+                                        className="text-xs text-[#9c5626] transition hover:text-[#a44d16]"
+                                      >
+                                        + 手动添加模型
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Add provider button */}
+                    <button
+                      type="button"
+                      onClick={addProvider}
+                      className="mt-3 rounded-lg border border-dashed border-[rgba(23,23,23,0.16)] px-4 py-3 text-sm text-[#6e665d] transition hover:border-[rgba(201,106,43,0.45)] hover:text-[#9c5626]"
+                    >
+                      + 添加供应商
+                    </button>
+                  </section>
+
+                  {/* Save bar */}
+                  <div className="flex items-center justify-end gap-3 border-t border-[rgba(23,23,23,0.08)] pt-5">
+                    {saveMessage && (
+                      <span
+                        className={`text-xs ${
+                          saveMessage.type === "success" ? "text-green-600" : "text-red-500"
+                        }`}
+                      >
+                        {saveMessage.text}
+                      </span>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      className="rounded-full bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d] disabled:opacity-50"
+                    >
+                      {isSaving ? "保存中..." : "保存"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <section className="pt-0">
+                  <div className="mb-5 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                        内置 Tools
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+                        这里展示当前应用内置的工具能力。部分工具支持单独配置，例如 WebSearch 依赖 Tavily API Key。
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-[rgba(23,23,23,0.1)] px-3 py-1 text-[11px] text-[#6e665d]">
+                      {builtInTools.length} 个
+                    </span>
+                  </div>
+
+                  <div className="mb-5 rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.72)] p-4">
+                    <label className="block">
+                      <span className={labelClass}>Tavily API Key</span>
+                      <input
+                        type="password"
+                        value={settings.tavilyApiKey}
+                        onChange={(e) =>
+                          setSettings((current) => ({
+                            ...current,
+                            tavilyApiKey: e.target.value,
+                          }))
+                        }
+                        placeholder="tvly-..."
+                        className={inputClass}
+                      />
+                    </label>
+                    <p className="mt-2 text-xs leading-5 text-[#8a8176]">
+                      `WebSearch` 会在需要联网查询最新网页信息时自动调用。未填写时，服务端会回退到环境变量 `TAVILY_API_KEY`。
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {builtInTools.map((tool) => (
+                      <div
+                        key={tool.name}
+                        className="rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.64)] px-4 py-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-mono text-[12px] text-[#9c5626]">
+                            {tool.name}
+                          </p>
+                          <span className="shrink-0 rounded-full border border-[rgba(23,23,23,0.1)] px-2.5 py-1 text-[11px] text-[#6e665d]">
+                            调用 {toolUsageCounts[tool.name] ?? 0} 次
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-[#4d4339]">
+                          {tool.description}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 border-t border-[rgba(23,23,23,0.08)] pt-5">
+                    {saveMessage && (
+                      <span
+                        className={`text-xs ${
+                          saveMessage.type === "success" ? "text-green-600" : "text-red-500"
+                        }`}
+                      >
+                        {saveMessage.text}
+                      </span>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      className="rounded-full bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d] disabled:opacity-50"
+                    >
+                      {isSaving ? "保存中..." : "保存"}
+                    </button>
+                  </div>
+                </section>
+              )}
             </form>
           </div>
         </section>
