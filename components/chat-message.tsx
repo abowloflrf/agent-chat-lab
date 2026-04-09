@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AgentTimeline } from "@/components/agent-timeline";
 import { ToolCallCard } from "@/components/tool-call-card";
+import { formatMessageDateTime } from "@/lib/datetime";
 import { getMessageTimestamp, parseAgentObservability } from "@/lib/observability";
 
 const markdownTextStyles = {
@@ -79,16 +80,6 @@ function roleLabel(role: UIMessage["role"]) {
     default:
       return role;
   }
-}
-
-function formatMessageTime(timestamp: number) {
-  return new Date(timestamp).toLocaleString("zh-CN", {
-    hour12: false,
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function formatDuration(durationMs: number) {
@@ -528,7 +519,7 @@ export function ChatMessage({
                     isUser ? "text-[#8c7d70] opacity-0" : "text-[#8f8172] opacity-0"
                   }`}
                 >
-                  {isUser ? "发送于" : "回复于"} {formatMessageTime(messageTimestamp)}
+                  {isUser ? "发送于" : "回复于"} {formatMessageDateTime(messageTimestamp)}
                 </div>
               ) : null}
 

@@ -57,6 +57,7 @@ export function ConversationList({
   const titleAnimationTimeoutsRef = useRef(new Map<string, number>());
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const normalizedSearchQuery = deferredSearchQuery.trim();
+  const hasLoadedOnceRef = useRef(false);
 
   const updateConversationInState = useCallback((
     conversationId: string,
@@ -253,7 +254,7 @@ export function ConversationList({
     activeRequestRef.current = requestId;
 
     if (reset) {
-      setIsLoading(true);
+      setIsLoading(!hasLoadedOnceRef.current);
       setIsLoadingMore(false);
     } else {
       setIsLoadingMore(true);
@@ -285,10 +286,13 @@ export function ConversationList({
         reset ? data.conversations : [...current, ...data.conversations],
       );
       setHasMoreConversations(Boolean(data.hasMore));
+      hasLoadedOnceRef.current = true;
     } catch (error) {
       console.error("Failed to load conversations:", error);
       if (requestId === activeRequestRef.current && reset) {
-        setConversations([]);
+        if (!hasLoadedOnceRef.current) {
+          setConversations([]);
+        }
         setHasMoreConversations(false);
       }
     } finally {

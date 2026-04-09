@@ -135,12 +135,6 @@ export function ChatShell({
       sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     });
 
-  const shouldRefreshTitle =
-    status === "ready" &&
-    messages.filter((message) => message.role === "user").length === 1 &&
-    messages.filter((message) => message.role === "assistant").length === 1;
-  const conversationRefresh = `${conversationId}:${messages.length}:${shouldRefreshTitle ? "title" : "base"}`;
-
   useEffect(() => {
     if (routeConversationId && routeConversationId !== localConversationId) {
       fetch(`/api/conversations/${routeConversationId}`)
@@ -458,7 +452,7 @@ export function ChatShell({
                 currentConversationId={conversationId}
                 onNewConversation={handleNewConversation}
                 onConversationTitleChange={setConversationTitle}
-                refreshTrigger={conversationRefresh}
+                refreshTrigger={isBusy ? 1 : 0}
                 isCreatingConversation={isCreatingConversation}
               />
             </section>

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import {
   assessBashCommand,
@@ -36,8 +37,34 @@ function truncateOutput(value: string, limit: number): LimitedOutput {
   };
 }
 
+function resolveBashToolWorkdir() {
+  const configuredWorkdir = process.env.BASH_TOOL_WORKDIR?.trim();
+
+  if (configuredWorkdir && existsSync(configuredWorkdir)) {
+    return configuredWorkdir;
+  }
+
+  const currentWorkdir = process.cwd();
+  if (existsSync(currentWorkdir)) {
+    return currentWorkdir;
+  }
+
+  return "/";
+}
+
+function toExecutionError(error: NodeJS.ErrnoException, workdir: string) {
+  if (error.code === "ENOENT") {
+    return new Error(
+      `命令启动失败：找不到可执行文件，或工作目录不存在。command=${error.path ?? "unknown"} workdir=${workdir}`,
+    );
+  }
+
+  return error;
+}
+
 export async function executeBashCommand(command: string): Promise<BashExecutionResult> {
   const assessment = assessBashCommand(command);
+  const workdir = resolveBashToolWorkdir();
 
   if (assessment.decision === "deny") {
     throw new Error(assessment.reasons.join(" "));
@@ -47,7 +74,7 @@ export async function executeBashCommand(command: string): Promise<BashExecution
 
   return new Promise<BashExecutionResult>((resolve, reject) => {
     const child = spawn(assessment.argv[0], assessment.argv.slice(1), {
-      cwd: assessment.workdir,
+      cwd: workdir,
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
       env: process.env,
@@ -100,7 +127,7 @@ export async function executeBashCommand(command: string): Promise<BashExecution
     });
 
     child.on("error", (error) => {
-      finalize(() => reject(error));
+      finalize(() => reject(toExecutionError(error, workdir)));
     });
 
     child.on("close", (exitCode) => {
@@ -118,7 +145,7 @@ export async function executeBashCommand(command: string): Promise<BashExecution
           durationMs,
           riskLevel: assessment.riskLevel,
           reasons: assessment.reasons,
-          workdir: assessment.workdir,
+          workdir,
         });
       });
     });

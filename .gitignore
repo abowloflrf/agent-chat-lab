@@ -25,6 +25,8 @@
 *.pem
 /data/*.sqlite
 /data/*.sqlite-*
+/workspace/**/*
+!/workspace/.gitkeep
 
 # debug
 npm-debug.log*

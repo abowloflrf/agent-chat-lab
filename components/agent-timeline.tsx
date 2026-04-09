@@ -1,4 +1,5 @@
 import type { AgentObservability } from "@/lib/observability";
+import { formatClockTime } from "@/lib/datetime";
 
 function formatDuration(durationMs: number) {
   if (durationMs < 1000) {
@@ -7,12 +8,6 @@ function formatDuration(durationMs: number) {
 
   const seconds = durationMs / 1000;
   return `${seconds.toFixed(seconds >= 10 ? 0 : 1)} s`;
-}
-
-function formatTime(timestamp: number) {
-  return new Date(timestamp).toLocaleTimeString("zh-CN", {
-    hour12: false,
-  });
 }
 
 function formatPreview(text: string) {
@@ -80,7 +75,7 @@ export function AgentTimeline({ observability }: AgentTimelineProps) {
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-[#7a6e62]">
-                    {step.provider} · {formatTime(step.startedAt)}
+                    {step.provider} · {formatClockTime(step.startedAt)}
                   </p>
                 </div>
 

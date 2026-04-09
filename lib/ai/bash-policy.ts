@@ -1,7 +1,7 @@
-export const BASH_TOOL_WORKDIR = "/home/ruofeng/code/cc_agent/agent-chat-lab";
 export const BASH_TOOL_TIMEOUT_MS = 15_000;
 export const BASH_TOOL_OUTPUT_LIMIT = 16 * 1024;
 export const BASH_TOOL_MAX_COMMAND_LENGTH = 400;
+export const BASH_TOOL_WORKDIR_LABEL = "服务端运行时工作目录";
 
 export type BashRiskLevel = "low" | "medium" | "high" | "critical";
 export type BashDecision = "allow" | "deny";
@@ -235,7 +235,7 @@ function buildDeniedAssessment(command: string, reason: string): BashAssessment 
     riskLevel: "critical",
     decision: "deny",
     reasons: [reason],
-    workdir: BASH_TOOL_WORKDIR,
+    workdir: BASH_TOOL_WORKDIR_LABEL,
     timeoutMs: BASH_TOOL_TIMEOUT_MS,
     outputLimit: BASH_TOOL_OUTPUT_LIMIT,
     argv: [],
@@ -284,7 +284,7 @@ export function assessBashCommand(command: string): BashAssessment {
       riskLevel: "critical",
       decision: "deny",
       reasons: [blockedReason],
-      workdir: BASH_TOOL_WORKDIR,
+      workdir: BASH_TOOL_WORKDIR_LABEL,
       timeoutMs: BASH_TOOL_TIMEOUT_MS,
       outputLimit: BASH_TOOL_OUTPUT_LIMIT,
       argv,
@@ -298,7 +298,7 @@ export function assessBashCommand(command: string): BashAssessment {
       riskLevel: "critical",
       decision: "deny",
       reasons: [gitReason],
-      workdir: BASH_TOOL_WORKDIR,
+      workdir: BASH_TOOL_WORKDIR_LABEL,
       timeoutMs: BASH_TOOL_TIMEOUT_MS,
       outputLimit: BASH_TOOL_OUTPUT_LIMIT,
       argv,
@@ -307,7 +307,7 @@ export function assessBashCommand(command: string): BashAssessment {
 
   const reasons = [
     "命令将以非交互模式执行。",
-    "执行目录固定为当前仓库根目录。",
+    `执行目录固定为${BASH_TOOL_WORKDIR_LABEL}。`,
     "输出与执行时长都会受到限制。",
   ];
 
@@ -335,7 +335,7 @@ export function assessBashCommand(command: string): BashAssessment {
     riskLevel,
     decision: "allow",
     reasons,
-    workdir: BASH_TOOL_WORKDIR,
+    workdir: BASH_TOOL_WORKDIR_LABEL,
     timeoutMs: BASH_TOOL_TIMEOUT_MS,
     outputLimit: BASH_TOOL_OUTPUT_LIMIT,
     argv,

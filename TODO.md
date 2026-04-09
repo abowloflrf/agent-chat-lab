@@ -94,6 +94,13 @@
 - [x] 修复会话持久化覆盖自定义标题问题
 - [x] 新增手动触发会话标题生成 API，并纳入首条助手回复上下文
 - [x] 优化首页会话列表悬浮菜单与标题打字机替换效果
+- [x] 修复首屏时间文本因时区差异导致的 React hydration 报错
+- [x] 修复 Bash Tool 在 Docker 容器内因硬编码宿主机工作目录导致的 `spawn ENOENT`
+- [x] 将 Docker 镜像改为单阶段 `node:24`，并预装 Bash Tool 常用系统命令
+- [x] 修复 Docker 容器在 `output: standalone` 下仍使用 `next start` 启动的告警
+- [x] 修复 Docker standalone 启动时未携带 `.next/static` 与 `public` 导致前端资源 404
+- [x] 为 Docker 运行镜像补充 `ethtool`，支持 Bash Tool 查询网卡能力
+- [x] 修复左侧会话列表在切换不同会话时因重置加载态导致的闪烁
 
 ## 维护规则
 - 每次新增功能、完成任务或调整范围时，同步更新本文件。
