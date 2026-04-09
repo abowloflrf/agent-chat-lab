@@ -2,6 +2,7 @@
 
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { loadProviderConfigFromStorage } from "@/lib/provider-config";
 
 type ConversationSummary = {
   id: string;
@@ -14,6 +15,7 @@ type ConversationSummary = {
 type ConversationListProps = {
   currentConversationId: string;
   onNewConversation: () => void;
+  onConversationTitleChange?: (title: string | null) => void;
   refreshTrigger?: string | number;
   isCreatingConversation?: boolean;
 };
@@ -22,10 +24,12 @@ const INITIAL_VISIBLE_COUNT = 20;
 const LOAD_MORE_COUNT = 10;
 const SEARCH_DEBOUNCE_MS = 240;
 const SEARCH_THROTTLE_MS = 180;
+const TITLE_TYPING_DELAY_MS = 36;
 
 export function ConversationList({
   currentConversationId,
   onNewConversation,
+  onConversationTitleChange,
   refreshTrigger,
   isCreatingConversation = false,
 }: ConversationListProps) {
@@ -38,16 +42,97 @@ export function ConversationList({
   const [hasMoreConversations, setHasMoreConversations] = useState(false);
   const [showLoadMore, setShowLoadMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null);
+  const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [busyConversationId, setBusyConversationId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const listRootRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
   const throttleTimeoutRef = useRef<number | null>(null);
   const lastSearchCommitRef = useRef(0);
   const activeRequestRef = useRef(0);
+  const titleAnimationTimeoutsRef = useRef(new Map<string, number>());
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const normalizedSearchQuery = deferredSearchQuery.trim();
 
+  const updateConversationInState = useCallback((
+    conversationId: string,
+    update: Partial<ConversationSummary>,
+  ) => {
+    setConversations((current) =>
+      current.map((conversation) => {
+        if (conversation.id !== conversationId) {
+          return conversation;
+        }
+
+        return {
+          ...conversation,
+          ...update,
+        };
+      }),
+    );
+  }, []);
+
+  const updateConversationTitle = useCallback((
+    conversationId: string,
+    title: string,
+  ) => {
+    updateConversationInState(conversationId, { title });
+
+    if (conversationId === currentConversationId) {
+      onConversationTitleChange?.(title);
+    }
+  }, [currentConversationId, onConversationTitleChange, updateConversationInState]);
+
+  const stopTitleAnimation = useCallback((conversationId: string) => {
+    const timeoutId = titleAnimationTimeoutsRef.current.get(conversationId);
+
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+      titleAnimationTimeoutsRef.current.delete(conversationId);
+    }
+  }, []);
+
+  const animateConversationTitle = useCallback((
+    conversationId: string,
+    title: string,
+  ) => {
+    const nextTitle = title.trim();
+
+    if (!nextTitle) {
+      return;
+    }
+
+    stopTitleAnimation(conversationId);
+
+    let index = 1;
+    updateConversationTitle(conversationId, nextTitle.slice(0, index));
+
+    const tick = () => {
+      index += 1;
+      updateConversationTitle(conversationId, nextTitle.slice(0, index));
+
+      if (index >= nextTitle.length) {
+        titleAnimationTimeoutsRef.current.delete(conversationId);
+        return;
+      }
+
+      const timeoutId = window.setTimeout(tick, TITLE_TYPING_DELAY_MS);
+      titleAnimationTimeoutsRef.current.set(conversationId, timeoutId);
+    };
+
+    if (nextTitle.length > 1) {
+      const timeoutId = window.setTimeout(tick, TITLE_TYPING_DELAY_MS);
+      titleAnimationTimeoutsRef.current.set(conversationId, timeoutId);
+    }
+  }, [stopTitleAnimation, updateConversationTitle]);
+
   useEffect(() => {
+    const titleAnimationTimeouts = titleAnimationTimeoutsRef.current;
+
     return () => {
       if (debounceTimeoutRef.current !== null) {
         window.clearTimeout(debounceTimeoutRef.current);
@@ -56,6 +141,11 @@ export function ConversationList({
       if (throttleTimeoutRef.current !== null) {
         window.clearTimeout(throttleTimeoutRef.current);
       }
+
+      titleAnimationTimeouts.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+      titleAnimationTimeouts.clear();
     };
   }, []);
 
@@ -64,6 +154,33 @@ export function ConversationList({
       searchInputRef.current?.focus();
     }
   }, [isSearchOpen]);
+
+  useEffect(() => {
+    if (renamingConversationId) {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }
+  }, [renamingConversationId]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (!listRootRef.current?.contains(target)) {
+        setOpenMenuConversationId(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, []);
 
   useEffect(() => {
     if (debounceTimeoutRef.current !== null) {
@@ -200,23 +317,112 @@ export function ConversationList({
       return;
     }
 
+    setBusyConversationId(conversationId);
+    setOpenMenuConversationId(null);
+    stopTitleAnimation(conversationId);
+
     try {
       const res = await fetch(`/api/conversations/${conversationId}`, {
         method: "DELETE",
       });
 
-      if (res.ok) {
-        await loadConversations({
-          reset: true,
-          query: normalizedSearchQuery,
-          offset: 0,
-        });
-        if (conversationId === currentConversationId) {
-          onNewConversation();
-        }
+      if (!res.ok) {
+        throw new Error(`Request failed: ${res.status}`);
+      }
+
+      await loadConversations({
+        reset: true,
+        query: normalizedSearchQuery,
+        offset: 0,
+      });
+
+      if (conversationId === currentConversationId) {
+        onNewConversation();
       }
     } catch (error) {
       console.error("Failed to delete conversation:", error);
+    } finally {
+      setBusyConversationId((current) =>
+        current === conversationId ? null : current,
+      );
+    }
+  }
+
+  async function handleRenameSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+    conversationId: string,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const title = renameDraft.trim();
+
+    if (!title) {
+      renameInputRef.current?.focus();
+      return;
+    }
+
+    setBusyConversationId(conversationId);
+
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed: ${res.status}`);
+      }
+
+      updateConversationTitle(conversationId, title);
+      setRenamingConversationId(null);
+      setOpenMenuConversationId(null);
+    } catch (error) {
+      console.error("Failed to rename conversation:", error);
+    } finally {
+      setBusyConversationId((current) =>
+        current === conversationId ? null : current,
+      );
+    }
+  }
+
+  async function handleRegenerateTitle(
+    event: React.MouseEvent<HTMLButtonElement>,
+    conversationId: string,
+  ) {
+    event.stopPropagation();
+    event.preventDefault();
+
+    setBusyConversationId(conversationId);
+    setOpenMenuConversationId(null);
+    setRenamingConversationId(null);
+
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}/title`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          providerConfig: loadProviderConfigFromStorage(),
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed: ${res.status}`);
+      }
+
+      const data = await res.json();
+      animateConversationTitle(conversationId, data.title);
+    } catch (error) {
+      console.error("Failed to regenerate conversation title:", error);
+    } finally {
+      setBusyConversationId((current) =>
+        current === conversationId ? null : current,
+      );
     }
   }
 
@@ -224,6 +430,24 @@ export function ConversationList({
     if (conversationId !== currentConversationId) {
       router.push(`/?conversationId=${conversationId}`);
     }
+  }
+
+  function handleRenameStart(
+    event: React.MouseEvent<HTMLButtonElement>,
+    conversation: ConversationSummary,
+  ) {
+    event.stopPropagation();
+    event.preventDefault();
+    stopTitleAnimation(conversation.id);
+    setRenamingConversationId(conversation.id);
+    setRenameDraft(conversation.title || "未命名会话");
+    setOpenMenuConversationId(null);
+  }
+
+  function handleRenameCancel(event?: React.SyntheticEvent) {
+    event?.stopPropagation();
+    setRenamingConversationId(null);
+    setRenameDraft("");
   }
 
   function toggleSearch() {
@@ -277,7 +501,7 @@ export function ConversationList({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div ref={listRootRef} className="flex h-full flex-col">
       <div className="flex items-center gap-2">
         {isSearchOpen ? (
           <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-[#f0dfcf]/14 bg-[#f3e5d7] px-3 py-2 text-[#2d2219]">
@@ -361,58 +585,129 @@ export function ConversationList({
             <ul>
               {conversations.map((conversation) => {
                 const active = conversation.id === currentConversationId;
+                const isMenuOpen = openMenuConversationId === conversation.id;
+                const isRenaming = renamingConversationId === conversation.id;
+                const isBusy = busyConversationId === conversation.id;
 
                 return (
                   <li key={conversation.id} className="border-t border-white/8">
                     <div
                       onClick={() => handleClick(conversation.id)}
-                      className={`group flex items-start justify-between gap-3 rounded-lg px-2 py-3 transition ${
+                      className={`group relative flex items-start justify-between gap-3 rounded-lg px-2 py-3 transition ${
                         active ? "cursor-default" : "cursor-pointer"
                       }`}
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-start gap-2">
                           <span
-                            className={`h-2 w-2 rounded-full transition ${
+                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full transition ${
                               active ? "bg-[#d28042]" : "bg-white/20"
                             }`}
                           />
-                          <p
-                            className={`truncate text-sm transition ${
-                              active
-                                ? "text-[#fff6ee]"
-                                : "text-[#dacdbf] group-hover:text-white"
-                            }`}
-                          >
-                            {conversation.title || "未命名会话"}
-                          </p>
+                          <div className="min-w-0 flex-1">
+                            {isRenaming ? (
+                              <form
+                                onSubmit={(event) =>
+                                  void handleRenameSubmit(event, conversation.id)}
+                                onClick={(event) => event.stopPropagation()}
+                                className="flex items-center gap-2"
+                              >
+                                <input
+                                  ref={renameInputRef}
+                                  value={renameDraft}
+                                  maxLength={200}
+                                  onChange={(event) => setRenameDraft(event.target.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Escape") {
+                                      handleRenameCancel(event);
+                                    }
+                                  }}
+                                  className="min-w-0 flex-1 rounded-md border border-[#f3dfcf]/16 bg-black/15 px-2 py-1 text-sm text-[#fff6ee] outline-none transition focus:border-[#d98a52]"
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={isBusy}
+                                  className="rounded-md border border-[#d98a52]/35 px-2 py-1 text-[11px] uppercase tracking-[0.14em] text-[#f5d7c0] transition hover:border-[#d98a52] hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  保存
+                                </button>
+                              </form>
+                            ) : (
+                              <p
+                                className={`truncate text-sm transition ${
+                                  active
+                                    ? "text-[#fff6ee]"
+                                    : "text-[#dacdbf] group-hover:text-white"
+                                }`}
+                              >
+                                {conversation.title || "未命名会话"}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <div className="mt-1.5 flex items-center gap-3 text-[11px] text-[#9f9180]">
+                        <div className="mt-1.5 flex items-center gap-3 pl-4 text-[11px] text-[#9f9180]">
                           <span>{formatTime(conversation.lastMessageAt)}</span>
                           <span className="font-mono">{conversation.id.slice(0, 6)}</span>
+                          {isBusy ? <span>处理中...</span> : null}
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={(event) => handleDelete(event, conversation.id)}
-                        className="rounded-full p-1.5 text-[#9f9180] opacity-0 transition hover:bg-[#5c2418] hover:text-[#ffd8ca] group-hover:opacity-100"
-                        title="删除会话"
-                      >
-                        <svg
-                          className="h-3.5 w-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
+                      <div className="relative shrink-0">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            event.preventDefault();
+                            setOpenMenuConversationId((current) =>
+                              current === conversation.id ? null : conversation.id,
+                            );
+                          }}
+                          className={`rounded-full p-1.5 text-[#9f9180] transition hover:bg-white/8 hover:text-white ${
+                            isMenuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                          }`}
+                          title="更多操作"
+                          aria-label="更多操作"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
+                          <svg
+                            className="h-4 w-4"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle cx="5" cy="12" r="1.8" />
+                            <circle cx="12" cy="12" r="1.8" />
+                            <circle cx="19" cy="12" r="1.8" />
+                          </svg>
+                        </button>
+
+                        {isMenuOpen ? (
+                          <div
+                            onClick={(event) => event.stopPropagation()}
+                            className="absolute right-0 top-9 z-20 w-40 rounded-xl border border-white/10 bg-[#1b1511]/95 p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.35)] backdrop-blur"
+                          >
+                            <button
+                              type="button"
+                              onClick={(event) => void handleDelete(event, conversation.id)}
+                              className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-[#ffd8ca] transition hover:bg-[#5c2418]"
+                            >
+                              删除会话
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => handleRenameStart(event, conversation)}
+                              className="mt-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-[#efe1d3] transition hover:bg-white/8"
+                            >
+                              重命名
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => void handleRegenerateTitle(event, conversation.id)}
+                              className="mt-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-[#efe1d3] transition hover:bg-white/8"
+                            >
+                              重新生成标题
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </li>
                 );

@@ -431,6 +431,7 @@ export function ChatShell({
               <ConversationList
                 currentConversationId={conversationId}
                 onNewConversation={handleNewConversation}
+                onConversationTitleChange={setConversationTitle}
                 refreshTrigger={conversationRefresh}
                 isCreatingConversation={isCreatingConversation}
               />

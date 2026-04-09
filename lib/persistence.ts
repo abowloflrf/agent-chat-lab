@@ -136,6 +136,20 @@ function extractConversationTitle(chatMessages: ChatUIMessage[]) {
   return text.slice(0, 60);
 }
 
+function extractMessageText(message: ChatUIMessage | undefined) {
+  if (!message) {
+    return "";
+  }
+
+  return message.parts
+    .filter((part): part is Extract<ChatUIMessage["parts"][number], { type: "text" }> => {
+      return part.type === "text";
+    })
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+}
+
 function toStoredMessage(row: typeof messages.$inferSelect): ChatUIMessage {
   const metadata = parseJson<ChatUIMessage["metadata"] | undefined>(
     row.metadataJson,
@@ -223,7 +237,12 @@ function saveConversationSnapshot(
   options?: { syncToolCalls?: boolean },
 ) {
   const now = Date.now();
-  const title = extractConversationTitle(chatMessages);
+  const existingConversation = db.select({
+    title: conversations.title,
+  }).from(conversations)
+    .where(eq(conversations.id, conversationId))
+    .all()[0];
+  const title = existingConversation?.title?.trim() || extractConversationTitle(chatMessages);
   
   const chatMessagesWithIds = chatMessages.map((message) => ({
     ...message,
@@ -500,9 +519,12 @@ export async function generateConversationTitle(
 
   const model = openai.chat(providerConfig.model);
 
-  const firstUserMessage = chatMessages.find((m) => m.role === "user");
-  const userText = firstUserMessage?.parts.find((p) => p.type === "text");
-  const userContent = userText?.type === "text" ? userText.text : "";
+  const firstUserMessage = chatMessages.find((message) => message.role === "user");
+  const firstAssistantMessage = chatMessages.find(
+    (message) => message.role === "assistant",
+  );
+  const userContent = extractMessageText(firstUserMessage);
+  const assistantContent = extractMessageText(firstAssistantMessage);
 
   if (!userContent) {
     return { success: false, title: null };
@@ -511,10 +533,11 @@ export async function generateConversationTitle(
   try {
     const { text } = await generateText({
       model,
-      system: "你是一个专业的会话标题生成助手。请根据用户的第一个问题或请求，生成一个简短、清晰、可读的会话标题（不超过 20 个字符）。只返回 JSON 格式：{\"title\": \"标题内容\"}",
+      system: "你是一个专业的会话标题生成助手。请根据首条用户消息与首条助手回复生成一个简短、清晰、可读的会话标题。只返回 JSON 格式：{\"title\": \"标题内容\"}",
       prompt: `用户的第一条消息是：${userContent}
 
-请生成一个简短的会话标题，要求：
+${assistantContent ? `助手的第一条回复是：${assistantContent}\n\n` : ""}请生成一个简短的会话标题，要求：
+- 优先概括这轮对话已经明确的主题
 - 不超过 20 个字符
 - 能准确概括用户的核心意图
 - 使用简洁的中文或英文
