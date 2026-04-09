@@ -6,6 +6,8 @@ import { db, ensureDatabase } from "@/lib/db/client";
 import { conversations, messages, notes, todos, toolCalls } from "@/lib/db/schema";
 import type { ChatUIMessage } from "@/lib/observability";
 import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
+import { logger } from "@/lib/logger";
+import type { ProviderConfig } from "@/lib/provider-config";
 
 type NoteRecord = {
   id: string;
@@ -502,23 +504,14 @@ export async function renameConversation(
 export async function generateConversationTitle(
   conversationId: string,
   chatMessages: ChatUIMessage[],
-  providerConfig: {
-    baseUrl: string;
-    apiKey: string;
-    model: string;
-  },
+  providerConfig: ProviderConfig,
 ) {
   await ensureDatabase();
 
   const { generateText } = await import("ai");
-  const { createOpenAI } = await import("@ai-sdk/openai");
+  const { getChatModel } = await import("@/lib/ai/model");
 
-  const openai = createOpenAI({
-    baseURL: providerConfig.baseUrl,
-    apiKey: providerConfig.apiKey,
-  });
-
-  const model = openai.chat(providerConfig.model);
+  const model = getChatModel(providerConfig);
 
   const firstUserMessage = chatMessages.find((message) => message.role === "user");
   const firstAssistantMessage = chatMessages.find(
@@ -531,11 +524,12 @@ export async function generateConversationTitle(
     return { success: false, title: null };
   }
 
-  try {
-    const { text } = await generateText({
-      model,
-      system: "你是一个专业的会话标题生成助手。请根据首条用户消息与首条助手回复生成一个简短、清晰、可读的会话标题。只返回 JSON 格式：{\"title\": \"标题内容\"}",
-      prompt: `用户的第一条消息是：${userContent}
+  const titleLog = logger.child({ module: "TitleGen", conversationId, model: providerConfig.model });
+  const startTime = Date.now();
+  titleLog.info("title generation started");
+
+  const systemMessage = "你是一个专业的会话标题生成助手。请根据首条用户消息与首条助手回复生成一个简短、清晰、可读的会话标题。只返回 JSON 格式：{\"title\": \"标题内容\"}。不要思考，不要解释，直接输出 JSON。";
+  const promptMessage = `用户的第一条消息是：${userContent}
 
 ${assistantContent ? `助手的第一条回复是：${assistantContent}\n\n` : ""}请生成一个简短的会话标题，要求：
 - 优先概括这轮对话已经明确的主题
@@ -543,21 +537,43 @@ ${assistantContent ? `助手的第一条回复是：${assistantContent}\n\n` : "
 - 能准确概括用户的核心意图
 - 使用简洁的中文或英文
 - 不要使用标点符号
-- 只返回 JSON 格式，例如：{"title": "查询天气"}`,
+- 只返回 JSON 格式，例如：{"title": "查询天气"}`;
+
+  try {
+    const { text, usage } = await generateText({
+      model,
+      maxOutputTokens: 100,
+      providerOptions: {
+        openai: { reasoningEffort: "low" },
+        anthropic: { thinking: { type: "disabled" } },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+      system: systemMessage,
+      prompt: promptMessage,
     });
+
+    const durationMs = Date.now() - startTime;
+    const tokenInfo = {
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
+      durationMs,
+    };
 
     const match = text.match(/\{[^}]*"title"[^}]*\}/);
     if (match) {
       const parsed = JSON.parse(match[0]);
       if (parsed.title) {
         await renameConversation(conversationId, parsed.title);
+        titleLog.info({ ...tokenInfo, title: parsed.title }, "title generation succeeded");
         return { success: true, title: parsed.title };
       }
     }
 
+    titleLog.warn({ ...tokenInfo, rawOutput: text }, "failed to parse title from model output");
     return { success: false, title: null };
   } catch (error) {
-    console.error("Failed to generate conversation title:", error);
+    const durationMs = Date.now() - startTime;
+    titleLog.error({ err: error, durationMs }, "title generation failed");
     return { success: false, title: null };
   }
 }

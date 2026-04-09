@@ -108,6 +108,8 @@ export function ChatShell({
     useState<ChatUIMessage[]>(() => initialRecoveredMessages);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarRefreshCounter, setSidebarRefreshCounter] = useState(0);
+  const [pendingTitle, setPendingTitle] = useState<string | null>(null);
   const [conversationCreationError, setConversationCreationError] =
     useState<string | null>(null);
   const [interruptedRunDetected, setInterruptedRunDetected] = useState(() => {
@@ -315,6 +317,69 @@ export function ChatShell({
   }, [messages, setMessages]);
 
   const isBusy = status === "submitted" || status === "streaming";
+  const prevIsBusyRef = useRef(isBusy);
+
+  useEffect(() => {
+    const wasBusy = prevIsBusyRef.current;
+    prevIsBusyRef.current = isBusy;
+
+    // Refresh sidebar on any isBusy transition (start or end of chat)
+    if (wasBusy !== isBusy) {
+      setSidebarRefreshCounter((c) => c + 1);
+    }
+
+    // Only proceed when chat just finished (busy → idle)
+    if (!wasBusy || isBusy) return;
+
+    // If this isn't the first exchange, no need to poll for title
+    const cid = conversationIdRef.current;
+    const userCount = messages.filter((m) => m.role === "user").length;
+    const assistantCount = messages.filter((m) => m.role === "assistant").length;
+    if (!cid || userCount !== 1 || assistantCount !== 1) return;
+
+    // Poll until the DB title changes (temp title from first message → LLM title).
+    // Fetch immediately to capture baseline before LLM finishes, then poll every 2s.
+    const POLL_INTERVAL = 2000;
+    const MAX_ATTEMPTS = 15;
+    let attempt = 0;
+    let baselineTitle: string | null = null;
+    let done = false;
+
+    async function check() {
+      try {
+        const res = await fetch(`/api/conversations/${cid}`);
+        if (res.ok && !done) {
+          const { conversation } = await res.json();
+          const title: string | null = conversation?.title || null;
+
+          if (baselineTitle === null) {
+            baselineTitle = title;
+          } else if (title && title !== baselineTitle) {
+            setPendingTitle(title);
+            done = true;
+            window.clearInterval(timer);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    void check(); // immediate baseline capture
+
+    const timer = window.setInterval(() => {
+      attempt++;
+      if (attempt >= MAX_ATTEMPTS) {
+        window.clearInterval(timer);
+        return;
+      }
+      void check();
+    }, POLL_INTERVAL);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [isBusy, messages]);
 
   useEffect(() => {
     const hasStreamingAssistant = messages.some((message) => {
@@ -587,6 +652,7 @@ export function ChatShell({
     conversationIdRef.current = null;
     setConversationCreationError(null);
     setConversationTitle(null);
+    setPendingTitle(null);
     setCurrentMessages([]);
     setMessages([]);
     setInterruptedRunDetected(false);
@@ -645,8 +711,9 @@ export function ChatShell({
                   setSidebarOpen(false);
                 }}
                 onConversationTitleChange={setConversationTitle}
-                refreshTrigger={isBusy ? 1 : 0}
+                refreshTrigger={sidebarRefreshCounter}
                 isCreatingConversation={isCreatingConversation}
+                pendingTitle={pendingTitle}
               />
             </section>
           </div>

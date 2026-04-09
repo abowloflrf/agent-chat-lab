@@ -18,6 +18,7 @@ type ConversationListProps = {
   onConversationTitleChange?: (title: string | null) => void;
   refreshTrigger?: string | number;
   isCreatingConversation?: boolean;
+  pendingTitle?: string | null;
 };
 
 const INITIAL_VISIBLE_COUNT = 20;
@@ -32,6 +33,7 @@ export function ConversationList({
   onConversationTitleChange,
   refreshTrigger,
   isCreatingConversation = false,
+  pendingTitle = null,
 }: ConversationListProps) {
   const router = useRouter();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -149,6 +151,12 @@ export function ConversationList({
       titleAnimationTimeouts.clear();
     };
   }, []);
+
+  useEffect(() => {
+    if (pendingTitle && currentConversationId) {
+      animateConversationTitle(currentConversationId, pendingTitle);
+    }
+  }, [pendingTitle, currentConversationId, animateConversationTitle]);
 
   useEffect(() => {
     if (isSearchOpen) {
