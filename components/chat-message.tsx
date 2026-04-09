@@ -1,7 +1,8 @@
 "use client";
 
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
-import { Children, isValidElement, useState, type ReactNode } from "react";
+import { Children, isValidElement, memo, useMemo, useState, type ReactNode } from "react";
+import createDOMPurify from "dompurify";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AgentTimeline } from "@/components/agent-timeline";
@@ -168,6 +169,93 @@ function isToolPart(part: UIMessage["parts"][number]): part is ToolLikePart {
   return part.type === "dynamic-tool" || part.type.startsWith("tool-");
 }
 
+function isSvgContent(language: string | null, code: string): boolean {
+  return language === "svg" || (language === "xml" && code.trimStart().startsWith("<svg"));
+}
+
+function sanitizeSvg(raw: string): string {
+  if (typeof window === "undefined") return "";
+  const purify = createDOMPurify(window);
+  return purify.sanitize(raw, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    ADD_TAGS: ["use"],
+  });
+}
+
+function SvgPreview({
+  code,
+  styles,
+}: {
+  code: string;
+  styles: (typeof markdownTextStyles)[keyof typeof markdownTextStyles];
+}) {
+  const [showSource, setShowSource] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const cleanSvg = useMemo(() => sanitizeSvg(code), [code]);
+
+  async function handleCopy() {
+    try {
+      await copyText(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch (error) {
+      console.error("Failed to copy SVG:", error);
+    }
+  }
+
+  return (
+    <div className={styles.codeFrame}>
+      <div className={styles.codeHeader}>
+        <span className={styles.codeLabel}>SVG</span>
+        <div className="flex items-center gap-2 text-[10px] text-[#8c7767]">
+          <button
+            type="button"
+            onClick={() => setShowSource((v) => !v)}
+            className={`inline-flex h-5 items-center rounded-full border px-2 transition ${
+              showSource
+                ? "border-[rgba(156,86,38,0.28)] bg-[rgba(156,86,38,0.08)] text-[#9c5626]"
+                : "border-[rgba(23,23,23,0.08)] text-[#8c7767] hover:text-[#9c5626]"
+            }`}
+          >
+            <span className="font-medium leading-none">
+              {showSource ? "预览" : "源码"}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleCopy()}
+            className="inline-flex h-5 w-5 items-center justify-center transition hover:text-[#9c5626]"
+            aria-label="复制 SVG"
+            title={copied ? "已复制" : "复制 SVG"}
+          >
+            {copied ? (
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5">
+                <path d="M4.5 10.5 8 14l7.5-8" className="stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5">
+                <rect x="7" y="3" width="9" height="11" rx="2" className="stroke-current" strokeWidth="1.4" />
+                <rect x="4" y="6" width="9" height="11" rx="2" className="stroke-current" strokeWidth="1.4" />
+              </svg>
+            )}
+          </button>
+        </div>
+      </div>
+      {showSource ? (
+        <pre className={`${styles.pre} whitespace-pre`}>
+          <code className={styles.codeInPre}>{code}</code>
+        </pre>
+      ) : (
+        <div
+          suppressHydrationWarning
+          className="flex items-center justify-center overflow-auto p-4 [&>svg]:max-w-full [&>svg]:h-auto"
+          dangerouslySetInnerHTML={{ __html: cleanSvg }}
+        />
+      )}
+    </div>
+  );
+}
+
 function CodeBlock({
   className,
   children,
@@ -180,6 +268,11 @@ function CodeBlock({
   const [copied, setCopied] = useState(false);
   const [wrapped, setWrapped] = useState(false);
   const codeText = Children.toArray(children).join("");
+  const language = getCodeLanguage(className);
+
+  if (isSvgContent(language, codeText)) {
+    return <SvgPreview code={codeText} styles={styles} />;
+  }
 
   async function handleCopyCode() {
     try {
@@ -273,7 +366,7 @@ function CodeBlock({
   );
 }
 
-export function ChatMessage({
+export const ChatMessage = memo(function ChatMessage({
   message,
   onRegenerate,
   canRegenerate = false,
@@ -621,4 +714,4 @@ export function ChatMessage({
       </div>
     </article>
   );
-}
+});

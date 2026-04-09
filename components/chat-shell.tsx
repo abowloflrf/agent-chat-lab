@@ -860,7 +860,7 @@ export function ChatShell({
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="输入消息，例如：帮我记住今天要继续完善 Agent 的工具调用演示。"
+                  placeholder="输入消息..."
                   rows={MIN_TEXTAREA_ROWS}
                   className="w-full resize-none rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-2.5 text-[15px] leading-7 text-[#171717] outline-none transition placeholder:text-[#9f968b] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
                   style={{

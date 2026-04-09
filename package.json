@@ -15,6 +15,7 @@
     "@ai-sdk/react": "^3.0.151",
     "ai": "^6.0.149",
     "better-sqlite3": "^12.8.0",
+    "dompurify": "^3.3.3",
     "drizzle-orm": "^0.45.2",
     "next": "16.2.2",
     "pino": "^10.3.1",
