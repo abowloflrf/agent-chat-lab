@@ -472,9 +472,9 @@ export function ProviderSettingsForm() {
   }
 
   return (
-    <main className="app-shell h-screen overflow-hidden text-[#171717]">
+    <main className="app-shell h-dvh overflow-hidden text-[#171717]">
       <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="dark-panel rise-in relative h-full overflow-hidden border-r border-white/10 p-4">
+        <aside className="dark-panel rise-in relative hidden h-full overflow-hidden border-r border-white/10 p-4 lg:block">
           <div className="relative flex h-full flex-col">
             <div className="border-b border-white/8 pb-4">
               <p className="text-[11px] uppercase tracking-[0.28em] text-[#c4b6a4]">
@@ -536,7 +536,44 @@ export function ProviderSettingsForm() {
         </aside>
 
         <section className="glass-panel rise-in flex h-full min-h-0 flex-col overflow-hidden">
-          <div className="border-b border-[rgba(23,23,23,0.08)] px-4 py-4">
+          {/* Mobile header for settings */}
+          <div className="flex items-center gap-3 border-b border-[rgba(23,23,23,0.08)] px-4 py-3 lg:hidden">
+            <Link
+              href="/"
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)]"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </Link>
+            <p className="text-lg font-semibold tracking-[-0.02em] text-[#241c15]">系统设置</p>
+            <div className="ml-auto flex gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveSection("model")}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  activeSection === "model"
+                    ? "bg-[#171717] text-white"
+                    : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
+                }`}
+              >
+                模型
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection("tools")}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  activeSection === "tools"
+                    ? "bg-[#171717] text-white"
+                    : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
+                }`}
+              >
+                Tools
+              </button>
+            </div>
+          </div>
+
+          <div className="hidden border-b border-[rgba(23,23,23,0.08)] px-4 py-4 lg:block">
             <p className="text-[11px] uppercase tracking-[0.28em] text-[#8a8176]">
               System Settings
             </p>

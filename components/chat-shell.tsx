@@ -112,6 +112,7 @@ export function ChatShell({
   const [currentMessages, setCurrentMessages] =
     useState<ChatUIMessage[]>(() => normalizeRecoveredMessages(initialMessages));
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [interruptedRunDetected, setInterruptedRunDetected] = useState(() => {
     return normalizeRecoveredMessages(initialMessages).some((message) =>
       isInterruptedMessage(message.metadata),
@@ -199,6 +200,11 @@ export function ChatShell({
       transport,
       sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     });
+
+  // Close sidebar on conversation change (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [routeConversationId]);
 
   useEffect(() => {
     if (routeConversationId && routeConversationId !== localConversationId) {
@@ -519,28 +525,51 @@ export function ChatShell({
   }
 
   return (
-    <main className="app-shell h-screen overflow-hidden text-[#171717]">
+    <main className="app-shell h-dvh overflow-hidden text-[#171717]">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="dark-panel rise-in relative h-full overflow-hidden border-r border-white/10 p-4 lg:p-4">
+        <aside
+          className={`dark-panel rise-in fixed inset-y-0 left-0 z-50 w-[280px] overflow-hidden border-r border-white/10 p-4 transition-transform duration-200 lg:relative lg:z-auto lg:w-auto lg:translate-x-0 ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
           <div className="relative flex h-full flex-col">
             <div className="border-b border-white/8 pb-4">
-              <div>
-                <p className="text-[28px] font-semibold leading-[0.95] text-[#fff7ef]">
-                  Agent Chat Lab
-                </p>
-                <Link
-                  href="/settings"
-                  className="mt-3 inline-flex rounded-md border border-white/12 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-[#f3dfcf] transition hover:border-[#d98a52] hover:bg-white/6"
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[28px] font-semibold leading-[0.95] text-[#fff7ef]">
+                    Agent Chat Lab
+                  </p>
+                  <Link
+                    href="/settings"
+                    className="mt-3 inline-flex rounded-md border border-white/12 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-[#f3dfcf] transition hover:border-[#d98a52] hover:bg-white/6"
+                  >
+                    系统设置
+                  </Link>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-[#cabfb2] transition hover:bg-white/10 hover:text-white lg:hidden"
                 >
-                  系统设置
-                </Link>
+                  ✕
+                </button>
               </div>
             </div>
 
             <section className="min-h-0 flex-1 pt-4">
               <ConversationList
                 currentConversationId={conversationId}
-                onNewConversation={handleNewConversation}
+                onNewConversation={() => {
+                  handleNewConversation();
+                  setSidebarOpen(false);
+                }}
                 onConversationTitleChange={setConversationTitle}
                 refreshTrigger={isBusy ? 1 : 0}
                 isCreatingConversation={isCreatingConversation}
@@ -550,20 +579,31 @@ export function ChatShell({
         </aside>
 
         <section className="glass-panel rise-in relative flex h-full min-h-0 flex-col overflow-hidden">
-          <header className="relative border-b border-[rgba(23,23,23,0.08)] px-4 py-4">
+          <header className="relative border-b border-[rgba(23,23,23,0.08)] px-4 py-3 lg:py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setSidebarOpen(true)}
+                    className="flex h-8 w-8 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)] lg:hidden"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <line x1="3" y1="6" x2="21" y2="6" />
+                      <line x1="3" y1="12" x2="21" y2="12" />
+                      <line x1="3" y1="18" x2="21" y2="18" />
+                    </svg>
+                  </button>
                   <p className="truncate text-lg font-semibold tracking-[-0.02em] text-[#241c15]">
                     {displayConversationTitle}
                   </p>
-                  <span className="inline-flex items-center rounded-full border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.52)] px-2.5 py-1 font-mono text-[11px] text-[#6c6156]">
+                  <span className="hidden items-center rounded-full border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.52)] px-2.5 py-1 font-mono text-[11px] text-[#6c6156] sm:inline-flex">
                     {formatShortConversationId(conversationId)}
                   </span>
                 </div>
               </div>
 
-              <div className="grid w-full gap-x-5 gap-y-3 border-t border-[rgba(23,23,23,0.08)] pt-3 text-sm text-[#5c544a] sm:grid-cols-2 lg:w-auto lg:grid-cols-4 lg:border-t-0 lg:pt-0">
+              <div className="hidden gap-x-5 gap-y-3 border-t border-[rgba(23,23,23,0.08)] pt-3 text-sm text-[#5c544a] sm:grid sm:grid-cols-2 lg:w-auto lg:grid-cols-4 lg:border-t-0 lg:pt-0">
                 {sessionStats.map((stat) => (
                   <div
                     key={stat.label}
@@ -588,7 +628,7 @@ export function ChatShell({
 
           <div ref={scrollContainerRef} className="relative flex-1 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
-              <div className="flex min-h-[520px] items-center justify-center">
+              <div className="hidden min-h-[520px] items-center justify-center sm:flex">
                 <section className="w-full max-w-3xl">
                   <div className="mb-4">
                     <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
