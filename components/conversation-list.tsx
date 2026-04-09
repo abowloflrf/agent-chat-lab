@@ -2,6 +2,7 @@
 
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
 
 type ConversationSummary = {
   id: string;
@@ -441,7 +442,7 @@ export function ConversationList({
     event.preventDefault();
     stopTitleAnimation(conversation.id);
     setRenamingConversationId(conversation.id);
-    setRenameDraft(conversation.title || "未命名会话");
+    setRenameDraft(conversation.title || DEFAULT_CONVERSATION_TITLE);
     setOpenMenuConversationId(null);
   }
 
@@ -641,7 +642,7 @@ export function ConversationList({
                                     : "text-[#dacdbf] group-hover:text-white"
                                 }`}
                               >
-                                {conversation.title || "未命名会话"}
+                                {conversation.title || DEFAULT_CONVERSATION_TITLE}
                               </p>
                             )}
                           </div>

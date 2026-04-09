@@ -5,6 +5,7 @@ import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
 import { db, ensureDatabase } from "@/lib/db/client";
 import { conversations, messages, notes, todos, toolCalls } from "@/lib/db/schema";
 import type { ChatUIMessage } from "@/lib/observability";
+import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
 
 type NoteRecord = {
   id: string;
@@ -130,7 +131,7 @@ function extractConversationTitle(chatMessages: ChatUIMessage[]) {
   const text = firstTextPart?.type === "text" ? firstTextPart.text.trim() : "";
 
   if (!text) {
-    return "未命名会话";
+    return DEFAULT_CONVERSATION_TITLE;
   }
 
   return text.slice(0, 60);

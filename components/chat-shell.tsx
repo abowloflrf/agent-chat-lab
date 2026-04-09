@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ChatMessage } from "@/components/chat-message";
 import { ConversationList } from "@/components/conversation-list";
+import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
 import {
   ModelSelector,
   type ModelSelection,
@@ -379,7 +380,7 @@ export function ChatShell({
       unit: "轮",
     },
   ];
-  const displayConversationTitle = conversationTitle || "未命名会话";
+  const displayConversationTitle = conversationTitle || DEFAULT_CONVERSATION_TITLE;
 
   function scrollToBottom() {
     const container = scrollContainerRef.current;

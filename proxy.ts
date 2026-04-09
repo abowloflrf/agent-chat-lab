@@ -43,6 +43,18 @@ export function proxy(request: NextRequest) {
   }
 
   const response = NextResponse.next();
+
+  // Auto-refresh cookie expiry on each authenticated request
+  const token = request.cookies.get("auth_token")?.value;
+  if (token) {
+    response.cookies.set("auth_token", token, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+    });
+  }
+
   log(request, 200, start);
   return response;
 }
