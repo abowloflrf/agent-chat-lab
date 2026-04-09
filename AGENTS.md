@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repository is a single Next.js 16 app. Route files live in `app/`, including UI pages such as `app/page.tsx` and API handlers such as `app/api/chat/route.ts` and `app/api/models/route.ts`. Shared UI components live in `components/`. Agent and provider logic lives in `lib/`, with AI-specific code under `lib/ai/`. Static assets live in `public/`. There is no `tests/` directory yet.
+This repository is a single Next.js 16 app. Route files live in `app/`, including UI pages such as `app/page.tsx` and `app/settings/page.tsx`, and API handlers under `app/api/` (`chat`, `conversations`, `models`, `settings`, `tavily-usage`, `tool-stats`). Shared UI components live in `components/`. Agent and provider logic lives in `lib/`, with AI-specific code under `lib/ai/` and database code under `lib/db/`. Database migrations live in `drizzle/`. Runtime data (SQLite files) lives in `data/`. Static assets live in `public/`. There is no `tests/` directory yet.
 
 ## Build, Test, and Development Commands
 - `pnpm dev`: start the local dev server.
@@ -32,4 +32,4 @@ PRs should include:
 - validation notes (`pnpm lint`, `pnpm build`)
 
 ## Security & Configuration Tips
-Do not commit real API keys. Use `.env.local` for server defaults, and remember that the settings page currently stores provider config in browser `localStorage`, so treat it as local-development only.
+Do not commit real API keys. Use `.env.local` for server defaults. Provider config and system settings are persisted server-side in SQLite via Drizzle ORM.
