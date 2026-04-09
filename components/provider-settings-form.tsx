@@ -62,6 +62,15 @@ export function ProviderSettingsForm() {
   const [addingModelForProvider, setAddingModelForProvider] = useState<string | null>(null);
   const [newModelId, setNewModelId] = useState("");
   const [toolUsageCounts, setToolUsageCounts] = useState<Record<string, number>>({});
+  const [tavilyUsage, setTavilyUsage] = useState<{
+    usage: number;
+    limit: number | null;
+    plan: string;
+    searchUsage: number;
+    extractUsage: number;
+  } | null>(null);
+  const [tavilyUsageLoading, setTavilyUsageLoading] = useState(false);
+  const [tavilyUsageError, setTavilyUsageError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSection>("model");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -135,6 +144,55 @@ export function ProviderSettingsForm() {
       cancelled = true;
     };
   }, []);
+
+  // Load Tavily API usage when switching to tools section
+  useEffect(() => {
+    if (activeSection !== "tools" || !settings.tavilyApiKey) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadTavilyUsage() {
+      setTavilyUsageLoading(true);
+      setTavilyUsageError(null);
+
+      try {
+        const response = await fetch("/api/tavily-usage");
+        const payload = await response.json();
+
+        if (!response.ok || cancelled) {
+          if (!cancelled) {
+            setTavilyUsageError(payload.error ?? "查询失败");
+          }
+          return;
+        }
+
+        const data = payload.usage;
+        setTavilyUsage({
+          usage: data?.account?.plan_usage ?? data?.key?.usage ?? 0,
+          limit: data?.account?.plan_limit ?? data?.key?.limit ?? null,
+          plan: data?.account?.current_plan ?? "Unknown",
+          searchUsage: data?.key?.search_usage ?? 0,
+          extractUsage: data?.key?.extract_usage ?? 0,
+        });
+      } catch {
+        if (!cancelled) {
+          setTavilyUsageError("无法连接 Tavily API");
+        }
+      } finally {
+        if (!cancelled) {
+          setTavilyUsageLoading(false);
+        }
+      }
+    }
+
+    void loadTavilyUsage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, settings.tavilyApiKey]);
 
   function updateProvider(providerId: string, updates: Partial<ProviderSettings>) {
     setSettings((current) => ({
@@ -786,6 +844,84 @@ export function ProviderSettingsForm() {
                     <p className="mt-2 text-xs leading-5 text-[#8a8176]">
                       `WebSearch` 会在需要联网查询最新网页信息时自动调用。未填写时，服务端会回退到环境变量 `TAVILY_API_KEY`。
                     </p>
+
+                    {/* Tavily Usage Progress Bar */}
+                    {settings.tavilyApiKey && (
+                      <div className="mt-4 rounded-lg border border-[rgba(23,23,23,0.06)] bg-[rgba(245,241,237,0.5)] p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] uppercase tracking-[0.18em] text-[#8d8478]">
+                            API 用量
+                          </span>
+                          {tavilyUsage && (
+                            <span className="rounded-full border border-[rgba(23,23,23,0.08)] bg-white px-2 py-0.5 text-[10px] text-[#6e665d]">
+                              {tavilyUsage.plan}
+                            </span>
+                          )}
+                        </div>
+
+                        {tavilyUsageLoading && (
+                          <p className="mt-2 text-xs text-[#8a8176]">查询中...</p>
+                        )}
+
+                        {tavilyUsageError && (
+                          <p className="mt-2 text-xs text-red-500">{tavilyUsageError}</p>
+                        )}
+
+                        {tavilyUsage && !tavilyUsageLoading && (
+                          <>
+                            <div className="mt-2 flex items-baseline justify-between">
+                              <span className="text-sm font-medium text-[#4d4339]">
+                                {tavilyUsage.usage.toLocaleString()}
+                                {tavilyUsage.limit != null && (
+                                  <span className="text-[#8a8176]">
+                                    {" "}/ {tavilyUsage.limit.toLocaleString()} credits
+                                  </span>
+                                )}
+                              </span>
+                              {tavilyUsage.limit != null && tavilyUsage.limit > 0 && (
+                                <span className="text-xs text-[#8a8176]">
+                                  {Math.round((tavilyUsage.usage / tavilyUsage.limit) * 100)}%
+                                </span>
+                              )}
+                            </div>
+
+                            {tavilyUsage.limit != null && tavilyUsage.limit > 0 && (
+                              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[rgba(23,23,23,0.06)]">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    tavilyUsage.usage / tavilyUsage.limit > 0.9
+                                      ? "bg-red-400"
+                                      : tavilyUsage.usage / tavilyUsage.limit > 0.7
+                                        ? "bg-amber-400"
+                                        : "bg-[#c96a2b]"
+                                  }`}
+                                  style={{
+                                    width: `${Math.min(100, (tavilyUsage.usage / tavilyUsage.limit) * 100)}%`,
+                                  }}
+                                />
+                              </div>
+                            )}
+
+                            <div className="mt-2 flex gap-3 text-[11px] text-[#8a8176]">
+                              <span>Search: {tavilyUsage.searchUsage}</span>
+                              <span>Extract: {tavilyUsage.extractUsage}</span>
+                            </div>
+
+                            <p className="mt-2 text-[11px] text-[#a39a90]">
+                              额度按账单周期重置，具体时间请查看{" "}
+                              <a
+                                href="https://app.tavily.com/home"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline transition hover:text-[#c96a2b]"
+                              >
+                                Tavily Dashboard
+                              </a>
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3">
