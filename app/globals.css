@@ -36,25 +36,21 @@ body {
   font-size: 13px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 html,
 body {
+  height: 100%;
+  overflow: hidden;
   overscroll-behavior: none;
 }
 
-@media (min-width: 1024px) {
-  html,
-  body {
-    height: 100%;
-    overflow: hidden;
-  }
-}
-
+/* In standalone PWA with black-translucent, the document origin shifts up
+   behind the status bar by env(safe-area-inset-top). Extend html height to
+   compensate so body reaches the physical bottom of the screen. */
 @media (display-mode: standalone) {
-  body {
-    min-height: 100dvh;
+  html {
+    height: calc(100% + env(safe-area-inset-top));
   }
 }
 
@@ -125,6 +121,7 @@ body::after {
 .app-shell {
   position: relative;
 }
+
 
 .scrollbar-hidden {
   -ms-overflow-style: none;

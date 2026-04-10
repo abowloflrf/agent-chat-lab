@@ -465,14 +465,14 @@ export function ProviderSettingsForm() {
 
   if (isLoading) {
     return (
-      <main className="app-shell flex h-screen items-center justify-center text-[#171717]">
+      <main className="app-shell flex h-full items-center justify-center text-[#171717]">
         <p className="text-sm text-[#8a8176]">加载设置中...</p>
       </main>
     );
   }
 
   return (
-    <main className="app-shell h-dvh overflow-hidden text-[#171717]">
+    <main className="app-shell h-full overflow-hidden text-[#171717]">
       <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
         <aside className="dark-panel rise-in relative hidden h-full overflow-hidden border-r border-white/10 p-4 lg:block">
           <div className="relative flex h-full flex-col">

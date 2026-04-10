@@ -665,7 +665,7 @@ export function ChatShell({
   }
 
   return (
-    <main className="app-shell h-dvh overflow-hidden text-[#171717]">
+    <main className="app-shell h-full overflow-hidden text-[#171717]">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
@@ -675,7 +675,7 @@ export function ChatShell({
       )}
       <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
         <aside
-          className={`dark-panel rise-in fixed inset-y-0 left-0 z-50 w-[280px] overflow-hidden border-r border-white/10 p-4 transition-transform duration-200 lg:relative lg:z-auto lg:w-auto lg:translate-x-0 ${
+          className={`dark-panel rise-in fixed inset-y-0 left-0 z-50 w-[280px] overflow-hidden border-r border-white/10 p-4 pt-[max(1rem,env(safe-area-inset-top))] transition-transform duration-200 lg:relative lg:z-auto lg:w-auto lg:translate-x-0 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -720,7 +720,7 @@ export function ChatShell({
         </aside>
 
         <section className="glass-panel rise-in relative flex h-full min-h-0 flex-col overflow-hidden">
-          <header className="relative border-b border-[rgba(23,23,23,0.08)] px-4 py-3 lg:py-4">
+          <header className="relative border-b border-[rgba(23,23,23,0.08)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -825,7 +825,7 @@ export function ChatShell({
             )}
           </div>
 
-          <div className="relative border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.92)] px-4 py-4">
+          <div className="relative border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.92)] px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
             {interruptedRunDetected && !isBusy ? (
               <div className="mb-3 flex items-center justify-between gap-3 rounded-[18px] border border-[#ead4ba] bg-[#fff6ea] px-4 py-3 text-sm text-[#805126]">
                 <span>检测到上一次 Agent 执行被中断，当前已恢复为可继续操作状态。</span>

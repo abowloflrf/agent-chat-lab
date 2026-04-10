@@ -24,8 +24,8 @@ export function proxy(request: NextRequest) {
   const start = Date.now();
   const pathname = request.nextUrl.pathname;
 
-  // Skip auth check for /api/auth and /login
-  if (pathname === "/api/auth" || pathname === "/login") {
+  // Skip auth check for public routes
+  if (pathname === "/api/auth" || pathname === "/login" || pathname === "/api/icon") {
     const response = NextResponse.next();
     log(request, 200, start);
     return response;

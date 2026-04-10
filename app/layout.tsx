@@ -45,7 +45,7 @@ export default function RootLayout({
       lang="zh-CN"
       className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} h-full`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className="h-full">{children}</body>
     </html>
   );
 }
