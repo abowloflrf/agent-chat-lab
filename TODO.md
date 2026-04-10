@@ -46,6 +46,7 @@
 - [x] 记录 step finish 事件
 - [x] 在页面展示完整 Agent timeline
 - [x] 在会话详情状态区展示当前总上下文长度
+- [ ] 用量统计仪表盘（设计方案见 [docs/usage-stats-dashboard-design.md](docs/usage-stats-dashboard-design.md)）
 
 ### 工程化
 - [x] 更新 `README.md`
@@ -73,6 +74,7 @@
 - [x] 移动端响应式适配（基础版：viewport 配置、侧边栏抽屉、统计信息折叠、dvh 高度、安全区域）
 
 ### Better Agent Design
+- [ ] Resumable Streaming：关闭页面后 Agent 继续运行，重新打开自动重连（设计方案见 [docs/resumable-streaming-plan.md](docs/resumable-streaming-plan.md)）
 - [ ] 增加 tool 选择约束
 - [ ] 放宽 Agent 步数上限（当前 5 步）和超时时间（当前 30 秒）
 - [ ] 完善异常处理
