@@ -474,7 +474,7 @@ export function ProviderSettingsForm() {
   return (
     <main className="app-shell h-full overflow-hidden text-[#171717]">
       <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="dark-panel rise-in relative hidden h-full overflow-hidden border-r border-white/10 p-4 lg:block">
+        <aside className="dark-panel rise-in relative hidden h-full overflow-hidden border-r border-white/10 p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:block">
           <div className="relative flex h-full flex-col">
             <div className="border-b border-white/8 pb-4">
               <p className="text-[11px] uppercase tracking-[0.28em] text-[#c4b6a4]">
@@ -537,7 +537,7 @@ export function ProviderSettingsForm() {
 
         <section className="glass-panel rise-in flex h-full min-h-0 flex-col overflow-hidden">
           {/* Mobile header for settings */}
-          <div className="flex items-center gap-3 border-b border-[rgba(23,23,23,0.08)] px-4 py-3 lg:hidden">
+          <div className="flex items-center gap-3 border-b border-[rgba(23,23,23,0.08)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
             <Link
               href="/"
               className="flex h-8 w-8 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)]"
