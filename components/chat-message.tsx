@@ -179,6 +179,7 @@ function sanitizeSvg(raw: string): string {
   return purify.sanitize(raw, {
     USE_PROFILES: { svg: true, svgFilters: true },
     ADD_TAGS: ["use"],
+    ADD_ATTR: ["xmlns", "xmlns:xlink", "xlink:href", "viewBox"],
   });
 }
 
@@ -191,7 +192,11 @@ function SvgPreview({
 }) {
   const [showSource, setShowSource] = useState(false);
   const [copied, setCopied] = useState(false);
-  const cleanSvg = useMemo(() => sanitizeSvg(code), [code]);
+  const imgSrc = useMemo(() => {
+    const sanitized = sanitizeSvg(code);
+    if (!sanitized) return "";
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sanitized)}`;
+  }, [code]);
 
   async function handleCopy() {
     try {
@@ -248,9 +253,12 @@ function SvgPreview({
       ) : (
         <div
           suppressHydrationWarning
-          className="flex items-center justify-center overflow-auto p-4 [&>svg]:max-w-full [&>svg]:h-auto"
-          dangerouslySetInnerHTML={{ __html: cleanSvg }}
-        />
+          className="flex items-center justify-center overflow-auto p-4"
+        >
+          {imgSrc ? (
+            <img src={imgSrc} alt="SVG preview" className="max-w-full h-auto" />
+          ) : null}
+        </div>
       )}
     </div>
   );
