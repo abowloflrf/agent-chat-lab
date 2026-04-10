@@ -25,6 +25,7 @@
 
 html {
   scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -38,12 +39,22 @@ body {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
+html,
+body {
+  overscroll-behavior: none;
+}
+
 @media (min-width: 1024px) {
   html,
   body {
     height: 100%;
     overflow: hidden;
-    overscroll-behavior: none;
+  }
+}
+
+@media (display-mode: standalone) {
+  body {
+    min-height: 100dvh;
   }
 }
 
@@ -51,6 +62,12 @@ button,
 input,
 textarea {
   font: inherit;
+}
+
+button,
+a,
+[role="button"] {
+  -webkit-touch-callout: none;
 }
 
 ::selection {

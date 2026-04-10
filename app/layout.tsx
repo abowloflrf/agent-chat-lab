@@ -25,6 +25,14 @@ export const metadata: Metadata = {
   title: "Agent Chat Lab",
   description:
     "一个用于学习最小 Agent 构建流程的教学型 Web 应用，包含聊天、工具调用和基础记忆。",
+  appleWebApp: {
+    capable: true,
+    title: "Agent Chat Lab",
+    statusBarStyle: "black-translucent",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export default function RootLayout({

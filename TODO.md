@@ -73,6 +73,8 @@
 - [ ] Markdown 渲染增强（表格、LaTeX 公式、Mermaid 图表）
 - [ ] 会话详情顶部状态栏支持跨 Safari / Chrome 一致的轻量毛玻璃效果，且无明显分层横条
 - [x] 移动端响应式适配（基础版：viewport 配置、侧边栏抽屉、统计信息折叠、dvh 高度、安全区域）
+- [x] PWA 基础支持（manifest、apple-touch-icon、standalone 模式、触控优化）
+- [ ] PWA 体验深度优化（启动画面、图标精修、过渡动画、页面切换手势等）
 
 ### Better Agent Design
 - [ ] Resumable Streaming：关闭页面后 Agent 继续运行，重新打开自动重连（设计方案见 [docs/resumable-streaming-plan.md](docs/resumable-streaming-plan.md)）
