@@ -13,10 +13,10 @@ import { getMessageTimestamp, parseAgentObservability } from "@/lib/observabilit
 
 const markdownTextStyles = {
   user: {
-    prose: "space-y-4 text-[15px] leading-7 text-[#fff8f2]",
+    prose: "space-y-4 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-[#fff8f2]",
     heading: "font-semibold tracking-[-0.02em] text-[#fffdf9]",
-    paragraph: "whitespace-pre-wrap text-[15px] leading-7 text-[#fff8f2]",
-    list: "space-y-2 pl-5 text-[15px] leading-7 marker:text-[#f1d2bb]",
+    paragraph: "whitespace-pre-wrap text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-[#fff8f2]",
+    list: "space-y-2 pl-5 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 marker:text-[#f1d2bb]",
     blockquote:
       "border-l-2 border-white/18 pl-4 italic text-[#f6ded0]",
     rule: "border-white/10",
@@ -38,10 +38,10 @@ const markdownTextStyles = {
     tableRow: "odd:bg-[rgba(255,255,255,0.025)]",
   },
   assistant: {
-    prose: "space-y-4 text-[15px] leading-7 text-[#2b231b]",
+    prose: "space-y-4 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-[#2b231b]",
     heading: "font-semibold tracking-[-0.02em] text-[#1f1711]",
-    paragraph: "whitespace-pre-wrap text-[15px] leading-7 text-[#2b231b]",
-    list: "space-y-2 pl-5 text-[15px] leading-7 marker:text-[#b76837]",
+    paragraph: "whitespace-pre-wrap text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-[#2b231b]",
+    list: "space-y-2 pl-5 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 marker:text-[#b76837]",
     blockquote:
       "border-l-2 border-[rgba(201,106,43,0.28)] pl-4 italic text-[#6a5442]",
     rule: "border-[rgba(23,23,23,0.08)]",
@@ -497,7 +497,7 @@ export const ChatMessage = memo(function ChatMessage({
                     key={`${message.id}-text-${index}`}
                     className={`${
                       isUser ? "w-fit max-w-full" : ""
-                    } rounded-[16px] px-4 py-3 text-[15px] leading-7 ${
+                    } rounded-[16px] px-4 py-3 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 ${
                       isUser
                         ? "bg-[#4a3328] text-[#fff8f2] shadow-[0_16px_40px_rgba(74,51,40,0.14)]"
                         : "border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.72)] text-[#2b231b]"

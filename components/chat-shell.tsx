@@ -7,7 +7,7 @@ import {
 import { useChat } from "@ai-sdk/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ChatMessage } from "@/components/chat-message";
 import { ConversationList } from "@/components/conversation-list";
@@ -145,6 +145,9 @@ export function ChatShell({
         },
       }),
   );
+  const [headerHidden, setHeaderHidden] = useState(false);
+  const lastScrollTopRef = useRef(0);
+  const scrollDeltaAccRef = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const streamActivityAtRef = useRef(0);
@@ -159,6 +162,37 @@ export function ChatShell({
   useEffect(() => {
     modelOverrideStore.set(selectedModel);
   }, [modelOverrideStore, selectedModel]);
+
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    if (window.innerWidth >= 1024) {
+      setHeaderHidden(false);
+      return;
+    }
+    const scrollTop = container.scrollTop;
+    const delta = scrollTop - lastScrollTopRef.current;
+    lastScrollTopRef.current = scrollTop;
+    if (Math.abs(delta) < 2) return;
+    // Accumulate scroll distance in the same direction; reset on direction change
+    if ((delta > 0 && scrollDeltaAccRef.current < 0) || (delta < 0 && scrollDeltaAccRef.current > 0)) {
+      scrollDeltaAccRef.current = 0;
+    }
+    scrollDeltaAccRef.current += delta;
+    // Require 30px accumulated scroll before toggling
+    if (scrollDeltaAccRef.current > 30 && scrollTop > 50) {
+      setHeaderHidden(true);
+    } else if (scrollDeltaAccRef.current < -30) {
+      setHeaderHidden(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -720,7 +754,9 @@ export function ChatShell({
         </aside>
 
         <section className="glass-panel rise-in relative flex h-full min-h-0 flex-col overflow-hidden">
-          <header className="relative border-b border-[rgba(23,23,23,0.08)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:py-4">
+          <div className={`grid transition-[grid-template-rows] duration-500 ease-in-out ${headerHidden ? "[grid-template-rows:0fr] lg:[grid-template-rows:1fr]" : "[grid-template-rows:1fr]"}`}>
+          <header className="min-h-0 overflow-hidden border-b border-[rgba(23,23,23,0.08)]">
+            <div className="px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -767,7 +803,9 @@ export function ChatShell({
                 ))}
               </div>
             </div>
+            </div>
           </header>
+          </div>
 
           <div ref={scrollContainerRef} className="relative flex-1 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
@@ -825,9 +863,9 @@ export function ChatShell({
             )}
           </div>
 
-          <div className="relative border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.92)] px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="relative border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.92)] px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:px-4 lg:py-4 lg:pb-[max(1rem,env(safe-area-inset-bottom))]">
             {interruptedRunDetected && !isBusy ? (
-              <div className="mb-3 flex items-center justify-between gap-3 rounded-[18px] border border-[#ead4ba] bg-[#fff6ea] px-4 py-3 text-sm text-[#805126]">
+              <div className="mb-2 flex items-center justify-between gap-2 rounded-[18px] border border-[#ead4ba] bg-[#fff6ea] px-3 py-2 text-sm text-[#805126] lg:mb-3 lg:gap-3 lg:px-4 lg:py-3">
                 <span>检测到上一次 Agent 执行被中断，当前已恢复为可继续操作状态。</span>
                 <button
                   type="button"
@@ -841,65 +879,64 @@ export function ChatShell({
             ) : null}
 
             {conversationCreationError ? (
-              <div className="mb-3 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-4 py-3 text-sm text-[#9a3818]">
+              <div className="mb-2 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818] lg:mb-3 lg:px-4 lg:py-3">
                 {conversationCreationError}
               </div>
             ) : null}
 
             {error ? (
-              <div className="mb-3 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-4 py-3 text-sm text-[#9a3818]">
+              <div className="mb-2 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818] lg:mb-3 lg:px-4 lg:py-3">
                 {error.message}
               </div>
             ) : null}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <label className="block">
-                <span className="sr-only">输入消息</span>
-                <textarea
-                  ref={textareaRef}
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="输入消息..."
-                  rows={MIN_TEXTAREA_ROWS}
-                  className="w-full resize-none rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-2.5 text-[15px] leading-7 text-[#171717] outline-none transition placeholder:text-[#9f968b] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
-                  style={{
-                    minHeight: `calc(${MIN_TEXTAREA_ROWS}lh + 1.25rem)`,
-                    maxHeight: `calc(${MAX_TEXTAREA_ROWS}lh + 1.25rem)`,
-                  }}
-                />
-              </label>
-
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <ModelSelector
-                    providers={providers}
-                    selected={selectedModel}
-                    onSelect={setSelectedModel}
-                    disabled={isBusy}
+            <form onSubmit={handleSubmit} className="space-y-2 lg:space-y-4">
+              <div className="flex items-start gap-2">
+                <label className="block min-w-0 flex-1">
+                  <span className="sr-only">输入消息</span>
+                  <textarea
+                    ref={textareaRef}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="输入消息..."
+                    rows={MIN_TEXTAREA_ROWS}
+                    className="w-full resize-none rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-3 py-2 text-[15px] leading-7 text-[#171717] outline-none transition placeholder:text-[#9f968b] focus:border-[rgba(201,106,43,0.45)] focus:bg-white lg:px-4 lg:py-2.5"
+                    style={{
+                      minHeight: `calc(${MIN_TEXTAREA_ROWS}lh + 1rem)`,
+                      maxHeight: `calc(${MAX_TEXTAREA_ROWS}lh + 1rem)`,
+                    }}
                   />
-                  <span className="hidden text-[11px] text-[#9f968b] sm:inline">
-                    Enter 发送 · Shift+Enter 换行
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isBusy ? (
-                    <button
-                      type="button"
-                      onClick={() => void stop()}
-                      className="rounded-full border border-[rgba(23,23,23,0.14)] px-3.5 py-1.5 text-xs font-medium text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626]"
-                    >
-                      停止
-                    </button>
-                  ) : null}
+                </label>
+                {isBusy ? (
+                  <button
+                    type="button"
+                    onClick={() => void stop()}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition hover:bg-[#9c5626] animate-[pulse-ring_2s_ease-in-out_infinite]"
+                  >
+                    <svg className="animate-[square-breathe_2s_ease-in-out_infinite]" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5" /></svg>
+                  </button>
+                ) : (
                   <button
                     type="submit"
-                    disabled={isBusy || draft.trim().length === 0}
-                    className="rounded-lg bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={draft.trim().length === 0}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isBusy ? "生成中..." : "发送"}
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
                   </button>
-                </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <ModelSelector
+                  providers={providers}
+                  selected={selectedModel}
+                  onSelect={setSelectedModel}
+                  disabled={isBusy}
+                />
+                <span className="hidden text-[11px] text-[#9f968b] sm:inline">
+                  Enter 发送 · Shift+Enter 换行
+                </span>
               </div>
             </form>
           </div>

@@ -231,6 +231,26 @@ body::after {
   }
 }
 
+@keyframes pulse-ring {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(201, 106, 43, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(201, 106, 43, 0);
+  }
+}
+
+@keyframes square-breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+}
+
 .tool-running-indicator {
   animation: tool-running-pulse 2s ease-in-out infinite;
 }
