@@ -17,12 +17,15 @@
     "better-sqlite3": "^12.8.0",
     "dompurify": "^3.3.3",
     "drizzle-orm": "^0.45.2",
+    "katex": "^0.16.45",
     "next": "16.2.3",
     "pino": "^10.3.1",
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

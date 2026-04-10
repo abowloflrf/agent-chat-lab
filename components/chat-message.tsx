@@ -6,6 +6,8 @@ import { Children, isValidElement, memo, useMemo, useState, type ReactNode } fro
 import createDOMPurify from "dompurify";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import { AgentTimeline } from "@/components/agent-timeline";
 import { ToolCallCard } from "@/components/tool-call-card";
 import { formatMessageDateTime } from "@/lib/datetime";
@@ -505,7 +507,8 @@ export const ChatMessage = memo(function ChatMessage({
                   >
                     <div className={markdownStyles.prose}>
                       <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
                         components={{
                         h1: ({ children }) => (
                           <h1 className={`text-[28px] leading-[1.15] ${markdownStyles.heading}`}>

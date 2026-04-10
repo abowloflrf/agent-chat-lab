@@ -1,4 +1,16 @@
+@import "katex/dist/katex.min.css";
 @import "tailwindcss";
+
+/* KaTeX: prevent long formulas from overflowing message bubbles */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.katex-display > .katex {
+  white-space: nowrap;
+}
 
 :root {
   --background: #f3efe7;
