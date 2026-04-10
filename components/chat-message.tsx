@@ -1,6 +1,7 @@
 "use client";
 
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
+import Image from "next/image";
 import { Children, isValidElement, memo, useMemo, useState, type ReactNode } from "react";
 import createDOMPurify from "dompurify";
 import ReactMarkdown from "react-markdown";
@@ -183,6 +184,41 @@ function sanitizeSvg(raw: string): string {
   });
 }
 
+function parseSvgDimensions(svg: string) {
+  if (typeof window === "undefined") {
+    return { width: 800, height: 600 };
+  }
+
+  const doc = new window.DOMParser().parseFromString(svg, "image/svg+xml");
+  const root = doc.documentElement;
+  const widthAttr = root.getAttribute("width");
+  const heightAttr = root.getAttribute("height");
+
+  const width = widthAttr ? Number.parseFloat(widthAttr) : Number.NaN;
+  const height = heightAttr ? Number.parseFloat(heightAttr) : Number.NaN;
+
+  if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+    return { width, height };
+  }
+
+  const viewBox = root.getAttribute("viewBox");
+  if (viewBox) {
+    const parts = viewBox
+      .trim()
+      .split(/[\s,]+/)
+      .map((part) => Number.parseFloat(part));
+
+    if (parts.length === 4) {
+      const [, , vbWidth, vbHeight] = parts;
+      if (Number.isFinite(vbWidth) && vbWidth > 0 && Number.isFinite(vbHeight) && vbHeight > 0) {
+        return { width: vbWidth, height: vbHeight };
+      }
+    }
+  }
+
+  return { width: 800, height: 600 };
+}
+
 function SvgPreview({
   code,
   styles,
@@ -192,10 +228,16 @@ function SvgPreview({
 }) {
   const [showSource, setShowSource] = useState(false);
   const [copied, setCopied] = useState(false);
-  const imgSrc = useMemo(() => {
+  const preview = useMemo(() => {
     const sanitized = sanitizeSvg(code);
-    if (!sanitized) return "";
-    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sanitized)}`;
+    if (!sanitized) {
+      return null;
+    }
+
+    return {
+      src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sanitized)}`,
+      ...parseSvgDimensions(sanitized),
+    };
   }, [code]);
 
   async function handleCopy() {
@@ -255,8 +297,15 @@ function SvgPreview({
           suppressHydrationWarning
           className="flex items-center justify-center overflow-auto p-4"
         >
-          {imgSrc ? (
-            <img src={imgSrc} alt="SVG preview" className="max-w-full h-auto" />
+          {preview ? (
+            <Image
+              src={preview.src}
+              alt="SVG preview"
+              width={preview.width}
+              height={preview.height}
+              unoptimized
+              className="h-auto max-w-full"
+            />
           ) : null}
         </div>
       )}
