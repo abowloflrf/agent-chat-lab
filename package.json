@@ -10,11 +10,11 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.68",
+    "@ai-sdk/anthropic": "^3.0.69",
     "@ai-sdk/openai": "^3.0.52",
-    "@ai-sdk/react": "^3.0.156",
-    "ai": "^6.0.154",
-    "better-sqlite3": "^12.8.0",
+    "@ai-sdk/react": "^3.0.160",
+    "ai": "^6.0.158",
+    "better-sqlite3": "^12.9.0",
     "dompurify": "^3.3.3",
     "drizzle-orm": "^0.45.2",
     "katex": "^0.16.45",
@@ -31,7 +31,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^25.5.2",
+    "@types/node": "^25.6.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.10",
