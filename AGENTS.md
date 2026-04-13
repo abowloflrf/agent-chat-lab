@@ -1,13 +1,14 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repository is a single Next.js 16 app. Route files live in `app/`, including UI pages such as `app/page.tsx` and `app/settings/page.tsx`, and API handlers under `app/api/` (`chat`, `conversations`, `models`, `settings`, `tavily-usage`, `tool-stats`). Shared UI components live in `components/`. Agent and provider logic lives in `lib/`, with AI-specific code under `lib/ai/` and database code under `lib/db/`. Database migrations live in `drizzle/`. Runtime data (SQLite files) lives in `data/`. Static assets live in `public/`. There is no `tests/` directory yet.
+This repository is a single Next.js 16 app. Route files live in `app/`, including UI pages such as `app/page.tsx`, `app/login/page.tsx`, and `app/settings/page.tsx`, plus app metadata routes like `app/manifest.ts`, `app/icon.tsx`, and `app/apple-icon.tsx`. API handlers live under `app/api/` (`auth`, `chat`, `conversations`, `conversations/[id]/title`, `icon`, `models`, `settings`, `tavily-usage`, `tool-stats`). Shared UI components live in `components/`. Agent and provider logic lives in `lib/`, with AI-specific code under `lib/ai/`, database code under `lib/db/`, and persistence/settings helpers alongside them. Database migrations live in `drizzle/`. Runtime data (SQLite files) lives in `data/`. Design notes live in `docs/`. Static assets live in `public/`. Deployment-related files include `Dockerfile` and `docker-compose.yml`. There is no `tests/` directory yet.
 
 ## Build, Test, and Development Commands
 - `pnpm dev`: start the local dev server.
 - `pnpm build`: create a production build and run type checks.
 - `pnpm start`: serve the built app locally.
 - `pnpm lint`: run ESLint across the repository.
+- `pnpm db:generate`: regenerate Drizzle migration files from the current schema.
 
 Run `pnpm lint && pnpm build` before opening a pull request.
 
@@ -20,10 +21,10 @@ Because this project uses Next.js 16, check the local framework docs in `node_mo
 There is no dedicated test framework configured yet. Until one is added, treat `pnpm lint` and `pnpm build` as the minimum validation gate. For new logic in `lib/` or API routes, add tests when introducing a test runner, and keep test files close to the code they cover using names like `*.test.ts`.
 
 ## Documentation Maintenance
-Keep `TODO.md` in sync with the codebase. When adding scope, finishing a task, or changing priorities, update `TODO.md` in the same change so the repository always reflects current project status.
+Keep `TODO.md` in sync with the codebase. When adding scope, finishing a task, or changing priorities, update `TODO.md` in the same change so the repository always reflects current project status. If repository guidance changes materially, update `AGENTS.md` in the same pass.
 
 ## Commit & Pull Request Guidelines
-Current history only contains the scaffold commit (`Initial commit from Create Next App`), so use short, imperative commit messages such as `Add provider settings page` or `Refactor chat transport`. Keep one logical change per commit when practical.
+Use short, imperative commit messages such as `Add provider settings page` or `Refactor chat transport`. Keep one logical change per commit when practical.
 
 PRs should include:
 - a brief summary of the change
@@ -34,9 +35,9 @@ PRs should include:
 ## Security & Configuration Tips
 This app is exposed to the public internet. All routes are protected by a static password authentication layer implemented in `proxy.ts`:
 - **Page routes**: unauthenticated requests are rewritten to `/login` at the proxy level, so no real page content is server-rendered or leaked.
-- **API routes**: unauthenticated requests receive a 401 response. The only exception is `/api/auth`, which handles login.
+- **API routes**: unauthenticated requests receive a 401 response. Public exceptions currently include `/api/auth` for login and `/api/icon` for PWA icon generation.
 - **Auth token**: stored as an HttpOnly cookie (`auth_token`), validated against `SHA-256(AUTH_PASSWORD)`.
 
-When adding new API routes or pages, they are automatically protected by the proxy. If a new route must be publicly accessible (like `/api/auth`), explicitly exclude it in the `proxy.ts` logic.
+When adding new API routes or pages, they are automatically protected by the proxy. If a new route must be publicly accessible (like `/api/auth`, `/api/icon`, or `/login`), explicitly exclude it in the `proxy.ts` logic.
 
 Do not commit real API keys. Use `.env.local` for server defaults. Provider config and system settings are persisted server-side in SQLite via Drizzle ORM.
