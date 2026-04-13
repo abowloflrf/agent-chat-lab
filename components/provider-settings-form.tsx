@@ -477,9 +477,12 @@ export function ProviderSettingsForm() {
         <aside className="dark-panel rise-in relative hidden h-full overflow-hidden border-r border-white/10 p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:block">
           <div className="relative flex h-full flex-col">
             <div className="border-b border-white/8 pb-4">
-              <p className="text-[11px] uppercase tracking-[0.28em] text-[#c4b6a4]">
+              <Link
+                href="/"
+                className="inline-flex text-[11px] uppercase tracking-[0.28em] text-[#c4b6a4] transition hover:text-[#fff7ef]"
+              >
                 Agent Chat Lab
-              </p>
+              </Link>
               <h1 className="mt-3 text-[28px] font-semibold leading-[0.95] text-[#fff7ef]">
                 系统设置
               </h1>

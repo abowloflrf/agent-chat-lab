@@ -153,6 +153,7 @@ export function ChatShell({
   const streamActivityAtRef = useRef(0);
   const conversationIdRef = useRef<string | null>(initialConversationId);
   const previousRouteConversationIdRef = useRef<string | null>(routeConversationId);
+  const isResettingToNewConversationRef = useRef(false);
   const conversationId = routeConversationId ?? localConversationId;
 
   useEffect(() => {
@@ -250,24 +251,36 @@ export function ChatShell({
     const previousRouteConversationId = previousRouteConversationIdRef.current;
     previousRouteConversationIdRef.current = routeConversationId;
 
-    if (
-      previousRouteConversationId !== null &&
-      routeConversationId === null &&
-      localConversationId !== null
-    ) {
-      conversationIdRef.current = null;
-      setLocalConversationId(null);
-      setConversationTitle(null);
-      setCurrentMessages([]);
-      setMessages([]);
-      setInterruptedRunDetected(false);
+    if (routeConversationId === null) {
+      if (
+        previousRouteConversationId !== null ||
+        isResettingToNewConversationRef.current
+      ) {
+        isResettingToNewConversationRef.current = false;
+        conversationIdRef.current = null;
+        setLocalConversationId(null);
+        setConversationTitle(null);
+        setCurrentMessages([]);
+        setMessages([]);
+        setInterruptedRunDetected(false);
+      }
+      return;
+    }
+
+    if (isResettingToNewConversationRef.current) {
       return;
     }
 
     if (routeConversationId && routeConversationId !== localConversationId) {
+      let cancelled = false;
+
       fetch(`/api/conversations/${routeConversationId}`)
         .then((res) => res.json())
         .then((data) => {
+          if (cancelled || isResettingToNewConversationRef.current) {
+            return;
+          }
+
           setLocalConversationId(routeConversationId);
           if (data.conversation) {
             const recoveredMessages = normalizeRecoveredMessages(data.conversation.messages);
@@ -285,6 +298,10 @@ export function ChatShell({
           }
         })
         .catch((fetchError) => {
+          if (cancelled || isResettingToNewConversationRef.current) {
+            return;
+          }
+
           console.error("Failed to load conversation:", fetchError);
           setLocalConversationId(routeConversationId);
           setConversationTitle(null);
@@ -292,6 +309,10 @@ export function ChatShell({
           setMessages([]);
           setInterruptedRunDetected(false);
         });
+
+      return () => {
+        cancelled = true;
+      };
     }
   }, [localConversationId, routeConversationId, setMessages]);
 
@@ -683,6 +704,7 @@ export function ChatShell({
       return;
     }
 
+    isResettingToNewConversationRef.current = true;
     conversationIdRef.current = null;
     setConversationCreationError(null);
     setConversationTitle(null);
@@ -717,9 +739,12 @@ export function ChatShell({
             <div className="border-b border-white/8 pb-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[28px] font-semibold leading-[0.95] text-[#fff7ef]">
+                  <Link
+                    href="/"
+                    className="block text-[28px] font-semibold leading-[0.95] text-[#fff7ef] transition hover:text-[#ffd8bd]"
+                  >
                     Agent Chat Lab
-                  </p>
+                  </Link>
                   <Link
                     href="/settings"
                     className="mt-3 inline-flex rounded-md border border-white/12 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-[#f3dfcf] transition hover:border-[#d98a52] hover:bg-white/6"
