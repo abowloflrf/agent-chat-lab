@@ -10,6 +10,7 @@
 - [x] 支持工具调用的前端可视化
 - [x] 新增静态密码登录页 `/login` 与 `/api/auth`
 - [x] 新增应用图标与 PWA 图标接口 `/api/icon`
+- [x] 新增左上角模块切换器（Chat / 系统设置 / TODO）
 
 ### 内置 Tools
 - [x] `calculator`
@@ -39,6 +40,8 @@
 - [x] 持久化 `message`
 - [x] 持久化 `tool_call`
 - [x] 持久化 `note`
+- [x] 新增 TODO 管理页 `/todos` 与 `/api/todos`，复用数据库 `todos` 表
+- [x] TODO 管理页改为紧凑清单 + CodeMirror 6 Markdown 详情编辑器
 - [x] 支持多会话管理（列表/创建/删除/重命名）
 - [x] 会话列表支持最近 20 条渐进展示与标题搜索
 - [x] 会话页面支持异常中断恢复与上一轮回复重生成

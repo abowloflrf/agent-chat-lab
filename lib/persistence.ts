@@ -17,10 +17,10 @@ type NoteRecord = {
   createdAt: string;
 };
 
-type TodoStatus = "todo" | "in_progress" | "done";
-type TodoPriority = "low" | "medium" | "high";
+export type TodoStatus = "todo" | "in_progress" | "done";
+export type TodoPriority = "low" | "medium" | "high";
 
-type TodoRecord = {
+export type TodoRecord = {
   id: string;
   title: string;
   content: string;
@@ -656,6 +656,7 @@ export async function writeTodo(input: {
   id?: string;
   title?: string;
   content?: string;
+  status?: TodoStatus;
   priority?: TodoPriority;
 }) {
   await ensureDatabase();
@@ -729,13 +730,17 @@ export async function writeTodo(input: {
       ? "done"
       : input.action === "reopen"
         ? "todo"
-        : existingTodo.status;
+        : input.status ?? existingTodo.status;
   const nextCompletedAt =
     input.action === "complete"
       ? now
       : input.action === "reopen"
         ? null
-        : existingRow.completedAt;
+        : input.status === undefined
+          ? existingRow.completedAt
+          : input.status === "done"
+            ? existingRow.completedAt ?? now
+            : null;
 
   db.update(todos)
     .set({
@@ -768,7 +773,7 @@ export async function readTodos(input?: {
 
   const normalizedQuery = input?.query?.trim() ?? "";
   const normalizedStatus = input?.status ?? "all";
-  const normalizedLimit = Math.min(Math.max(input?.limit ?? 10, 1), 50);
+  const normalizedLimit = Math.min(Math.max(input?.limit ?? 10, 1), 200);
 
   const allTodos = db.select().from(todos).orderBy(desc(todos.updatedAt)).all().map(toStoredTodo);
 

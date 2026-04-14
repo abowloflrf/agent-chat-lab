@@ -5,12 +5,12 @@ import {
   lastAssistantMessageIsCompleteWithApprovalResponses,
 } from "ai";
 import { useChat } from "@ai-sdk/react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ChatMessage } from "@/components/chat-message";
 import { ConversationList } from "@/components/conversation-list";
+import { ModuleSwitcher } from "@/components/module-switcher";
 import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
 import {
   ModelSelector,
@@ -738,19 +738,8 @@ export function ChatShell({
           <div className="relative flex h-full flex-col">
             <div className="border-b border-white/8 pb-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <Link
-                    href="/"
-                    className="block text-[28px] font-semibold leading-[0.95] text-[#fff7ef] transition hover:text-[#ffd8bd]"
-                  >
-                    Agent Chat Lab
-                  </Link>
-                  <Link
-                    href="/settings"
-                    className="mt-3 inline-flex rounded-md border border-white/12 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-[#f3dfcf] transition hover:border-[#d98a52] hover:bg-white/6"
-                  >
-                    系统设置
-                  </Link>
+                <div className="min-w-0 flex-1">
+                  <ModuleSwitcher />
                 </div>
                 <button
                   type="button"

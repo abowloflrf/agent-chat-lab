@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { builtInTools } from "@/lib/built-in-tools";
+import { ModuleSwitcher } from "@/components/module-switcher";
 import {
   defaultProviderSettings,
   defaultSystemSettings,
@@ -477,21 +478,7 @@ export function ProviderSettingsForm() {
         <aside className="dark-panel rise-in relative hidden h-full overflow-hidden border-r border-white/10 p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:block">
           <div className="relative flex h-full flex-col">
             <div className="border-b border-white/8 pb-4">
-              <Link
-                href="/"
-                className="inline-flex text-[11px] uppercase tracking-[0.28em] text-[#c4b6a4] transition hover:text-[#fff7ef]"
-              >
-                Agent Chat Lab
-              </Link>
-              <h1 className="mt-3 text-[28px] font-semibold leading-[0.95] text-[#fff7ef]">
-                系统设置
-              </h1>
-              <Link
-                href="/"
-                className="mt-3 inline-flex rounded-md border border-white/12 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[#f3dfcf] transition hover:border-[#d98a52] hover:bg-white/6"
-              >
-                返回聊天
-              </Link>
+              <ModuleSwitcher />
             </div>
 
             <div className="pt-4">
