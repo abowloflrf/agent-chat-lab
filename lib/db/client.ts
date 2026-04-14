@@ -46,7 +46,7 @@ const defaultTodos = [
     title: "验证 Tavily 联网工具",
     content: "拿真实 API Key 跑一次 WebSearch 和 WebFetch 联调。",
     status: "todo",
-    priority: "medium",
+    priority: "default",
   },
 ];
 

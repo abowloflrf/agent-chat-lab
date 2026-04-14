@@ -10,9 +10,10 @@ type MarkdownEditorProps = {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  variant?: "default" | "minimal";
 };
 
-const editorTheme = EditorView.theme({
+const defaultEditorTheme = EditorView.theme({
   "&": {
     minHeight: "360px",
     height: "100%",
@@ -60,10 +61,52 @@ const editorTheme = EditorView.theme({
   },
 });
 
+const minimalEditorTheme = EditorView.theme({
+  "&": {
+    minHeight: "320px",
+    height: "100%",
+    backgroundColor: "transparent",
+    color: "#171717",
+    border: "none",
+    borderRadius: "0",
+    overflow: "hidden",
+    fontSize: "15px",
+  },
+  "&.cm-focused": {
+    outline: "none",
+  },
+  ".cm-scroller": {
+    fontFamily: "var(--font-ibm-plex-mono), monospace",
+    lineHeight: "1.8",
+    minHeight: "320px",
+    padding: "2px 0 18px",
+  },
+  ".cm-content": {
+    caretColor: "#171717",
+    padding: "0",
+  },
+  ".cm-line": {
+    padding: "0",
+  },
+  ".cm-gutters": {
+    display: "none",
+  },
+  ".cm-activeLine": {
+    backgroundColor: "rgba(201, 106, 43, 0.05)",
+  },
+  ".cm-selectionBackground, .cm-content ::selection": {
+    backgroundColor: "rgba(201, 106, 43, 0.16) !important",
+  },
+  ".cm-placeholder": {
+    color: "#b1a697",
+  },
+});
+
 export function MarkdownEditor({
   value,
   onChange,
   placeholder,
+  variant = "default",
 }: MarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -89,7 +132,7 @@ export function MarkdownEditor({
           basicSetup,
           markdown(),
           EditorView.lineWrapping,
-          editorTheme,
+          variant === "minimal" ? minimalEditorTheme : defaultEditorTheme,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               onChangeRef.current(update.state.doc.toString());
@@ -106,7 +149,7 @@ export function MarkdownEditor({
       view.destroy();
       viewRef.current = null;
     };
-  }, [placeholder]);
+  }, [placeholder, variant]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -130,5 +173,10 @@ export function MarkdownEditor({
     });
   }, [value]);
 
-  return <div ref={containerRef} className="h-full min-h-[360px]" />;
+  return (
+    <div
+      ref={containerRef}
+      className={variant === "minimal" ? "h-full min-h-[320px]" : "h-full min-h-[360px]"}
+    />
+  );
 }

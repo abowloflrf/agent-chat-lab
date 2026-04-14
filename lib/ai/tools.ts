@@ -290,7 +290,7 @@ export function createAgentTools(config: ProviderConfig) {
           .optional()
           .describe("待办说明或补充内容。"),
         priority: z
-          .enum(["low", "medium", "high"])
+          .enum(["default", "high", "highest"])
           .optional()
           .describe("待办优先级。"),
       }),

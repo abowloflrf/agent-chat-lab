@@ -8,7 +8,7 @@ import {
 export const runtime = "nodejs";
 
 const todoStatuses = new Set<TodoStatus>(["todo", "in_progress", "done"]);
-const todoPriorities = new Set<TodoPriority>(["low", "medium", "high"]);
+const todoPriorities = new Set<TodoPriority>(["default", "high", "highest"]);
 
 function normalizeStatus(value: unknown): TodoStatus | "all" {
   if (value === "all" || todoStatuses.has(value as TodoStatus)) {
@@ -19,6 +19,10 @@ function normalizeStatus(value: unknown): TodoStatus | "all" {
 }
 
 function normalizePriority(value: unknown): TodoPriority | undefined {
+  if (value === "low" || value === "medium") {
+    return "default";
+  }
+
   if (todoPriorities.has(value as TodoPriority)) {
     return value as TodoPriority;
   }

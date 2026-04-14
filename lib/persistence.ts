@@ -18,7 +18,7 @@ type NoteRecord = {
 };
 
 export type TodoStatus = "todo" | "in_progress" | "done";
-export type TodoPriority = "low" | "medium" | "high";
+export type TodoPriority = "default" | "high" | "highest";
 
 export type TodoRecord = {
   id: string;
@@ -64,6 +64,18 @@ function parseJson<T>(value: string | null, fallback: T): T {
 
 function toIsoString(timestamp: number) {
   return new Date(timestamp).toISOString();
+}
+
+function normalizeTodoPriority(value: string | null | undefined): TodoPriority {
+  if (value === "highest") {
+    return "highest";
+  }
+
+  if (value === "high") {
+    return "high";
+  }
+
+  return "default";
 }
 
 function generateMessageId(message: ChatUIMessage): string {
@@ -186,7 +198,7 @@ function toStoredTodo(row: typeof todos.$inferSelect): TodoRecord {
     title: row.title,
     content: row.content,
     status: row.status as TodoStatus,
-    priority: row.priority as TodoPriority,
+    priority: normalizeTodoPriority(row.priority),
     createdAt: toIsoString(row.createdAt),
     updatedAt: toIsoString(row.updatedAt),
     completedAt: row.completedAt === null ? null : toIsoString(row.completedAt),
@@ -669,7 +681,7 @@ export async function writeTodo(input: {
       title: input.title?.trim() || "未命名待办",
       content: input.content?.trim() || "",
       status: "todo",
-      priority: input.priority ?? "medium",
+      priority: input.priority ?? "default",
       createdAt: toIsoString(now),
       updatedAt: toIsoString(now),
       completedAt: null,
