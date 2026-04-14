@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const modules = [
   {
@@ -10,12 +10,12 @@ const modules = [
     href: "/",
   },
   {
-    label: "系统设置",
-    href: "/settings",
+    label: "Todo",
+    href: "/todos",
   },
   {
-    label: "TODO",
-    href: "/todos",
+    label: "Setting",
+    href: "/settings",
   },
 ];
 
@@ -30,10 +30,45 @@ function isActive(pathname: string, href: string) {
 export function ModuleSwitcher() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const switcherRef = useRef<HTMLDivElement>(null);
   const activeModule = modules.find((item) => isActive(pathname, item.href)) ?? modules[0];
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!switcherRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!switcherRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("focusin", handleFocusIn);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("focusin", handleFocusIn);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
   return (
-    <div className="relative space-y-3">
+    <div className="relative space-y-2.5">
       <Link
         href="/"
         className="group block transition hover:text-[#ffd8bd]"
@@ -49,14 +84,14 @@ export function ModuleSwitcher() {
         </span>
       </Link>
 
-      <div className="relative">
+      <div ref={switcherRef} className="relative">
         <button
           type="button"
           onClick={() => setOpen((current) => !current)}
-          className="group inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-left transition hover:border-[#d98a52]/70 hover:bg-white/[0.08]"
+          className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-left transition hover:border-[#d98a52]/70 hover:bg-white/[0.08]"
           aria-expanded={open}
         >
-          <span className="truncate text-sm font-medium text-[#fff7ef]">
+          <span className="truncate text-[13px] font-medium text-[#fff7ef]">
             {activeModule.label}
           </span>
           <span className={`text-xs text-[#d8c9b7] transition ${open ? "rotate-180" : ""}`}>
@@ -65,7 +100,7 @@ export function ModuleSwitcher() {
         </button>
 
         {open ? (
-          <div className="absolute left-0 top-[calc(100%+0.4rem)] z-20 min-w-36 overflow-hidden rounded-xl border border-white/10 bg-[#221d16]/95 p-1 shadow-2xl shadow-black/30 backdrop-blur">
+          <div className="absolute left-0 top-[calc(100%+0.35rem)] z-20 min-w-36 rounded-xl border border-white/10 bg-[#221d16]/95 p-1.5 shadow-2xl shadow-black/30 backdrop-blur">
             {modules.map((item) => {
               const active = item.label === activeModule.label;
 
@@ -74,7 +109,7 @@ export function ModuleSwitcher() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                  className={`mb-1 last:mb-0 flex items-center justify-between gap-3 rounded-lg px-3 py-1.5 text-[13px] transition ${
                     active
                       ? "bg-white/10 text-[#fff7ef]"
                       : "text-[#d8c9b7] hover:bg-white/[0.07] hover:text-[#fff7ef]"

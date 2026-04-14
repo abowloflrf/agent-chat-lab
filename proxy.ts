@@ -23,9 +23,16 @@ function isAuthenticated(request: NextRequest): boolean {
 export function proxy(request: NextRequest) {
   const start = Date.now();
   const pathname = request.nextUrl.pathname;
+  const isPublicRoute =
+    pathname === "/api/auth" ||
+    pathname === "/login" ||
+    pathname === "/api/icon" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/icon" ||
+    pathname === "/apple-icon";
 
   // Skip auth check for public routes
-  if (pathname === "/api/auth" || pathname === "/login" || pathname === "/api/icon") {
+  if (isPublicRoute) {
     const response = NextResponse.next();
     log(request, 200, start);
     return response;
