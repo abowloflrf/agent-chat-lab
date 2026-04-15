@@ -471,12 +471,6 @@ export function TodoManager() {
                 ))}
               </div>
 
-              {saveStatus === "error" && !isEditorOpen ? (
-                <div className="mb-3 rounded-[14px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818]">
-                  操作失败，请稍后重试。
-                </div>
-              ) : null}
-
               {isLoading ? (
                 <div className="py-12 text-center text-sm text-[#8a8176]">
                   加载 TODO 中...
@@ -559,13 +553,28 @@ export function TodoManager() {
               }`}
             >
               {isEditorOpen ? (
-                <form onSubmit={(e) => e.preventDefault()} className="flex min-h-full flex-col">
+                <div className="flex min-h-full flex-col">
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={closeEditor}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-[#8a8176] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#5c544a]"
+                      aria-label="关闭"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+
                   <div className="flex flex-1 flex-col pt-2">
                     <input
                       value={draft.title}
-                      onChange={(event) =>
-                        setDraft((current) => ({ ...current, title: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        setDraft((current) => ({ ...current, title: event.target.value }));
+                        debouncedSave();
+                      }}
                       placeholder="例如：整理下周发布清单"
                       className="w-full border-none bg-transparent px-0 py-0 text-[clamp(1.65rem,3vw,2.35rem)] font-bold leading-[1.08] tracking-[-0.035em] text-[#171717] outline-none placeholder:text-[#b0a395]"
                     />
@@ -575,129 +584,37 @@ export function TodoManager() {
                     <div className="min-h-[420px] flex-1 pt-6">
                       <MarkdownEditor
                         value={draft.content}
-                        onChange={(content) =>
-                          setDraft((current) => ({ ...current, content }))
-                        }
+                        onChange={(content) => {
+                          setDraft((current) => ({ ...current, content }));
+                          debouncedSave();
+                        }}
                         placeholder="补充上下文、验收标准或下一步动作..."
                         variant="minimal"
                       />
                     </div>
                   </div>
 
-                  <div className="sticky bottom-0 -mx-4 mt-auto border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.94)] px-4 py-3 backdrop-blur lg:-mx-6 lg:px-6">
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="min-w-0 truncate text-xs text-[#6e665d]">
-                          {selectedTodo ? `更新于 ${formatTime(selectedTodo.updatedAt)}` : "新建待办"}
-                          {selectedTodo?.completedAt ? ` · 完成于 ${formatTime(selectedTodo.completedAt)}` : ""}
-                        </p>
-                        {draft.id ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleDelete(draft.id!)}
-                            disabled={saveStatus === "saving"}
-                            className="shrink-0 rounded-full border border-[#e0b3a2] px-3 py-1.5 text-xs font-medium text-[#9a3818] transition hover:bg-[#fff1ec] disabled:cursor-not-allowed disabled:opacity-55"
-                          >
-                            删除
-                          </button>
-                        ) : null}
-                      </div>
-
-                      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                        <div className="flex flex-col gap-3">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
-                              状态
-                            </span>
-                            {statusOptions.map((option) => {
-                              const active = draft.status === option.value;
-
-                              return (
-                                <button
-                                  key={option.value}
-                                  type="button"
-                                  onClick={() =>
-                                    setDraft((current) => ({ ...current, status: option.value }))
-                                  }
-                                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                                    active
-                                      ? statusPillStyles[option.value]
-                                      : "border-[rgba(23,23,23,0.1)] bg-white/55 text-[#5c544a] hover:bg-white"
-                                  }`}
-                                >
-                                  <span
-                                    className={`h-2 w-2 rounded-full ${
-                                      option.value === "todo"
-                                        ? "bg-[#b8a58d]"
-                                        : option.value === "in_progress"
-                                          ? "bg-[#d98a52]"
-                                          : "bg-[#6d8c55]"
-                                    }`}
-                                  />
-                                  {option.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
-                              优先级
-                            </span>
-                            {priorityOptions.map((option) => {
-                              const active = draft.priority === option.value;
-
-                              return (
-                                <button
-                                  key={option.value}
-                                  type="button"
-                                  onClick={() =>
-                                    setDraft((current) => ({ ...current, priority: option.value }))
-                                  }
-                                  className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                                    active
-                                      ? priorityPillStyles[option.value]
-                                      : "border-[rgba(23,23,23,0.1)] bg-white/55 text-[#5c544a] hover:bg-white"
-                                  }`}
-                                >
-                                  {option.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={closeEditor}
-                            disabled={saveStatus === "saving"}
-                            className="rounded-full border border-[rgba(23,23,23,0.12)] px-4 py-2.5 text-sm font-medium text-[#5c544a] transition hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-55"
-                          >
-                            {selectedTodo ? "收起" : "取消"}
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={saveStatus === "saving"}
-                            className="rounded-full bg-[#171717] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:opacity-55"
-                          >
-                            {saveStatus === "saving" ? "保存中..." : "保存 TODO"}
-                          </button>
-                        </div>
-                      </div>
-
-                      {saveStatus === "saved" ? (
-                        <div className="rounded-[14px] border border-[#d8c7a7] bg-[#fff9ec] px-3 py-2 text-sm text-[#76501b]">
-                          已保存
-                        </div>
-                      ) : saveStatus === "error" ? (
-                        <div className="rounded-[14px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818]">
-                          保存失败，请稍后重试。
-                        </div>
-                      ) : null}
+                  <div className="sticky bottom-0 -mx-4 mt-auto border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.94)] px-4 py-2.5 backdrop-blur lg:-mx-6 lg:px-6">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-[#908679]">
+                        {selectedTodo ? `更新于 ${formatTime(selectedTodo.updatedAt)}` : "新建待办"}
+                      </p>
+                      <span
+                        className={`text-xs transition-opacity duration-500 ${
+                          saveStatus === "saved"
+                            ? "text-[#6d8c55] opacity-100"
+                            : saveStatus === "error"
+                              ? "text-[#9a3818] opacity-100"
+                              : saveStatus === "saving"
+                                ? "text-[#908679] opacity-100"
+                                : "opacity-0"
+                        }`}
+                      >
+                        {saveStatus === "saved" ? "已保存" : saveStatus === "error" ? "保存失败" : saveStatus === "saving" ? "保存中..." : "已保存"}
+                      </span>
                     </div>
                   </div>
-                </form>
+                </div>
               ) : (
                 <div className="flex h-full min-h-[540px] items-center justify-center px-8">
                   <div className="max-w-sm text-center">
