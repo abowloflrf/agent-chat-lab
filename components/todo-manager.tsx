@@ -53,12 +53,6 @@ const statusPillStyles: Record<TodoStatus, string> = {
   done: "border-[#bfd0b0] bg-[#edf5e8] text-[#4f6c3c]",
 };
 
-const priorityPillStyles: Record<TodoPriority, string> = {
-  default: "border-[#d6cec4] bg-[#f6f1ea] text-[#6c5e51]",
-  high: "border-[#e4c093] bg-[#fff4e7] text-[#96581f]",
-  highest: "border-[#e5b2a6] bg-[#fff0ec] text-[#9a3818]",
-};
-
 const emptyDraft: TodoDraft = {
   id: null,
   title: "",
@@ -591,7 +585,7 @@ export function TodoManager() {
                         {menuOpenId === todo.id ? (
                           <div
                             data-todo-menu
-                            className="absolute right-0 top-10 z-50 w-48 rounded-xl border border-[rgba(23,23,23,0.1)] bg-white py-1.5 shadow-[0_8px_30px_-8px_rgba(23,23,23,0.2)]"
+                            className="menu-appear absolute right-0 top-10 z-50 w-48 rounded-xl border border-[rgba(23,23,23,0.1)] bg-white py-1.5 shadow-[0_8px_30px_-8px_rgba(23,23,23,0.2)]"
                           >
                             {/* Status section */}
                             <div className="px-3 py-1.5">
