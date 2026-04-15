@@ -1,4 +1,11 @@
-import { streamText, convertToModelMessages, stepCountIs } from "ai";
+import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  streamText,
+  convertToModelMessages,
+  stepCountIs,
+  type FinishReason,
+} from "ai";
 import { after } from "next/server";
 import { z } from "zod";
 import { getChatModel } from "@/lib/ai/model";
@@ -9,11 +16,16 @@ import {
 } from "@/lib/ai/system-prompt";
 import { createAgentTools } from "@/lib/ai/tools";
 import { persistFinishedConversation, persistIncomingMessages, generateConversationTitle } from "@/lib/persistence";
-import type { AgentTimelineStep, ChatUIMessage } from "@/lib/observability";
+import type {
+  AgentTimelineStep,
+  ChatMessageMetadata,
+  ChatUIMessage,
+} from "@/lib/observability";
 import { getRuntimeProviderConfig, getProviderConfigByOverride } from "@/lib/settings";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+const AGENT_MAX_STEPS = 12;
+export const maxDuration = 60;
 
 const modelOverrideSchema = z.object({
   providerId: z.string().trim().min(1),
@@ -126,6 +138,62 @@ function buildRuntimeSystemPrompt(messages: ChatUIMessage[]) {
   return promptSections.join("\n\n").trim();
 }
 
+function buildStreamingMetadata(
+  requestStartedAt: number,
+  timeline: AgentTimelineStep[],
+): ChatMessageMetadata {
+  return {
+    createdAt: requestStartedAt,
+    status: "streaming" as const,
+    startedAt: requestStartedAt,
+    timeline,
+  };
+}
+
+function buildFinishedMetadata(
+  requestStartedAt: number,
+  requestFinishedAt: number,
+  timeline: AgentTimelineStep[],
+): ChatMessageMetadata {
+  return {
+    createdAt: requestStartedAt,
+    status: "finished" as const,
+    startedAt: requestStartedAt,
+    finishedAt: requestFinishedAt,
+    totalDurationMs: Math.max(0, requestFinishedAt - requestStartedAt),
+    timeline,
+  };
+}
+
+function buildLimitReachedText(
+  finishReason: FinishReason | undefined,
+  timeline: AgentTimelineStep[],
+) {
+  const lastStep = timeline[timeline.length - 1];
+
+  if (!lastStep) {
+    return null;
+  }
+
+  const reachedStepLimitWhileToolLooping =
+    timeline.length >= AGENT_MAX_STEPS &&
+    (finishReason === "tool-calls" || lastStep.finishReason === "tool-calls") &&
+    lastStep.toolCalls.length > 0 &&
+    lastStep.toolResults.length > 0;
+
+  if (!reachedStepLimitWhileToolLooping) {
+    return null;
+  }
+
+  const recentToolNames = [...new Set(lastStep.toolCalls.map((toolCall) => toolCall.toolName))].slice(0, 3);
+  const toolSummary =
+    recentToolNames.length > 0
+      ? `最后一轮已执行工具：${recentToolNames.join("、")}。`
+      : "";
+
+  return `${toolSummary}本轮 Agent 已达到最多 ${AGENT_MAX_STEPS} 步的执行上限，我先在这里收尾，避免直接断流。若你希望我继续，请直接回复“继续”，或缩小任务范围后再试。`;
+}
+
 export async function POST(request: Request) {
   const json = await request.json();
   const parsed = requestSchema.safeParse(json);
@@ -175,7 +243,7 @@ export async function POST(request: Request) {
     system: runtimeSystemPrompt,
     messages: modelMessages,
     tools: agentTools,
-    stopWhen: stepCountIs(5),
+    stopWhen: stepCountIs(AGENT_MAX_STEPS),
     experimental_onStepStart: ({ stepNumber }) => {
       stepStartTimes.set(stepNumber, Date.now());
     },
@@ -218,39 +286,76 @@ export async function POST(request: Request) {
     },
   });
 
-  return result.toUIMessageStreamResponse({
+  const uiMessageStream = createUIMessageStream<ChatUIMessage>({
     originalMessages: parsed.data.messages,
-    messageMetadata: ({ part }) => {
-      if (part.type === "start") {
-        return {
-          createdAt: requestStartedAt,
-          status: "streaming" as const,
-          startedAt: requestStartedAt,
-          timeline: [],
-        };
+    execute: async ({ writer }) => {
+      const innerStream = result.toUIMessageStream<ChatUIMessage>({
+        messageMetadata: ({ part }) => {
+          if (part.type === "start") {
+            return buildStreamingMetadata(requestStartedAt, []);
+          }
+
+          if (part.type === "finish-step") {
+            return buildStreamingMetadata(requestStartedAt, timeline);
+          }
+        },
+        sendFinish: false,
+      });
+
+      const reader = innerStream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+
+          writer.write(value);
+        }
+      } finally {
+        reader.releaseLock();
       }
 
-      if (part.type === "finish-step") {
-        return {
-          createdAt: requestStartedAt,
-          status: "streaming" as const,
-          startedAt: requestStartedAt,
+      let finishReason: FinishReason | undefined;
+
+      try {
+        finishReason = await result.finishReason;
+      } catch {
+        finishReason = "error";
+      }
+
+      const limitReachedText = buildLimitReachedText(finishReason, timeline);
+
+      if (limitReachedText) {
+        const partId = `limit-note-${crypto.randomUUID()}`;
+        const hasExistingText = timeline.some((step) => step.text.trim().length > 0);
+
+        writer.write({
+          type: "text-start",
+          id: partId,
+        });
+        writer.write({
+          type: "text-delta",
+          id: partId,
+          delta: `${hasExistingText ? "\n\n" : ""}${limitReachedText}`,
+        });
+        writer.write({
+          type: "text-end",
+          id: partId,
+        });
+      }
+
+      requestFinishedAt ??= Date.now();
+      writer.write({
+        type: "finish",
+        finishReason,
+        messageMetadata: buildFinishedMetadata(
+          requestStartedAt,
+          requestFinishedAt,
           timeline,
-        };
-      }
-
-      if (part.type === "finish") {
-        requestFinishedAt ??= Date.now();
-
-        return {
-          createdAt: requestStartedAt,
-          status: "finished" as const,
-          startedAt: requestStartedAt,
-          finishedAt: requestFinishedAt,
-          totalDurationMs: Math.max(0, requestFinishedAt - requestStartedAt),
-          timeline,
-        };
-      }
+        ),
+      });
     },
     onFinish: async ({ messages }) => {
       await persistFinishedConversation(parsed.data.conversationId, messages);
@@ -268,5 +373,9 @@ export async function POST(request: Request) {
         });
       }
     },
+  });
+
+  return createUIMessageStreamResponse({
+    stream: uiMessageStream,
   });
 }
