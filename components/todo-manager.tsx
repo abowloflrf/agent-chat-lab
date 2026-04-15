@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { ModuleSwitcher } from "@/components/module-switcher";
 import type { TodoPriority, TodoRecord, TodoStatus } from "@/lib/persistence";
@@ -114,8 +114,17 @@ export function TodoManager() {
   const [isCreating, setIsCreating] = useState(false);
   const [draft, setDraft] = useState<TodoDraft>(emptyDraft);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftRef = useRef<TodoDraft>(draft);
+  const saveInFlightRef = useRef<boolean>(false);
+
+  // Keep draftRef in sync with draft state
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
 
   const selectedTodo = todos.find((todo) => todo.id === selectedId) ?? null;
   const isEditorOpen = isCreating || Boolean(selectedTodo);
@@ -160,12 +169,9 @@ export function TodoManager() {
         if (!cancelled) {
           setTodos(payload.todos ?? []);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
-          setMessage({
-            type: "error",
-            text: error instanceof Error ? error.message : "加载待办时发生未知错误。",
-          });
+          setSaveStatus("error");
         }
       } finally {
         if (!cancelled) {
@@ -185,46 +191,47 @@ export function TodoManager() {
     setIsCreating(true);
     setSelectedId(null);
     setDraft(emptyDraft);
-    setMessage(null);
   }
 
   function selectTodo(todo: TodoRecord) {
     setIsCreating(false);
     setSelectedId(todo.id);
     setDraft(toDraft(todo));
-    setMessage(null);
   }
 
   function closeEditor() {
     setIsCreating(false);
     setSelectedId(null);
     setDraft(emptyDraft);
-    setMessage(null);
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const saveTodo = useCallback(async () => {
+    const currentDraft = draftRef.current;
 
-    const title = draft.title.trim();
-    if (!title) {
-      setMessage({ type: "error", text: "请先填写待办标题。" });
+    // Don't create empty todos
+    if (currentDraft.id === null && !currentDraft.title.trim()) {
       return;
     }
 
-    setIsSaving(true);
-    setMessage(null);
+    // Skip concurrent saves
+    if (saveInFlightRef.current) {
+      return;
+    }
+
+    saveInFlightRef.current = true;
+    setSaveStatus("saving");
 
     try {
-      const isEditing = Boolean(draft.id);
+      const isEditing = currentDraft.id !== null;
       const response = await fetch("/api/todos", {
         method: isEditing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: draft.id,
-          title,
-          content: draft.content,
-          status: draft.status,
-          priority: draft.priority,
+          id: currentDraft.id,
+          title: currentDraft.title.trim(),
+          content: currentDraft.content,
+          status: currentDraft.status,
+          priority: currentDraft.priority,
         }),
       });
       const payload = (await response.json()) as { todo?: TodoRecord; error?: string };
@@ -241,54 +248,122 @@ export function TodoManager() {
 
         return [savedTodo, ...current];
       });
-      setSelectedId(savedTodo.id);
-      setIsCreating(false);
-      setDraft(toDraft(savedTodo));
-      setMessage({ type: "success", text: isEditing ? "待办已更新。" : "待办已创建。" });
-      setTimeout(() => setMessage(null), 2400);
-    } catch (error) {
-      setMessage({
-        type: "error",
-        text: error instanceof Error ? error.message : "保存待办时发生未知错误。",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  }
 
-  async function deleteTodo() {
-    if (!draft.id) {
-      return;
-    }
-
-    setIsSaving(true);
-    setMessage(null);
-
-    try {
-      const response = await fetch(`/api/todos?id=${encodeURIComponent(draft.id)}`, {
-        method: "DELETE",
-      });
-      const payload = (await response.json()) as { error?: string };
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? "删除待办失败。");
+      if (!isEditing) {
+        // New todo created — update draft id so subsequent saves are PATCH
+        setSelectedId(savedTodo.id);
+        setIsCreating(false);
+        setDraft((current) => ({ ...current, id: savedTodo.id }));
       }
 
-      setTodos((current) => current.filter((todo) => todo.id !== draft.id));
-      setIsCreating(false);
-      setSelectedId(null);
-      setDraft(emptyDraft);
-      setMessage({ type: "success", text: "待办已删除。" });
-      setTimeout(() => setMessage(null), 2400);
-    } catch (error) {
-      setMessage({
-        type: "error",
-        text: error instanceof Error ? error.message : "删除待办时发生未知错误。",
-      });
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2500);
+    } catch {
+      setSaveStatus("error");
     } finally {
-      setIsSaving(false);
+      saveInFlightRef.current = false;
     }
-  }
+  }, []);
+
+  const debouncedSave = useCallback(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(() => {
+      void saveTodo();
+    }, 2000);
+  }, [saveTodo]);
+
+  const saveImmediate = useCallback(
+    async (todoId: string, updates: Partial<Pick<TodoDraft, "status" | "priority">>) => {
+      // Optimistic update
+      const previousTodos = todos;
+      setTodos((current) =>
+        current.map((todo) => (todo.id === todoId ? { ...todo, ...updates } : todo)),
+      );
+
+      setSaveStatus("saving");
+
+      try {
+        const response = await fetch("/api/todos", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: todoId, ...updates }),
+        });
+        const payload = (await response.json()) as { todo?: TodoRecord; error?: string };
+
+        if (!response.ok || !payload.todo) {
+          throw new Error(payload.error ?? "保存待办失败。");
+        }
+
+        const savedTodo = payload.todo;
+        setTodos((current) =>
+          current.map((todo) => (todo.id === savedTodo.id ? savedTodo : todo)),
+        );
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2500);
+      } catch {
+        // Revert optimistic update
+        setTodos(previousTodos);
+        setSaveStatus("error");
+      }
+    },
+    [todos],
+  );
+
+  const handleDelete = useCallback(
+    async (todoId: string) => {
+      try {
+        const response = await fetch(`/api/todos?id=${encodeURIComponent(todoId)}`, {
+          method: "DELETE",
+        });
+        const payload = (await response.json()) as { error?: string };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "删除待办失败。");
+        }
+
+        setTodos((current) => current.filter((todo) => todo.id !== todoId));
+
+        if (selectedId === todoId) {
+          setIsCreating(false);
+          setSelectedId(null);
+          setDraft(emptyDraft);
+        }
+      } catch {
+        setSaveStatus("error");
+      }
+    },
+    [selectedId],
+  );
+
+  // Ctrl+S / Cmd+S handler
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+
+        if (!(isCreating || Boolean(todos.find((t) => t.id === selectedId)))) {
+          return;
+        }
+
+        // Clear pending debounce and save immediately
+        if (debounceRef.current) {
+          clearTimeout(debounceRef.current);
+          debounceRef.current = null;
+        }
+
+        void saveTodo();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [saveTodo, isCreating, selectedId, todos]);
 
   return (
     <main className="app-shell h-full overflow-hidden text-[#171717]">
@@ -396,15 +471,9 @@ export function TodoManager() {
                 ))}
               </div>
 
-              {message && !isEditorOpen ? (
-                <div
-                  className={`mb-3 rounded-[14px] border px-3 py-2 text-sm ${
-                    message.type === "success"
-                      ? "border-[#d8c7a7] bg-[#fff9ec] text-[#76501b]"
-                      : "border-[#e8b5a7] bg-[#fff1ec] text-[#9a3818]"
-                  }`}
-                >
-                  {message.text}
+              {saveStatus === "error" && !isEditorOpen ? (
+                <div className="mb-3 rounded-[14px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818]">
+                  操作失败，请稍后重试。
                 </div>
               ) : null}
 
@@ -490,7 +559,7 @@ export function TodoManager() {
               }`}
             >
               {isEditorOpen ? (
-                <form onSubmit={handleSubmit} className="flex min-h-full flex-col">
+                <form onSubmit={(e) => e.preventDefault()} className="flex min-h-full flex-col">
                   <div className="flex flex-1 flex-col pt-2">
                     <input
                       value={draft.title}
@@ -525,8 +594,8 @@ export function TodoManager() {
                         {draft.id ? (
                           <button
                             type="button"
-                            onClick={() => void deleteTodo()}
-                            disabled={isSaving}
+                            onClick={() => void handleDelete(draft.id!)}
+                            disabled={saveStatus === "saving"}
                             className="shrink-0 rounded-full border border-[#e0b3a2] px-3 py-1.5 text-xs font-medium text-[#9a3818] transition hover:bg-[#fff1ec] disabled:cursor-not-allowed disabled:opacity-55"
                           >
                             删除
@@ -602,30 +671,28 @@ export function TodoManager() {
                           <button
                             type="button"
                             onClick={closeEditor}
-                            disabled={isSaving}
+                            disabled={saveStatus === "saving"}
                             className="rounded-full border border-[rgba(23,23,23,0.12)] px-4 py-2.5 text-sm font-medium text-[#5c544a] transition hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-55"
                           >
                             {selectedTodo ? "收起" : "取消"}
                           </button>
                           <button
                             type="submit"
-                            disabled={isSaving}
+                            disabled={saveStatus === "saving"}
                             className="rounded-full bg-[#171717] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:opacity-55"
                           >
-                            {isSaving ? "保存中..." : "保存 TODO"}
+                            {saveStatus === "saving" ? "保存中..." : "保存 TODO"}
                           </button>
                         </div>
                       </div>
 
-                      {message ? (
-                        <div
-                          className={`rounded-[14px] border px-3 py-2 text-sm ${
-                            message.type === "success"
-                              ? "border-[#d8c7a7] bg-[#fff9ec] text-[#76501b]"
-                              : "border-[#e8b5a7] bg-[#fff1ec] text-[#9a3818]"
-                          }`}
-                        >
-                          {message.text}
+                      {saveStatus === "saved" ? (
+                        <div className="rounded-[14px] border border-[#d8c7a7] bg-[#fff9ec] px-3 py-2 text-sm text-[#76501b]">
+                          已保存
+                        </div>
+                      ) : saveStatus === "error" ? (
+                        <div className="rounded-[14px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818]">
+                          保存失败，请稍后重试。
                         </div>
                       ) : null}
                     </div>
