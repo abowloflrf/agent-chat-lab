@@ -338,6 +338,32 @@ export function TodoManager() {
     [selectedId],
   );
 
+  // Close dropdown menu on click-outside or Escape
+  useEffect(() => {
+    if (!menuOpenId) return;
+
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-todo-menu]")) {
+        setMenuOpenId(null);
+      }
+    }
+
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpenId(null);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [menuOpenId]);
+
   // Ctrl+S / Cmd+S handler
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -491,18 +517,21 @@ export function TodoManager() {
                     const mark = priorityMark(todo.priority);
 
                     return (
-                      <button
+                      <div
                         key={todo.id}
-                        type="button"
-                        onClick={() => selectTodo(todo)}
-                        className={`rise-in group w-full rounded-[22px] border px-4 py-3 text-left transition ${
+                        className={`rise-in group relative w-full rounded-[22px] border px-4 py-3 text-left transition ${
                           selected
                             ? "border-[rgba(201,106,43,0.32)] bg-white"
                             : "border-transparent bg-transparent hover:border-[rgba(23,23,23,0.08)] hover:bg-white/72"
                         }`}
                         style={{ animationDelay: `${Math.min(index * 28, 180)}ms` }}
                       >
-                        <div className="flex items-start gap-3">
+                        {/* Clickable area for selecting the todo */}
+                        <button
+                          type="button"
+                          onClick={() => selectTodo(todo)}
+                          className="flex w-full items-start gap-3 text-left"
+                        >
                           <span
                             className={`mt-1.5 h-3 w-3 shrink-0 rounded-full border ${statusDotStyles[todo.status]}`}
                           />
@@ -539,8 +568,112 @@ export function TodoManager() {
                               ) : null}
                             </div>
                           </div>
-                        </div>
-                      </button>
+                        </button>
+
+                        {/* Three-dot menu trigger */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpenId(menuOpenId === todo.id ? null : todo.id);
+                          }}
+                          className={`absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-lg text-[#8a8176] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#5c544a] ${menuOpenId === todo.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                          aria-label="操作菜单"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="5" r="1" />
+                            <circle cx="12" cy="12" r="1" />
+                            <circle cx="12" cy="19" r="1" />
+                          </svg>
+                        </button>
+
+                        {/* Dropdown menu */}
+                        {menuOpenId === todo.id ? (
+                          <div
+                            data-todo-menu
+                            className="absolute right-0 top-10 z-50 w-48 rounded-xl border border-[rgba(23,23,23,0.1)] bg-white py-1.5 shadow-[0_8px_30px_-8px_rgba(23,23,23,0.2)]"
+                          >
+                            {/* Status section */}
+                            <div className="px-3 py-1.5">
+                              <p className="text-[10px] uppercase tracking-[0.2em] text-[#8d8478]">状态</p>
+                            </div>
+                            {statusOptions.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void saveImmediate(todo.id, { status: option.value });
+                                  setMenuOpenId(null);
+                                }}
+                                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-[#352d25] transition hover:bg-[rgba(23,23,23,0.04)]"
+                              >
+                                <span className={`h-2 w-2 rounded-full ${
+                                  option.value === "todo" ? "bg-[#b8a58d]"
+                                  : option.value === "in_progress" ? "bg-[#d98a52]"
+                                  : "bg-[#6d8c55]"
+                                }`} />
+                                <span className="flex-1">{option.label}</span>
+                                {todo.status === option.value ? (
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#6d8c55]">
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                ) : null}
+                              </button>
+                            ))}
+
+                            {/* Divider */}
+                            <div className="my-1.5 h-px bg-[rgba(23,23,23,0.08)]" />
+
+                            {/* Priority section */}
+                            <div className="px-3 py-1.5">
+                              <p className="text-[10px] uppercase tracking-[0.2em] text-[#8d8478]">优先级</p>
+                            </div>
+                            {priorityOptions.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void saveImmediate(todo.id, { priority: option.value });
+                                  setMenuOpenId(null);
+                                }}
+                                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-[#352d25] transition hover:bg-[rgba(23,23,23,0.04)]"
+                              >
+                                <span className="w-4 text-center text-xs font-bold text-[#8d8478]">
+                                  {priorityMark(option.value) || "—"}
+                                </span>
+                                <span className="flex-1">{option.label}</span>
+                                {todo.priority === option.value ? (
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#6d8c55]">
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                ) : null}
+                              </button>
+                            ))}
+
+                            {/* Divider */}
+                            <div className="my-1.5 h-px bg-[rgba(23,23,23,0.08)]" />
+
+                            {/* Delete */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleDelete(todo.id);
+                                setMenuOpenId(null);
+                              }}
+                              className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-[#9a3818] transition hover:bg-[#fff1ec]"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                              <span>删除</span>
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                     );
                   })}
                 </div>
