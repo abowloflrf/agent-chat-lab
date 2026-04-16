@@ -514,6 +514,8 @@ export function TodoManager() {
                       <div
                         key={todo.id}
                         className={`rise-in group relative w-full rounded-[22px] border px-4 py-3 text-left transition ${
+                          menuOpenId === todo.id ? "z-40" : ""
+                        } ${
                           selected
                             ? "border-[rgba(201,106,43,0.32)] bg-white"
                             : "border-transparent bg-transparent hover:border-[rgba(23,23,23,0.08)] hover:bg-white/72"
@@ -620,31 +622,36 @@ export function TodoManager() {
                             <div className="my-1.5 h-px bg-[rgba(23,23,23,0.08)]" />
 
                             {/* Priority section */}
-                            <div className="px-3 py-1.5">
-                              <p className="text-[10px] uppercase tracking-[0.2em] text-[#8d8478]">优先级</p>
-                            </div>
-                            {priorityOptions.map((option) => (
-                              <button
-                                key={option.value}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void saveImmediate(todo.id, { priority: option.value });
-                                  setMenuOpenId(null);
-                                }}
-                                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-[#352d25] transition hover:bg-[rgba(23,23,23,0.04)]"
-                              >
-                                <span className="w-4 text-center text-xs font-bold text-[#8d8478]">
+                            <div className="flex items-center gap-1 px-3 py-1.5">
+                              <span className="mr-1 text-[10px] uppercase tracking-[0.2em] text-[#8d8478]">优先级</span>
+                              {priorityOptions.map((option) => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void saveImmediate(todo.id, { priority: option.value });
+                                    setMenuOpenId(null);
+                                  }}
+                                  className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold transition ${
+                                    todo.priority === option.value
+                                      ? option.value === "highest"
+                                        ? "bg-[#fff0ec] text-[#9a3818]"
+                                        : option.value === "high"
+                                          ? "bg-[#fff4e7] text-[#96581f]"
+                                          : "bg-[rgba(23,23,23,0.08)] text-[#352d25]"
+                                      : option.value === "highest"
+                                        ? "text-[#d4a096] hover:bg-[#fff0ec] hover:text-[#9a3818]"
+                                        : option.value === "high"
+                                          ? "text-[#d4b48a] hover:bg-[#fff4e7] hover:text-[#96581f]"
+                                          : "text-[#8d8478] hover:bg-[rgba(23,23,23,0.04)] hover:text-[#5c544a]"
+                                  }`}
+                                  title={priorityLabels[option.value]}
+                                >
                                   {priorityMark(option.value) || "—"}
-                                </span>
-                                <span className="flex-1">{option.label}</span>
-                                {todo.priority === option.value ? (
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#6d8c55]">
-                                    <polyline points="20 6 9 17 4 12" />
-                                  </svg>
-                                ) : null}
-                              </button>
-                            ))}
+                                </button>
+                              ))}
+                            </div>
 
                             {/* Divider */}
                             <div className="my-1.5 h-px bg-[rgba(23,23,23,0.08)]" />
