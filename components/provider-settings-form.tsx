@@ -918,11 +918,8 @@ export function ProviderSettingsForm() {
                       <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
                         内置 Tools
                       </p>
-                      <p className="mt-2 text-sm leading-6 text-[#6e665d]">
-                        这里展示当前应用内置的工具能力。部分工具支持单独配置，例如 WebSearch 依赖 Tavily API Key。
-                      </p>
                     </div>
-                    <span className="rounded-full border border-[rgba(23,23,23,0.1)] px-3 py-1 text-[11px] text-[#6e665d]">
+                    <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-[rgba(23,23,23,0.1)] px-3 py-1 text-[11px] leading-none text-[#6e665d]">
                       {builtInTools.length} 个
                     </span>
                   </div>
