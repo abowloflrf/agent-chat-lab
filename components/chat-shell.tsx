@@ -150,6 +150,7 @@ export function ChatShell({
   const scrollDeltaAccRef = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   const streamActivityAtRef = useRef(0);
   const conversationIdRef = useRef<string | null>(initialConversationId);
   const previousRouteConversationIdRef = useRef<string | null>(routeConversationId);
@@ -194,6 +195,20 @@ export function ChatShell({
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
+
+  useEffect(() => {
+    const header = headerRef.current;
+    const container = scrollContainerRef.current;
+    if (!header || !container) return;
+
+    const update = () => {
+      container.style.setProperty("--header-h", `${header.offsetHeight}px`);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -768,8 +783,12 @@ export function ChatShell({
         </aside>
 
         <section className="glass-panel rise-in relative flex h-full min-h-0 flex-col overflow-hidden">
-          <div className={`grid transition-[grid-template-rows] duration-500 ease-in-out ${headerHidden ? "[grid-template-rows:0fr] lg:[grid-template-rows:1fr]" : "[grid-template-rows:1fr]"}`}>
-          <header className="min-h-0 overflow-hidden border-b border-[rgba(23,23,23,0.08)]">
+          <header
+            ref={headerRef}
+            className={`absolute inset-x-0 top-0 z-20 border-b border-[rgba(23,23,23,0.08)] bg-[rgba(255,252,247,0.95)] transition-transform duration-200 ease-out will-change-transform lg:static lg:z-auto lg:translate-y-0 lg:bg-transparent ${
+              headerHidden ? "-translate-y-full lg:translate-y-0" : "translate-y-0"
+            }`}
+          >
             <div className="px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0 flex-1">
@@ -819,9 +838,11 @@ export function ChatShell({
             </div>
             </div>
           </header>
-          </div>
 
-          <div ref={scrollContainerRef} className="relative flex-1 overflow-y-auto px-4 py-4">
+          <div
+            ref={scrollContainerRef}
+            className="relative flex-1 overflow-y-auto px-4 pb-4 pt-[calc(var(--header-h,3.5rem)+1rem)] lg:pt-4"
+          >
             {messages.length === 0 ? (
               <div className="hidden min-h-[520px] items-center justify-center sm:flex">
                 <section className="w-full max-w-3xl">
