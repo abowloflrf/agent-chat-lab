@@ -13,7 +13,6 @@
 - [ ] 跨会话记忆（记住用户偏好、常用上下文、历史决策，支持自动摘要）
 
 ### Chat UI
-- [ ] 回复消息的代码块支持语法高亮
 - [ ] 支持指定删除某条消息
 - [ ] 允许编辑用户已发送的某条消息，并基于编辑后的内容重新发送
 - [ ] Markdown 渲染增强（Mermaid 图表）
@@ -22,6 +21,7 @@
 
 ### Better Agent Design
 - [ ] Resumable Streaming：关闭页面后 Agent 继续运行，重新打开自动重连（设计方案见 [docs/resumable-streaming-plan.md](docs/resumable-streaming-plan.md)）
+- [ ] 调研能否引入 Workflow SDK 改进 Agent 对话工作流（durable execution、人工审批恢复、长任务续跑）
 - [ ] 增加 tool 选择约束
 - [ ] 优化 system prompt（参考 opencode 源码）
 - [ ] 新建对话时支持首条消息配置“纯对话模式”：关闭后续整个会话的 tool 调用，默认关闭该选项

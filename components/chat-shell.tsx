@@ -878,22 +878,31 @@ export function ChatShell({
               </div>
             ) : (
               <div className="mx-auto max-w-4xl space-y-6">
-                {messages.map((message, index) => (
-                  <div
-                    key={message.id}
-                    className="rise-in"
-                    style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}
-                  >
-                    <ChatMessage
-                      message={message}
-                      canRegenerate={message.role === "assistant"}
-                      onRegenerate={() => void handleRegenerateFromMessage(message.id)}
-                      onToolApprovalResponse={(approvalId, approved) =>
-                        handleToolApprovalResponse(approvalId, approved)
-                      }
-                    />
-                  </div>
-                ))}
+                {messages.map((message, index) => {
+                  const isLastMessage = index === messages.length - 1;
+                  const isStreamingMessage =
+                    isLastMessage
+                    && message.role === "assistant"
+                    && (status === "submitted" || status === "streaming");
+
+                  return (
+                    <div
+                      key={message.id}
+                      className="rise-in"
+                      style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}
+                    >
+                      <ChatMessage
+                        message={message}
+                        canRegenerate={message.role === "assistant"}
+                        isStreaming={isStreamingMessage}
+                        onRegenerate={() => void handleRegenerateFromMessage(message.id)}
+                        onToolApprovalResponse={(approvalId, approved) =>
+                          handleToolApprovalResponse(approvalId, approved)
+                        }
+                      />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

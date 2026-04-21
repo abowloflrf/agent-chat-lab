@@ -2,12 +2,25 @@
 
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
 import Image from "next/image";
-import { Children, isValidElement, memo, useMemo, useState, type ReactNode } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 import createDOMPurify from "dompurify";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Options as ReactMarkdownOptions } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import rehypeShikiFromHighlighter from "@shikijs/rehype/core";
+import { SHIKI_THEME, useShikiHighlighter } from "@/lib/shiki";
+
+type RehypePlugins = NonNullable<ReactMarkdownOptions["rehypePlugins"]>;
+
+type HastTextLike = { type: "text"; value: string };
+type HastElementLike = {
+  type: "element";
+  tagName: string;
+  properties?: { className?: unknown };
+  children: Array<HastNodeLike>;
+};
+type HastNodeLike = HastElementLike | HastTextLike | { type: string; value?: unknown; children?: unknown };
 import { AgentTimeline } from "@/components/agent-timeline";
 import { ToolCallCard } from "@/components/tool-call-card";
 import { formatMessageDateTime } from "@/lib/datetime";
@@ -68,9 +81,41 @@ const markdownTextStyles = {
   },
 } as const;
 
-function getCodeLanguage(className?: string) {
-  const match = className?.match(/language-([\w-]+)/);
-  return match?.[1] ?? null;
+function hastToText(node: HastNodeLike): string {
+  if (node.type === "text" && typeof (node as HastTextLike).value === "string") {
+    return (node as HastTextLike).value;
+  }
+  const children = (node as { children?: unknown }).children;
+  if (Array.isArray(children)) {
+    return children.map((child) => hastToText(child as HastNodeLike)).join("");
+  }
+  return "";
+}
+
+function extractLanguageFromHast(node: HastElementLike | undefined): string | null {
+  if (!node || !Array.isArray(node.children)) {
+    return null;
+  }
+  const codeNode = node.children.find(
+    (child): child is HastElementLike =>
+      (child as HastElementLike).type === "element"
+      && (child as HastElementLike).tagName === "code",
+  );
+  const rawClass =
+    (codeNode?.properties as { className?: unknown; class?: unknown } | undefined)?.className
+    ?? (codeNode?.properties as { class?: unknown } | undefined)?.class;
+  const classTokens: string[] = Array.isArray(rawClass)
+    ? rawClass.filter((entry): entry is string => typeof entry === "string")
+    : typeof rawClass === "string"
+      ? rawClass.split(/\s+/)
+      : [];
+  for (const token of classTokens) {
+    const match = token.match(/^language-([\w-]+)/);
+    if (match) {
+      return match[1];
+    }
+  }
+  return null;
 }
 
 function roleLabel(role: UIMessage["role"]) {
@@ -316,26 +361,26 @@ function SvgPreview({
 }
 
 function CodeBlock({
-  className,
+  code,
+  language,
   children,
   styles,
 }: {
-  className?: string;
+  code: string;
+  language: string | null;
   children: ReactNode;
   styles: (typeof markdownTextStyles)[keyof typeof markdownTextStyles];
 }) {
   const [copied, setCopied] = useState(false);
   const [wrapped, setWrapped] = useState(false);
-  const codeText = Children.toArray(children).join("");
-  const language = getCodeLanguage(className);
 
-  if (isSvgContent(language, codeText)) {
-    return <SvgPreview code={codeText} styles={styles} />;
+  if (isSvgContent(language, code)) {
+    return <SvgPreview code={code} styles={styles} />;
   }
 
   async function handleCopyCode() {
     try {
-      await copyText(codeText);
+      await copyText(code);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch (error) {
@@ -347,7 +392,7 @@ function CodeBlock({
     <div className={styles.codeFrame}>
       <div className={styles.codeHeader}>
         <span className={styles.codeLabel}>
-          {getCodeLanguage(className) ?? "code"}
+          {language ?? "code"}
         </span>
         <div className="flex items-center gap-2 text-[10px] text-[#8c7767]">
           <button
@@ -419,7 +464,7 @@ function CodeBlock({
         </div>
       </div>
       <pre className={`${styles.pre} ${wrapped ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
-        <code className={styles.codeInPre}>{children}</code>
+        {children}
       </pre>
     </div>
   );
@@ -430,14 +475,31 @@ export const ChatMessage = memo(function ChatMessage({
   onRegenerate,
   canRegenerate = false,
   onToolApprovalResponse,
+  isStreaming = false,
 }: {
   message: UIMessage;
   onRegenerate?: () => void;
   canRegenerate?: boolean;
   onToolApprovalResponse?: (approvalId: string, approved: boolean) => Promise<void> | void;
+  isStreaming?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
+  const highlighter = useShikiHighlighter();
+  const rehypePlugins = useMemo<RehypePlugins>(() => {
+    const plugins: RehypePlugins = [rehypeKatex];
+    if (highlighter && !isStreaming) {
+      plugins.push([
+        rehypeShikiFromHighlighter,
+        highlighter,
+        {
+          theme: SHIKI_THEME,
+          addLanguageClass: true,
+        },
+      ]);
+    }
+    return plugins;
+  }, [highlighter, isStreaming]);
   const observability = !isUser ? parseAgentObservability(message.metadata) : null;
   const markdownStyles = isUser
     ? markdownTextStyles.user
@@ -508,7 +570,7 @@ export const ChatMessage = memo(function ChatMessage({
                     <div className={markdownStyles.prose}>
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm, remarkMath]}
-                        rehypePlugins={[rehypeKatex]}
+                        rehypePlugins={rehypePlugins}
                         components={{
                         h1: ({ children }) => (
                           <h1 className={`text-[28px] leading-[1.15] ${markdownStyles.heading}`}>
@@ -533,35 +595,35 @@ export const ChatMessage = memo(function ChatMessage({
                         p: ({ children }) => (
                           <p className={markdownStyles.paragraph}>{children}</p>
                         ),
-                        pre: ({ children }) => {
-                          const child = Children.only(children);
-                          const className =
-                            isValidElement<{ className?: string }>(child)
-                              ? child.props.className
-                              : undefined;
-                          const codeChildren =
-                            isValidElement<{ children?: ReactNode }>(child)
-                              ? child.props.children
-                              : children;
+                        pre: ({ children, node }) => {
+                          const hastNode = node as HastElementLike | undefined;
+                          const rawCode = hastNode ? hastToText(hastNode) : "";
+                          const language = extractLanguageFromHast(hastNode);
 
                           return (
                             <CodeBlock
-                              className={className}
+                              code={rawCode}
+                              language={language}
                               styles={markdownStyles}
                             >
-                              {codeChildren}
+                              {children}
                             </CodeBlock>
                           );
                         },
-                        code: ({ className, children }) => (
-                          <code
-                            className={
-                              className ? markdownStyles.codeInPre : markdownStyles.inlineCode
-                            }
-                          >
-                            {children}
-                          </code>
-                        ),
+                        code: ({ className, children }) => {
+                          const isBlock = /language-[\w-]+/.test(className ?? "");
+                          return (
+                            <code
+                              className={
+                                isBlock
+                                  ? `${className} ${markdownStyles.codeInPre}`
+                                  : markdownStyles.inlineCode
+                              }
+                            >
+                              {children}
+                            </code>
+                          );
+                        },
                         strong: ({ children }) => (
                           <strong className={markdownStyles.strong}>{children}</strong>
                         ),
