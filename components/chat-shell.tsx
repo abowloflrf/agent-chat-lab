@@ -109,7 +109,10 @@ export function ChatShell({
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarRefreshCounter, setSidebarRefreshCounter] = useState(0);
-  const [pendingTitle, setPendingTitle] = useState<string | null>(null);
+  const [pendingTitle, setPendingTitle] = useState<{
+    conversationId: string;
+    title: string;
+  } | null>(null);
   const [conversationCreationError, setConversationCreationError] =
     useState<string | null>(null);
   const [interruptedRunDetected, setInterruptedRunDetected] = useState(() => {
@@ -300,6 +303,7 @@ export function ChatShell({
           if (data.conversation) {
             const recoveredMessages = normalizeRecoveredMessages(data.conversation.messages);
             setConversationTitle(data.conversation.title ?? null);
+            setPendingTitle(null);
             setCurrentMessages(recoveredMessages);
             setMessages(recoveredMessages);
             setInterruptedRunDetected(
@@ -307,6 +311,7 @@ export function ChatShell({
             );
           } else {
             setConversationTitle(null);
+            setPendingTitle(null);
             setCurrentMessages([]);
             setMessages([]);
             setInterruptedRunDetected(false);
@@ -320,6 +325,7 @@ export function ChatShell({
           console.error("Failed to load conversation:", fetchError);
           setLocalConversationId(routeConversationId);
           setConversationTitle(null);
+          setPendingTitle(null);
           setCurrentMessages([]);
           setMessages([]);
           setInterruptedRunDetected(false);
@@ -406,6 +412,7 @@ export function ChatShell({
     const userCount = messages.filter((m) => m.role === "user").length;
     const assistantCount = messages.filter((m) => m.role === "assistant").length;
     if (!cid || userCount !== 1 || assistantCount !== 1) return;
+    const titleConversationId = cid;
 
     // Poll until the DB title changes (temp title from first message → LLM title).
     // Fetch immediately to capture baseline before LLM finishes, then poll every 2s.
@@ -414,18 +421,22 @@ export function ChatShell({
     let attempt = 0;
     let baselineTitle: string | null = null;
     let done = false;
+    let cancelled = false;
 
     async function check() {
       try {
-        const res = await fetch(`/api/conversations/${cid}`);
-        if (res.ok && !done) {
+        const res = await fetch(`/api/conversations/${titleConversationId}`);
+        if (res.ok && !done && !cancelled) {
           const { conversation } = await res.json();
           const title: string | null = conversation?.title || null;
 
           if (baselineTitle === null) {
             baselineTitle = title;
           } else if (title && title !== baselineTitle) {
-            setPendingTitle(title);
+            setPendingTitle({
+              conversationId: titleConversationId,
+              title,
+            });
             done = true;
             window.clearInterval(timer);
           }
@@ -447,9 +458,10 @@ export function ChatShell({
     }, POLL_INTERVAL);
 
     return () => {
+      cancelled = true;
       window.clearInterval(timer);
     };
-  }, [isBusy, messages]);
+  }, [conversationId, isBusy, messages]);
 
   useEffect(() => {
     const hasStreamingAssistant = messages.some((message) => {

@@ -18,7 +18,10 @@ type ConversationListProps = {
   onConversationTitleChange?: (title: string | null) => void;
   refreshTrigger?: string | number;
   isCreatingConversation?: boolean;
-  pendingTitle?: string | null;
+  pendingTitle?: {
+    conversationId: string;
+    title: string;
+  } | null;
 };
 
 const INITIAL_VISIBLE_COUNT = 20;
@@ -60,6 +63,7 @@ export function ConversationList({
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const normalizedSearchQuery = deferredSearchQuery.trim();
   const hasLoadedOnceRef = useRef(false);
+  const appliedPendingTitleKeyRef = useRef<string | null>(null);
 
   const updateConversationInState = useCallback((
     conversationId: string,
@@ -153,10 +157,19 @@ export function ConversationList({
   }, []);
 
   useEffect(() => {
-    if (pendingTitle && currentConversationId) {
-      animateConversationTitle(currentConversationId, pendingTitle);
+    if (!pendingTitle) {
+      return;
     }
-  }, [pendingTitle, currentConversationId, animateConversationTitle]);
+
+    const pendingKey = `${pendingTitle.conversationId}:${pendingTitle.title}`;
+
+    if (appliedPendingTitleKeyRef.current === pendingKey) {
+      return;
+    }
+
+    appliedPendingTitleKeyRef.current = pendingKey;
+    animateConversationTitle(pendingTitle.conversationId, pendingTitle.title);
+  }, [pendingTitle, animateConversationTitle]);
 
   useEffect(() => {
     if (isSearchOpen) {
