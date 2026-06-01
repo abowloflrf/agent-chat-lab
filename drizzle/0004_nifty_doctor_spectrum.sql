@@ -1,0 +1,1 @@
+ALTER TABLE `system_settings` ADD `mcp_servers` text DEFAULT '[]' NOT NULL;

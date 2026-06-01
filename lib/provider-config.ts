@@ -54,14 +54,42 @@ export const providerSettingsInputSchema = z.object({
   models: z.array(providerModelInputSchema).optional(),
 });
 
+export const mcpHeaderSchema = z.object({
+  key: z.string().trim().min(1).max(80),
+  value: z.string().trim().max(2000).default(""),
+});
+
+export const mcpHeaderInputSchema = z.object({
+  key: z.string().trim().optional(),
+  value: z.string().trim().optional(),
+});
+
+export const mcpServerSchema = z.object({
+  id: z.string().trim().min(1),
+  name: z.string().trim().min(1).default("MCP Server"),
+  url: z.string().trim().url(),
+  headers: z.array(mcpHeaderSchema).default([]),
+  isEnabled: z.boolean().default(true),
+});
+
+export const mcpServerInputSchema = z.object({
+  id: z.string().trim().optional(),
+  name: z.string().trim().optional(),
+  url: z.string().trim().optional(),
+  headers: z.array(mcpHeaderInputSchema).optional(),
+  isEnabled: z.boolean().optional(),
+});
+
 export const systemSettingsSchema = z.object({
   tavilyApiKey: z.string().trim().default(""),
   providers: z.array(providerSettingsSchema).default([]),
+  mcpServers: z.array(mcpServerSchema).default([]),
 });
 
 export const systemSettingsInputSchema = z.object({
   tavilyApiKey: z.string().trim().optional(),
   providers: z.array(providerSettingsInputSchema).optional(),
+  mcpServers: z.array(mcpServerInputSchema).optional(),
 });
 
 export const providerConfigSchema = z.object({
@@ -82,6 +110,8 @@ export const providerConfigInputSchema = z.object({
 
 export type ProviderModel = z.infer<typeof providerModelSchema>;
 export type ProviderSettings = z.infer<typeof providerSettingsSchema>;
+export type McpHeader = z.infer<typeof mcpHeaderSchema>;
+export type McpServer = z.infer<typeof mcpServerSchema>;
 export type SystemSettings = z.infer<typeof systemSettingsSchema>;
 export type ProviderConfig = z.infer<typeof providerConfigSchema>;
 
@@ -107,7 +137,23 @@ export const defaultProviderSettings: ProviderSettings = {
 export const defaultSystemSettings: SystemSettings = {
   tavilyApiKey: "",
   providers: [defaultProviderSettings],
+  mcpServers: [],
 };
+
+export function normalizeMcpServer(input: McpServer): McpServer {
+  return {
+    id: input.id.trim(),
+    name: input.name.trim() || "MCP Server",
+    url: input.url.trim().replace(/\/+$/, ""),
+    headers: input.headers
+      .map((header) => ({
+        key: header.key.trim(),
+        value: header.value.trim(),
+      }))
+      .filter((header) => header.key),
+    isEnabled: input.isEnabled,
+  };
+}
 
 export function normalizeProviderConfig(config: ProviderConfig): ProviderConfig {
   return {
@@ -168,5 +214,8 @@ export function normalizeSystemSettings(input: SystemSettings): SystemSettings {
       ...provider,
       isDefault: defaultProviderId === provider.id,
     })),
+    mcpServers: input.mcpServers
+      .map(normalizeMcpServer)
+      .filter((server) => server.id && server.url),
   };
 }

@@ -9,6 +9,7 @@ import {
   defaultSystemSettings,
   providerProtocolLabels,
   providerProtocols,
+  type McpServer,
   type ProviderModel,
   type ProviderProtocol,
   type ProviderSettings,
@@ -48,6 +49,16 @@ function createModel(modelId: string): ProviderModel {
     modelId,
     isEnabled: true,
     isDefault: false,
+  };
+}
+
+function createMcpServer(): McpServer {
+  return {
+    id: generateId(),
+    name: "",
+    url: "",
+    headers: [],
+    isEnabled: true,
   };
 }
 
@@ -135,6 +146,7 @@ function SecretInput({
 export function ProviderSettingsForm() {
   const [settings, setSettings] = useState<SystemSettings>(defaultSystemSettings);
   const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
+  const [expandedMcpServerId, setExpandedMcpServerId] = useState<string | null>(null);
   const [fetchStates, setFetchStates] = useState<Record<string, FetchModelsState>>({});
   const [fetchedModels, setFetchedModels] = useState<Record<string, string[]>>({});
   const [addingModelForProvider, setAddingModelForProvider] = useState<string | null>(null);
@@ -319,6 +331,76 @@ export function ProviderSettingsForm() {
     if (expandedProviderId === providerId) {
       setExpandedProviderId(null);
     }
+  }
+
+  function updateMcpServer(serverId: string, updates: Partial<McpServer>) {
+    setSettings((current) => ({
+      ...current,
+      mcpServers: current.mcpServers.map((server) =>
+        server.id === serverId ? { ...server, ...updates } : server,
+      ),
+    }));
+  }
+
+  function addMcpServer() {
+    const newServer = createMcpServer();
+    setSettings((current) => ({
+      ...current,
+      mcpServers: [...current.mcpServers, newServer],
+    }));
+    setExpandedMcpServerId(newServer.id);
+  }
+
+  function removeMcpServer(serverId: string) {
+    setSettings((current) => ({
+      ...current,
+      mcpServers: current.mcpServers.filter((server) => server.id !== serverId),
+    }));
+    if (expandedMcpServerId === serverId) {
+      setExpandedMcpServerId(null);
+    }
+  }
+
+  function addMcpHeader(serverId: string) {
+    setSettings((current) => ({
+      ...current,
+      mcpServers: current.mcpServers.map((server) =>
+        server.id === serverId
+          ? { ...server, headers: [...server.headers, { key: "", value: "" }] }
+          : server,
+      ),
+    }));
+  }
+
+  function updateMcpHeader(
+    serverId: string,
+    index: number,
+    updates: Partial<McpServer["headers"][number]>,
+  ) {
+    setSettings((current) => ({
+      ...current,
+      mcpServers: current.mcpServers.map((server) =>
+        server.id === serverId
+          ? {
+              ...server,
+              headers: server.headers.map((header, i) =>
+                i === index ? { ...header, ...updates } : header,
+              ),
+            }
+          : server,
+      ),
+    }));
+  }
+
+  function removeMcpHeader(serverId: string, index: number) {
+    setSettings((current) => ({
+      ...current,
+      mcpServers: current.mcpServers.map((server) =>
+        server.id === serverId
+          ? { ...server, headers: server.headers.filter((_, i) => i !== index) }
+          : server,
+      ),
+    }));
   }
 
   function addModelToProvider(providerId: string, modelId: string) {
@@ -1042,7 +1124,189 @@ export function ProviderSettingsForm() {
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-end gap-3 border-t border-[rgba(23,23,23,0.08)] pt-5">
+                  {/* MCP Servers */}
+                  <div className="mt-8">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                        MCP Servers
+                      </p>
+                      <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-[rgba(23,23,23,0.1)] px-3 py-1 text-[11px] leading-none text-[#6e665d]">
+                        {settings.mcpServers.length} 个
+                      </span>
+                    </div>
+                    <p className="mb-4 text-xs leading-5 text-[#8a8176]">
+                      通过 Streamable HTTP 接入远程 MCP Server，其工具会在对话中自动可用。启用的 Server 会在每次请求时连接；某个 Server 连接失败会被跳过，不影响其余对话。
+                    </p>
+
+                    {settings.mcpServers.length > 0 && (
+                      <div className="space-y-2">
+                        {settings.mcpServers.map((server) => {
+                          const isExpanded = expandedMcpServerId === server.id;
+                          return (
+                            <div
+                              key={server.id}
+                              className={`rounded-lg border ${
+                                server.isEnabled
+                                  ? "border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.64)]"
+                                  : "border-[rgba(23,23,23,0.06)] bg-[rgba(255,255,255,0.4)] opacity-70"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 px-4 py-3">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedMcpServerId(isExpanded ? null : server.id)
+                                  }
+                                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                >
+                                  <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className={`shrink-0 text-[#a39a90] transition-transform ${
+                                      isExpanded ? "rotate-90" : ""
+                                    }`}
+                                  >
+                                    <polyline points="9 18 15 12 9 6" />
+                                  </svg>
+                                  <span className="shrink-0 truncate text-sm font-medium text-[#241c15]">
+                                    {server.name || "未命名 Server"}
+                                  </span>
+                                  {server.url && (
+                                    <span className="min-w-0 truncate font-mono text-[11px] text-[#a39a90]">
+                                      {server.url}
+                                    </span>
+                                  )}
+                                </button>
+                                <label className="flex shrink-0 items-center gap-1.5 text-xs text-[#6e665d]">
+                                  <input
+                                    type="checkbox"
+                                    checked={server.isEnabled}
+                                    onChange={(e) =>
+                                      updateMcpServer(server.id, {
+                                        isEnabled: e.target.checked,
+                                      })
+                                    }
+                                    className="accent-[#9c5626]"
+                                  />
+                                  启用
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => removeMcpServer(server.id)}
+                                  className="shrink-0 text-[11px] text-[#8a8176] transition hover:text-red-500"
+                                >
+                                  删除
+                                </button>
+                              </div>
+
+                              {isExpanded && (
+                                <div className="space-y-4 border-t border-[rgba(23,23,23,0.08)] px-4 py-4">
+                                  <label className="block">
+                                    <span className={labelClass}>名称</span>
+                                    <input
+                                      type="text"
+                                      value={server.name}
+                                      onChange={(e) =>
+                                        updateMcpServer(server.id, { name: e.target.value })
+                                      }
+                                      placeholder="如 GitHub MCP"
+                                      className={inputClass}
+                                    />
+                                  </label>
+
+                                  <label className="block">
+                                    <span className={labelClass}>Server URL</span>
+                                    <input
+                                      type="text"
+                                      value={server.url}
+                                      onChange={(e) =>
+                                        updateMcpServer(server.id, { url: e.target.value })
+                                      }
+                                      placeholder="https://example.com/mcp"
+                                      className={inputClass}
+                                    />
+                                  </label>
+
+                                  <div>
+                                    <div className="mb-2 flex items-center justify-between">
+                                      <span className={labelClass}>请求 Headers</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => addMcpHeader(server.id)}
+                                        className="text-[11px] text-[#9c5626] transition hover:text-[#a44d16]"
+                                      >
+                                        + 添加 Header
+                                      </button>
+                                    </div>
+
+                                    {server.headers.length === 0 ? (
+                                      <p className="text-xs text-[#a39a90]">
+                                        无需鉴权可留空；如需鉴权可添加 Authorization 等 Header。
+                                      </p>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {server.headers.map((header, index) => (
+                                          <div key={index} className="flex items-start gap-2">
+                                            <div className="min-w-0 flex-1">
+                                              <input
+                                                type="text"
+                                                value={header.key}
+                                                onChange={(e) =>
+                                                  updateMcpHeader(server.id, index, {
+                                                    key: e.target.value,
+                                                  })
+                                                }
+                                                placeholder="Header 名，如 Authorization"
+                                                className={inputClass}
+                                              />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                              <SecretInput
+                                                value={header.value}
+                                                onChange={(e) =>
+                                                  updateMcpHeader(server.id, index, {
+                                                    value: e.target.value,
+                                                  })
+                                                }
+                                                placeholder="Header 值，如 Bearer xxx"
+                                              />
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => removeMcpHeader(server.id, index)}
+                                              className="shrink-0 px-1 py-3 text-[11px] text-[#8a8176] transition hover:text-red-500"
+                                            >
+                                              移除
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={addMcpServer}
+                      className="mt-3 rounded-lg border border-dashed border-[rgba(23,23,23,0.16)] px-4 py-3 text-sm text-[#6e665d] transition hover:border-[rgba(201,106,43,0.45)] hover:text-[#9c5626]"
+                    >
+                      + 添加 MCP Server
+                    </button>
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-end gap-3 border-t border-[rgba(23,23,23,0.08)] pt-5">
                     {saveMessage && (
                       <span
                         className={`text-xs ${

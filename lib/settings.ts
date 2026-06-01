@@ -6,10 +6,12 @@ import { modelProviders, providerModels, systemSettings } from "@/lib/db/schema"
 import {
   defaultProviderConfig,
   defaultProviderSettings,
+  mcpServerSchema,
   normalizeProviderConfig,
   normalizeSystemSettings,
   providerConfigInputSchema,
   systemSettingsInputSchema,
+  type McpServer,
   type ProviderConfig,
   type ProviderSettings,
   type SystemSettings,
@@ -27,6 +29,19 @@ const envProviderConfig: ProviderConfig = normalizeProviderConfig({
 
 function toBool(value: number) {
   return value === 1;
+}
+
+function parseMcpServersColumn(raw: string | null | undefined): McpServer[] {
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = mcpServerSchema.array().safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : [];
+  } catch {
+    return [];
+  }
 }
 
 function toInt(value: boolean) {
@@ -54,6 +69,7 @@ function buildDefaultSettingsFromEnv(): SystemSettings {
           : [],
       },
     ],
+    mcpServers: [],
   });
 }
 
@@ -124,6 +140,16 @@ function parseSettingsInput(input: unknown) {
         isDefault: model.isDefault ?? false,
       })),
     })),
+    mcpServers: (parsed.data.mcpServers ?? []).map((server) => ({
+      id: server.id?.trim() || crypto.randomUUID(),
+      name: server.name?.trim() || "MCP Server",
+      url: server.url?.trim() || "",
+      headers: (server.headers ?? []).map((header) => ({
+        key: header.key?.trim() || "",
+        value: header.value?.trim() || "",
+      })),
+      isEnabled: server.isEnabled ?? true,
+    })),
   });
 }
 
@@ -175,6 +201,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
         isDefault: toBool(modelRow.isDefault),
       })),
     })),
+    mcpServers: parseMcpServersColumn(settingsRow?.mcpServers),
   });
 }
 
@@ -185,10 +212,13 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
   const now = Date.now();
 
   db.transaction((tx) => {
+    const mcpServersJson = JSON.stringify(normalized.mcpServers);
+
     tx.insert(systemSettings)
       .values({
         id: SETTINGS_ROW_ID,
         tavilyApiKey: normalized.tavilyApiKey,
+        mcpServers: mcpServersJson,
         createdAt: now,
         updatedAt: now,
       })
@@ -196,6 +226,7 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
         target: systemSettings.id,
         set: {
           tavilyApiKey: normalized.tavilyApiKey,
+          mcpServers: mcpServersJson,
           updatedAt: now,
         },
       })
@@ -241,6 +272,11 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
 export async function getRuntimeProviderConfig(): Promise<ProviderConfig> {
   const settings = await getSystemSettings();
   return getRuntimeProviderConfigFromSettings(settings);
+}
+
+export async function getEnabledMcpServers(): Promise<McpServer[]> {
+  const settings = await getSystemSettings();
+  return settings.mcpServers.filter((server) => server.isEnabled && server.url);
 }
 
 export async function getProviderConfigByOverride(

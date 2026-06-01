@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.76",
+    "@ai-sdk/mcp": "^1.0.45",
     "@ai-sdk/openai": "^3.0.63",
     "@ai-sdk/react": "^3.0.179",
     "@codemirror/lang-markdown": "^6.5.0",

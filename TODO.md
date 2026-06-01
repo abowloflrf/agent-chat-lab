@@ -27,7 +27,7 @@
 - [ ] 新建对话时支持首条消息配置“纯对话模式”：关闭后续整个会话的 tool 调用，默认关闭该选项
 - [ ] 完善异常处理
 - [ ] 为高风险工具补充更细粒度的风险规则与测试
-- [ ] MCP (Model Context Protocol) 支持，通过标准协议接入外部工具和服务
+- [ ] MCP 扩展：支持 stdio / SSE transport、工具级启用开关与连接状态测试（当前仅 Streamable HTTP + server 级开关）
 - [ ] 文件生成与下载（代码、报告、数据等）
 
 ### System Settings

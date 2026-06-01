@@ -15,13 +15,18 @@ import {
   systemPrompt,
 } from "@/lib/ai/system-prompt";
 import { createAgentTools } from "@/lib/ai/tools";
+import { connectMcpServers } from "@/lib/ai/mcp";
 import { persistFinishedConversation, persistIncomingMessages, generateConversationTitle } from "@/lib/persistence";
 import type {
   AgentTimelineStep,
   ChatMessageMetadata,
   ChatUIMessage,
 } from "@/lib/observability";
-import { getRuntimeProviderConfig, getProviderConfigByOverride } from "@/lib/settings";
+import {
+  getEnabledMcpServers,
+  getRuntimeProviderConfig,
+  getProviderConfigByOverride,
+} from "@/lib/settings";
 
 export const runtime = "nodejs";
 const AGENT_MAX_STEPS = 12;
@@ -233,6 +238,12 @@ export async function POST(request: Request) {
 
   await persistIncomingMessages(parsed.data.conversationId, sanitizedMessages);
 
+  // Connect to enabled MCP servers and merge their tools in. Built-in tools
+  // take precedence so a remote server cannot shadow Bash/WebSearch/etc.
+  const mcpServers = await getEnabledMcpServers();
+  const mcpBundle = await connectMcpServers(mcpServers);
+  const tools = { ...mcpBundle.tools, ...agentTools };
+
   const requestStartedAt = Date.now();
   const stepStartTimes = new Map<number, number>();
   const timeline: AgentTimelineStep[] = [];
@@ -242,8 +253,14 @@ export async function POST(request: Request) {
     model: getChatModel(providerConfig),
     system: runtimeSystemPrompt,
     messages: modelMessages,
-    tools: agentTools,
+    tools,
     stopWhen: stepCountIs(AGENT_MAX_STEPS),
+    onFinish: () => {
+      void mcpBundle.close();
+    },
+    onError: () => {
+      void mcpBundle.close();
+    },
     experimental_onStepStart: ({ stepNumber }) => {
       stepStartTimes.set(stepNumber, Date.now());
     },
