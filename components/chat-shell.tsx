@@ -80,6 +80,69 @@ function formatContextLength(tokenCount: number | null) {
   return new Intl.NumberFormat("zh-CN").format(tokenCount);
 }
 
+function formatCacheHitRate(rate: number | null) {
+  if (rate === null) {
+    return "--";
+  }
+
+  return (rate * 100).toFixed(1);
+}
+
+function formatCompactTokens(tokenCount: number | null) {
+  if (tokenCount === null) {
+    return "--";
+  }
+
+  if (tokenCount < 1000) {
+    return String(tokenCount);
+  }
+
+  if (tokenCount < 1_000_000) {
+    const thousands = tokenCount / 1000;
+    return `${thousands >= 100 ? Math.round(thousands) : thousands.toFixed(1)}k`;
+  }
+
+  return `${(tokenCount / 1_000_000).toFixed(1)}M`;
+}
+
+function StatusMetric({
+  label,
+  value,
+  title,
+  icon,
+  iconClassName,
+  suffix,
+  muted = false,
+}: {
+  label?: string;
+  value: string;
+  title: string;
+  icon?: string;
+  iconClassName?: string;
+  suffix?: string;
+  muted?: boolean;
+}) {
+  return (
+    <span
+      className="flex items-baseline gap-1 whitespace-nowrap"
+      title={title}
+    >
+      <span className={muted ? "text-[#8a8175]" : "text-[#352d25]"}>
+        {icon ? (
+          <span className={`mr-0.5 ${iconClassName ?? ""}`}>{icon}</span>
+        ) : null}
+        {value}
+      </span>
+      {suffix ? <span className="text-[#b0a496]">{suffix}</span> : null}
+      {label ? (
+        <span className="text-[9px] tracking-[0.12em] text-[#b0a496]">
+          {label}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function formatShortConversationId(conversationId: string) {
   return conversationId.slice(0, 8);
 }
@@ -538,28 +601,27 @@ export function ChatShell({
       ? messageMaxInputTokens
       : Math.max(maxTokens, messageMaxInputTokens);
   }, null);
-  const sessionStats = [
-    {
-      label: "总上下文",
-      value: formatContextLength(currentContextLength),
-      unit: "tokens",
+  const tokenTotals = messages.reduce(
+    (totals, message) => {
+      const observability = parseAgentObservability(message.metadata);
+      if (!observability) {
+        return totals;
+      }
+
+      for (const step of observability.timeline) {
+        totals.inputTokens += step.usage.inputTokens;
+        totals.outputTokens += step.usage.outputTokens;
+        totals.cachedInputTokens += step.usage.cachedInputTokens;
+      }
+
+      return totals;
     },
-    {
-      label: "消息",
-      value: String(messages.length),
-      unit: "条",
-    },
-    {
-      label: "工具步",
-      value: String(toolStepCount),
-      unit: "次",
-    },
-    {
-      label: "输入轮次",
-      value: String(userMessageCount),
-      unit: "轮",
-    },
-  ];
+    { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
+  );
+  const cacheHitRate =
+    tokenTotals.inputTokens > 0
+      ? tokenTotals.cachedInputTokens / tokenTotals.inputTokens
+      : null;
   const displayConversationTitle = conversationTitle || DEFAULT_CONVERSATION_TITLE;
 
   function scrollToBottom() {
@@ -842,25 +904,58 @@ export function ChatShell({
                 </div>
               </div>
 
-              <div className="hidden gap-x-5 gap-y-3 border-t border-[rgba(23,23,23,0.08)] pt-3 text-sm text-[#5c544a] sm:grid sm:grid-cols-2 lg:w-auto lg:grid-cols-4 lg:border-t-0 lg:pt-0">
-                {sessionStats.map((stat) => (
-                  <div
-                    key={stat.label}
-                    className="min-w-[108px] border-l border-[rgba(23,23,23,0.08)] pl-3 first:border-l-0 first:pl-0"
-                  >
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#978b7e]">
-                      {stat.label}
-                    </p>
-                    <div className="mt-1 flex items-end gap-1.5 text-[#352d25]">
-                      <span className="font-mono text-lg leading-none">
-                        {stat.value}
-                      </span>
-                      <span className="pb-0.5 text-[11px] uppercase tracking-[0.16em] text-[#8f8377]">
-                        {stat.unit}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+              <div className="hidden flex-wrap items-center gap-x-3 gap-y-1 border-t border-[rgba(23,23,23,0.08)] pt-2.5 font-mono text-[11px] leading-none text-[#5c544a] sm:flex lg:w-auto lg:justify-end lg:border-t-0 lg:pt-0">
+                <StatusMetric
+                  label="CTX"
+                  value={formatCompactTokens(currentContextLength)}
+                  title={`当前上下文长度：${formatContextLength(currentContextLength)} tokens`}
+                />
+                <StatusMetric
+                  icon="↑"
+                  iconClassName="text-[#7f9b5a]"
+                  value={formatCompactTokens(tokenTotals.inputTokens)}
+                  title={`累计输入：${formatContextLength(tokenTotals.inputTokens)} tokens`}
+                />
+                <StatusMetric
+                  icon="↓"
+                  iconClassName="text-[#c96a2b]"
+                  value={formatCompactTokens(tokenTotals.outputTokens)}
+                  title={`累计输出：${formatContextLength(tokenTotals.outputTokens)} tokens`}
+                />
+                <StatusMetric
+                  label="CACHE"
+                  value={`${formatCacheHitRate(cacheHitRate)}%`}
+                  suffix={
+                    tokenTotals.cachedInputTokens > 0
+                      ? formatCompactTokens(tokenTotals.cachedInputTokens)
+                      : undefined
+                  }
+                  title={`缓存命中率 ${formatCacheHitRate(cacheHitRate)}% · 命中 ${formatContextLength(tokenTotals.cachedInputTokens)} tokens`}
+                />
+
+                <span
+                  aria-hidden
+                  className="h-3 w-px self-center bg-[rgba(23,23,23,0.14)]"
+                />
+
+                <StatusMetric
+                  muted
+                  label="MSG"
+                  value={String(messages.length)}
+                  title="消息数"
+                />
+                <StatusMetric
+                  muted
+                  label="TOOL"
+                  value={String(toolStepCount)}
+                  title="工具调用步数"
+                />
+                <StatusMetric
+                  muted
+                  label="TURN"
+                  value={String(userMessageCount)}
+                  title="用户输入轮次"
+                />
               </div>
             </div>
             </div>

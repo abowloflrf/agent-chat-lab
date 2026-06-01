@@ -4,6 +4,9 @@
 
 ## 2026-06-02
 
+### Observability
+- 会话顶部状态栏在"总上下文"之外新增 Session 级 token 消耗统计：总输入 tokens、总输出 tokens、缓存命中 tokens 与缓存命中率（命中 / 总输入），数据由各消息 timeline 的 `usage` 聚合得出
+
 ### 核心能力扩展
 - 新增 MCP (Model Context Protocol) Server 支持：可在 `/settings` 工具页配置多个远程 MCP Server（Streamable HTTP transport），支持自定义请求 Headers 鉴权与 Server 级启用开关；启用的 Server 在每次对话请求时连接并将其工具合并进 Agent 工具集，内置工具优先级更高以避免被远程工具覆盖
 - MCP 连接具备容错与超时保护：单个 Server 连接或工具发现失败会被跳过并记录日志，不阻断整轮对话；连接在生成结束或出错时统一关闭释放资源
