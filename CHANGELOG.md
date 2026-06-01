@@ -9,6 +9,11 @@
 - MCP 连接具备容错与超时保护：单个 Server 连接或工具发现失败会被跳过并记录日志，不阻断整轮对话；连接在生成结束或出错时统一关闭释放资源
 - MCP Server 配置持久化在 `system_settings.mcp_servers`（JSON 列，迁移 `0004`），随系统设置一并读写
 
+### 依赖维护
+- 升级除 `eslint` 外的过期依赖，包含 AI SDK、`ai`、Shiki、CodeMirror、DOMPurify、KaTeX、`better-sqlite3` 与 React/Node 类型包
+
+## 2026-04-22
+
 ### Chat UI
 - 消息代码块接入 Shiki 语法高亮（`github-light` 主题、JS 正则引擎、按需预载常见语言），流式输出期间跳过高亮以避免卡顿，完成后再渲染高亮结果
 

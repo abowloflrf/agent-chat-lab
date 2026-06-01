@@ -16,6 +16,7 @@ type ConversationListProps = {
   currentConversationId: string | null;
   onNewConversation: () => void;
   onConversationTitleChange?: (title: string | null) => void;
+  onConversationSelect?: () => void;
   refreshTrigger?: string | number;
   isCreatingConversation?: boolean;
   pendingTitle?: {
@@ -34,6 +35,7 @@ export function ConversationList({
   currentConversationId,
   onNewConversation,
   onConversationTitleChange,
+  onConversationSelect,
   refreshTrigger,
   isCreatingConversation = false,
   pendingTitle = null,
@@ -450,6 +452,7 @@ export function ConversationList({
   }
 
   function handleClick(conversationId: string) {
+    onConversationSelect?.();
     if (conversationId !== currentConversationId) {
       router.push(`/?conversationId=${conversationId}`);
     }

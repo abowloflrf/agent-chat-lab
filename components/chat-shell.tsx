@@ -56,6 +56,22 @@ class ModelOverrideStore {
   }
 }
 
+class ConversationIdStore {
+  #value: string | null;
+
+  constructor(initial: string | null) {
+    this.#value = initial;
+  }
+
+  get() {
+    return this.#value;
+  }
+
+  set(value: string | null) {
+    this.#value = value;
+  }
+}
+
 function formatContextLength(tokenCount: number | null) {
   if (tokenCount === null) {
     return "--";
@@ -123,13 +139,16 @@ export function ChatShell({
   const [providers, setProviders] = useState<ProviderSettings[]>([]);
   const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(null);
   const [modelOverrideStore] = useState(() => new ModelOverrideStore());
+  const [conversationIdStore] = useState(
+    () => new ConversationIdStore(initialConversationId),
+  );
   const [transport] = useState(
     () =>
       new DefaultChatTransport<ChatUIMessage>({
         api: "/api/chat",
         prepareSendMessagesRequest: ({ body, id, messages }) => {
           const override = modelOverrideStore.get();
-          const requestConversationId = conversationIdRef.current ?? id;
+          const requestConversationId = conversationIdStore.get() ?? id;
           return {
             body: {
               ...body,
@@ -155,14 +174,13 @@ export function ChatShell({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const streamActivityAtRef = useRef(0);
-  const conversationIdRef = useRef<string | null>(initialConversationId);
   const previousRouteConversationIdRef = useRef<string | null>(routeConversationId);
   const isResettingToNewConversationRef = useRef(false);
   const conversationId = routeConversationId ?? localConversationId;
 
   useEffect(() => {
-    conversationIdRef.current = conversationId;
-  }, [conversationId]);
+    conversationIdStore.set(conversationId);
+  }, [conversationIdStore, conversationId]);
 
   useEffect(() => {
     modelOverrideStore.set(selectedModel);
@@ -260,11 +278,6 @@ export function ChatShell({
       sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     });
 
-  // Close sidebar on conversation change (mobile)
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [routeConversationId]);
-
   useEffect(() => {
     const previousRouteConversationId = previousRouteConversationIdRef.current;
     previousRouteConversationIdRef.current = routeConversationId;
@@ -275,7 +288,7 @@ export function ChatShell({
         isResettingToNewConversationRef.current
       ) {
         isResettingToNewConversationRef.current = false;
-        conversationIdRef.current = null;
+        conversationIdStore.set(null);
         setLocalConversationId(null);
         setConversationTitle(null);
         setCurrentMessages([]);
@@ -335,7 +348,7 @@ export function ChatShell({
         cancelled = true;
       };
     }
-  }, [localConversationId, routeConversationId, setMessages]);
+  }, [conversationIdStore, localConversationId, routeConversationId, setMessages]);
 
   useEffect(() => {
     streamActivityAtRef.current = Date.now();
@@ -408,7 +421,7 @@ export function ChatShell({
     if (!wasBusy || isBusy) return;
 
     // If this isn't the first exchange, no need to poll for title
-    const cid = conversationIdRef.current;
+    const cid = conversationIdStore.get();
     const userCount = messages.filter((m) => m.role === "user").length;
     const assistantCount = messages.filter((m) => m.role === "assistant").length;
     if (!cid || userCount !== 1 || assistantCount !== 1) return;
@@ -461,7 +474,7 @@ export function ChatShell({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [conversationId, isBusy, messages]);
+  }, [conversationIdStore, conversationId, isBusy, messages]);
 
   useEffect(() => {
     const hasStreamingAssistant = messages.some((message) => {
@@ -557,8 +570,9 @@ export function ChatShell({
   }
 
   async function ensureConversationId() {
-    if (conversationIdRef.current) {
-      return conversationIdRef.current;
+    const existingConversationId = conversationIdStore.get();
+    if (existingConversationId) {
+      return existingConversationId;
     }
 
     setIsCreatingConversation(true);
@@ -584,7 +598,7 @@ export function ChatShell({
         throw new Error("Missing conversation id.");
       }
 
-      conversationIdRef.current = nextConversationId;
+      conversationIdStore.set(nextConversationId);
       setLocalConversationId(nextConversationId);
       router.replace(`/?conversationId=${nextConversationId}`, {
         scroll: false,
@@ -732,7 +746,7 @@ export function ChatShell({
     }
 
     isResettingToNewConversationRef.current = true;
-    conversationIdRef.current = null;
+    conversationIdStore.set(null);
     setConversationCreationError(null);
     setConversationTitle(null);
     setPendingTitle(null);
@@ -786,6 +800,7 @@ export function ChatShell({
                   setSidebarOpen(false);
                 }}
                 onConversationTitleChange={setConversationTitle}
+                onConversationSelect={() => setSidebarOpen(false)}
                 refreshTrigger={sidebarRefreshCounter}
                 isCreatingConversation={isCreatingConversation}
                 pendingTitle={pendingTitle}
