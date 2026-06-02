@@ -89,7 +89,7 @@ function SecretInput({
   return (
     <div className="relative">
       <input
-        type={visible ? "text" : "password"}
+        type="text"
         value={value}
         onChange={onChange}
         placeholder={placeholder}
@@ -97,6 +97,7 @@ function SecretInput({
         data-1p-ignore
         data-lpignore="true"
         data-form-type="other"
+        style={{ WebkitTextSecurity: visible ? "none" : "disc" } as React.CSSProperties}
         className={inputClass + " pr-20"}
       />
       <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
