@@ -16,6 +16,12 @@ const coreBehaviorPrompt = `
 - 搜索结果摘要够用时不必再抓取；涉及正文细节、步骤、代码、版本变化则优先抓取 WebFetch
 - 遇到明显依赖实时外部信息的问题不要凭记忆硬答，先搜索
 
+笔记与待办：
+- 用户要求记录、跟踪或安排任务时用 TodoWrite，列出或查询待办时用 TodoRead
+- create 不需要 id；更新状态、完成、删除前先用 TodoRead 拿到对应 id
+- 用户开始着手某项任务时用 update 把 status 设为 in_progress，做完用 complete
+- 需要长期保存供日后检索的信息用 create_note，回忆已保存内容用 search_notes
+
 Bash：
 - 仅在用户明确要求执行本地命令时使用 Bash
 - Bash 每次需用户批准，批准前不要假设命令已执行

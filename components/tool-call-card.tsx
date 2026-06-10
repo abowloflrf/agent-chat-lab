@@ -7,6 +7,11 @@ import {
   BASH_TOOL_OUTPUT_LIMIT,
   BASH_TOOL_TIMEOUT_MS,
 } from "@/lib/ai/bash-policy";
+import {
+  isTodoToolName,
+  summarizeTodoInput,
+  TodoToolPanel,
+} from "@/components/todo-tool-card";
 
 type ToolInvocation = {
   type: string;
@@ -104,6 +109,14 @@ function extractInputSummary(toolName: string, input: unknown): string | null {
 
   if (toolName === "WebFetch" && typeof record.url === "string") {
     return record.url;
+  }
+
+  if (isTodoToolName(toolName)) {
+    const todoSummary = summarizeTodoInput(toolName, record);
+
+    if (todoSummary) {
+      return todoSummary;
+    }
   }
 
   const firstStringValue = Object.values(record).find(
@@ -474,6 +487,11 @@ export function ToolCallCard({
                     拒绝执行
                   </button>
                 </div>
+              ) : null}
+
+              {/* Todo-specific formatted result */}
+              {isTodoToolName(toolName) && invocation.state === "output-available" ? (
+                <TodoToolPanel toolName={toolName} output={invocation.output} />
               ) : null}
 
               {/* Input / Output panels */}

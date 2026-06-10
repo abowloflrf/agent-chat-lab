@@ -16,6 +16,7 @@ const MAX_TAG_LENGTH = 20;
 const MAX_TAGS_COUNT = 6;
 const MAX_TODO_TITLE_LENGTH = 120;
 const MAX_TODO_CONTENT_LENGTH = 500;
+const TODO_READ_CONTENT_PREVIEW_LENGTH = 120;
 const DEFAULT_WEB_SEARCH_LIMIT = 5;
 const MAX_WEB_SEARCH_LIMIT = 10;
 const TAVILY_SEARCH_URL = "https://api.tavily.com/search";
@@ -269,9 +270,13 @@ export function createAgentTools(config: ProviderConfig) {
 
     TodoWrite: tool({
       description:
-        "创建或更新待办事项。适合记录下一步行动、完成状态、优先级以及删除不再需要的任务。",
+        "管理待办事项。create 新建待办（不需要 id，应提供 title）；update 按 id 修改标题、内容、优先级或状态（如开始处理时把 status 设为 in_progress）；complete/reopen 分别等价于 update + status=done / status=todo 的快捷方式；delete 按 id 删除。除 create 外的操作都需要先通过 TodoRead 获取 id。",
       inputSchema: z.object({
-        action: z.enum(["create", "update", "complete", "reopen", "delete"]),
+        action: z
+          .enum(["create", "update", "complete", "reopen", "delete"])
+          .describe(
+            "create 新建（无需 id）；update 修改字段含 status；complete 完成；reopen 重新打开；delete 删除。",
+          ),
         id: z
           .string()
           .trim()
@@ -289,6 +294,12 @@ export function createAgentTools(config: ProviderConfig) {
           .max(MAX_TODO_CONTENT_LENGTH)
           .optional()
           .describe("待办说明或补充内容。"),
+        status: z
+          .enum(["todo", "in_progress", "done"])
+          .optional()
+          .describe(
+            "待办状态，仅 action=update 时生效。用户开始处理某项时设为 in_progress。complete/reopen 会自行设置状态，无需此字段。",
+          ),
         priority: z
           .enum(["default", "high", "highest"])
           .optional()
@@ -318,7 +329,29 @@ export function createAgentTools(config: ProviderConfig) {
           .default(10)
           .describe("返回条数上限。"),
       }),
-      execute: async ({ query, status, limit }) => readTodos({ query, status, limit }),
+      execute: async ({ query, status, limit }) => {
+        const result = await readTodos({ query, status, limit });
+
+        return {
+          ...result,
+          todos: result.todos.map((todo) => {
+            const truncated = todo.content.length > TODO_READ_CONTENT_PREVIEW_LENGTH;
+
+            return {
+              id: todo.id,
+              title: todo.title,
+              content: truncated
+                ? `${todo.content.slice(0, TODO_READ_CONTENT_PREVIEW_LENGTH)}…`
+                : todo.content,
+              ...(truncated ? { contentTruncated: true } : {}),
+              status: todo.status,
+              priority: todo.priority,
+              updatedAt: todo.updatedAt,
+              completedAt: todo.completedAt,
+            };
+          }),
+        };
+      },
     }),
 
     Bash: tool({

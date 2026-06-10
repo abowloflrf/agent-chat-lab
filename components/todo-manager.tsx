@@ -2,202 +2,132 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MarkdownEditor } from "@/components/markdown-editor";
-import { ModuleSwitcher } from "@/components/module-switcher";
-import type { TodoPriority, TodoRecord, TodoStatus } from "@/lib/persistence";
+import { TodoDrawer } from "@/components/todo-drawer";
+import { TodoRow } from "@/components/todo-row";
+import { TodoToolbar } from "@/components/todo-toolbar";
+import type { TodoRecord } from "@/lib/persistence";
+import {
+  emptyDraft,
+  formatTime,
+  nextPriority,
+  nextStatus,
+  toDraft,
+  type SaveErrorInfo,
+  type SaveStatus,
+  type TodoDraft,
+  type TodoFilter,
+} from "@/lib/todo-ui";
 
-type TodoFilter = TodoStatus | "all";
+type LoadState = "loading" | "error" | "ready";
 
-type TodoDraft = {
-  id: string | null;
-  title: string;
-  content: string;
-  status: TodoStatus;
-  priority: TodoPriority;
-};
+async function requestTodos(): Promise<TodoRecord[]> {
+  const response = await fetch("/api/todos?status=all&limit=200");
+  const payload = (await response.json()) as { todos?: TodoRecord[]; error?: string };
 
-const statusLabels: Record<TodoFilter, string> = {
-  all: "全部",
-  todo: "待处理",
-  in_progress: "进行中",
-  done: "已完成",
-};
-
-const priorityLabels: Record<TodoPriority, string> = {
-  default: "默认",
-  high: "高",
-  highest: "最高",
-};
-
-const statusDotStyles: Record<TodoStatus, string> = {
-  todo: "border-[#cdbba8] bg-transparent",
-  in_progress: "border-[#d98a52] bg-[#d98a52]/20",
-  done: "border-[#6d8c55] bg-[#6d8c55]",
-};
-
-const statusOptions: Array<{ value: TodoStatus; label: string }> = [
-  { value: "todo", label: "待处理" },
-  { value: "in_progress", label: "进行中" },
-  { value: "done", label: "已完成" },
-];
-
-const priorityOptions: Array<{ value: TodoPriority; label: string }> = [
-  { value: "default", label: "默认" },
-  { value: "high", label: "高" },
-  { value: "highest", label: "最高" },
-];
-
-const statusPillStyles: Record<TodoStatus, string> = {
-  todo: "border-[#d6cab8] bg-[#f8f1e7] text-[#5d5143]",
-  in_progress: "border-[#e2b288] bg-[#fff1e3] text-[#9a5b22]",
-  done: "border-[#bfd0b0] bg-[#edf5e8] text-[#4f6c3c]",
-};
-
-const emptyDraft: TodoDraft = {
-  id: null,
-  title: "",
-  content: "",
-  status: "todo",
-  priority: "default",
-};
-
-function formatTime(value: string | null) {
-  if (!value) {
-    return "未完成";
+  if (!response.ok) {
+    throw new Error(payload.error ?? "加载待办失败。");
   }
 
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function toDraft(todo: TodoRecord): TodoDraft {
-  return {
-    id: todo.id,
-    title: todo.title,
-    content: todo.content,
-    status: todo.status,
-    priority: todo.priority,
-  };
-}
-
-function countByStatus(todos: TodoRecord[], status: TodoStatus) {
-  return todos.filter((todo) => todo.status === status).length;
-}
-
-function priorityMark(priority: TodoPriority) {
-  if (priority === "highest") {
-    return "!!";
-  }
-
-  if (priority === "high") {
-    return "!";
-  }
-
-  return "";
+  return payload.todos ?? [];
 }
 
 export function TodoManager() {
   const [todos, setTodos] = useState<TodoRecord[]>([]);
-  const [activeFilter, setActiveFilter] = useState<TodoFilter>("all");
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [filter, setFilter] = useState<TodoFilter>("all");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
   const [draft, setDraft] = useState<TodoDraft>(emptyDraft);
-  const [isLoading, setIsLoading] = useState(true);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [saveError, setSaveError] = useState<SaveErrorInfo | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftRef = useRef<TodoDraft>(draft);
-  const saveInFlightRef = useRef<boolean>(false);
+  const todosRef = useRef<TodoRecord[]>(todos);
+  const saveInFlightRef = useRef(false);
+  const saveQueuedRef = useRef(false);
+  const saveTodoRef = useRef<(() => Promise<void>) | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep draftRef in sync with draft state
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
 
-  const selectedTodo = todos.find((todo) => todo.id === selectedId) ?? null;
-  const isEditorOpen = isCreating || Boolean(selectedTodo);
+  useEffect(() => {
+    todosRef.current = todos;
+  }, [todos]);
 
   const visibleTodos = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
     return todos.filter((todo) => {
-      const statusMatches = activeFilter === "all" || todo.status === activeFilter;
+      const statusMatches = filter === "all" || todo.status === filter;
       const queryMatches =
         !normalizedQuery ||
         todo.title.toLowerCase().includes(normalizedQuery) ||
-        todo.content.toLowerCase().includes(normalizedQuery) ||
-        todo.priority.includes(normalizedQuery) ||
-        todo.status.includes(normalizedQuery);
+        todo.content.toLowerCase().includes(normalizedQuery);
 
       return statusMatches && queryMatches;
     });
-  }, [activeFilter, query, todos]);
+  }, [filter, query, todos]);
 
-  const stats = [
-    { label: "全部", value: todos.length, filter: "all" as const },
-    { label: "待处理", value: countByStatus(todos, "todo"), filter: "todo" as const },
-    { label: "进行中", value: countByStatus(todos, "in_progress"), filter: "in_progress" as const },
-    { label: "已完成", value: countByStatus(todos, "done"), filter: "done" as const },
-  ];
+  const counts = useMemo<Record<TodoFilter, number>>(
+    () => ({
+      all: todos.length,
+      todo: todos.filter((todo) => todo.status === "todo").length,
+      in_progress: todos.filter((todo) => todo.status === "in_progress").length,
+      done: todos.filter((todo) => todo.status === "done").length,
+    }),
+    [todos],
+  );
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadTodos() {
-      setIsLoading(true);
-
-      try {
-        const response = await fetch("/api/todos?status=all&limit=200");
-        const payload = (await response.json()) as { todos?: TodoRecord[]; error?: string };
-
-        if (!response.ok) {
-          throw new Error(payload.error ?? "加载待办失败。");
-        }
-
+    requestTodos()
+      .then((records) => {
         if (!cancelled) {
-          setTodos(payload.todos ?? []);
+          setTodos(records);
+          setLoadState("ready");
         }
-      } catch {
+      })
+      .catch(() => {
         if (!cancelled) {
-          setSaveStatus("error");
+          setLoadState("error");
         }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    void loadTodos();
+      });
 
     return () => {
       cancelled = true;
     };
   }, []);
 
-  function startCreate() {
-    setIsCreating(true);
-    setSelectedId(null);
-    setDraft(emptyDraft);
-  }
+  const retryLoad = useCallback(() => {
+    setLoadState("loading");
+    requestTodos()
+      .then((records) => {
+        setTodos(records);
+        setLoadState("ready");
+      })
+      .catch(() => {
+        setLoadState("error");
+      });
+  }, []);
 
-  function selectTodo(todo: TodoRecord) {
-    setIsCreating(false);
-    setSelectedId(todo.id);
-    setDraft(toDraft(todo));
-  }
+  const markSaved = useCallback(() => {
+    setSaveStatus("saved");
+    setSaveError(null);
 
-  function closeEditor() {
-    setIsCreating(false);
-    setSelectedId(null);
-    setDraft(emptyDraft);
-  }
+    if (savedTimerRef.current) {
+      clearTimeout(savedTimerRef.current);
+    }
+
+    savedTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2500);
+  }, []);
 
   const saveTodo = useCallback(async () => {
     const currentDraft = draftRef.current;
@@ -207,8 +137,9 @@ export function TodoManager() {
       return;
     }
 
-    // Skip concurrent saves
+    // Queue instead of dropping when a save is already running
     if (saveInFlightRef.current) {
+      saveQueuedRef.current = true;
       return;
     }
 
@@ -235,29 +166,36 @@ export function TodoManager() {
       }
 
       const savedTodo = payload.todo;
-      setTodos((current) => {
-        if (isEditing) {
-          return current.map((todo) => (todo.id === savedTodo.id ? savedTodo : todo));
-        }
+      setTodos((current) =>
+        isEditing
+          ? current.map((todo) => (todo.id === savedTodo.id ? savedTodo : todo))
+          : [savedTodo, ...current],
+      );
 
-        return [savedTodo, ...current];
-      });
-
-      if (!isEditing) {
-        // New todo created — update draft id so subsequent saves are PATCH
-        setSelectedId(savedTodo.id);
-        setIsCreating(false);
+      // New todo created — adopt the id so subsequent saves are PATCH,
+      // but only if the draft is still the creation draft
+      if (!isEditing && draftRef.current.id === null) {
         setDraft((current) => ({ ...current, id: savedTodo.id }));
+        setDrawerMode("edit");
       }
 
-      setSaveStatus("saved");
-      setTimeout(() => setSaveStatus("idle"), 2500);
+      markSaved();
     } catch {
       setSaveStatus("error");
+      setSaveError({ kind: "draft", message: "保存失败，更改未同步" });
     } finally {
       saveInFlightRef.current = false;
+
+      if (saveQueuedRef.current) {
+        saveQueuedRef.current = false;
+        void saveTodoRef.current?.();
+      }
     }
-  }, []);
+  }, [markSaved]);
+
+  useEffect(() => {
+    saveTodoRef.current = saveTodo;
+  }, [saveTodo]);
 
   const debouncedSave = useCallback(() => {
     if (debounceRef.current) {
@@ -265,14 +203,24 @@ export function TodoManager() {
     }
 
     debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
       void saveTodo();
     }, 2000);
   }, [saveTodo]);
 
+  const flushPendingSave = useCallback(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+      void saveTodo();
+    }
+  }, [saveTodo]);
+
   const saveImmediate = useCallback(
-    async (todoId: string, updates: Partial<Pick<TodoDraft, "status" | "priority">>) => {
-      // Optimistic update
-      const previousTodos = todos;
+    async (todoId: string, updates: Partial<Pick<TodoRecord, "status" | "priority">>) => {
+      // Snapshot for rollback, then apply the optimistic update
+      const previous = todosRef.current.find((todo) => todo.id === todoId) ?? null;
+
       setTodos((current) =>
         current.map((todo) => (todo.id === todoId ? { ...todo, ...updates } : todo)),
       );
@@ -295,19 +243,64 @@ export function TodoManager() {
         setTodos((current) =>
           current.map((todo) => (todo.id === savedTodo.id ? savedTodo : todo)),
         );
-        setSaveStatus("saved");
-        setTimeout(() => setSaveStatus("idle"), 2500);
+        markSaved();
       } catch {
-        // Revert optimistic update
-        setTodos(previousTodos);
+        if (previous) {
+          setTodos((current) =>
+            current.map((todo) => (todo.id === todoId ? previous : todo)),
+          );
+        }
+
         setSaveStatus("error");
+        setSaveError({ kind: "action", message: "操作失败，已还原" });
       }
     },
-    [todos],
+    [markSaved],
   );
 
-  const handleDelete = useCallback(
+  const cancelPendingDelete = useCallback(() => {
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current);
+      deleteTimerRef.current = null;
+    }
+
+    setPendingDeleteId(null);
+  }, []);
+
+  const requestDelete = useCallback((todoId: string) => {
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current);
+    }
+
+    setPendingDeleteId(todoId);
+    deleteTimerRef.current = setTimeout(() => {
+      deleteTimerRef.current = null;
+      setPendingDeleteId(null);
+    }, 3000);
+  }, []);
+
+  const confirmDelete = useCallback(
     async (todoId: string) => {
+      cancelPendingDelete();
+
+      // Deleting the todo open in the drawer: drop pending edits, close it
+      if (draftRef.current.id === todoId) {
+        if (debounceRef.current) {
+          clearTimeout(debounceRef.current);
+          debounceRef.current = null;
+        }
+
+        setDrawerOpen(false);
+      }
+
+      const removedIndex = todosRef.current.findIndex((todo) => todo.id === todoId);
+      const removed =
+        removedIndex === -1
+          ? null
+          : { todo: todosRef.current[removedIndex], index: removedIndex };
+
+      setTodos((current) => current.filter((todo) => todo.id !== todoId));
+
       try {
         const response = await fetch(`/api/todos?id=${encodeURIComponent(todoId)}`, {
           method: "DELETE",
@@ -318,57 +311,157 @@ export function TodoManager() {
           throw new Error(payload.error ?? "删除待办失败。");
         }
 
-        setTodos((current) => current.filter((todo) => todo.id !== todoId));
-
-        if (selectedId === todoId) {
-          setIsCreating(false);
-          setSelectedId(null);
-          setDraft(emptyDraft);
-        }
+        setSaveError(null);
       } catch {
-        setSaveStatus("error");
+        if (removed) {
+          setTodos((current) => {
+            const next = [...current];
+            next.splice(Math.min(removed.index, next.length), 0, removed.todo);
+            return next;
+          });
+        }
+
+        setSaveError({ kind: "delete", message: "删除失败" });
       }
     },
-    [selectedId],
+    [cancelPendingDelete],
   );
 
-  // Close dropdown menu on click-outside or Escape
+  // Cancel pending delete on click elsewhere or Escape
   useEffect(() => {
-    if (!menuOpenId) return;
+    if (!pendingDeleteId) {
+      return;
+    }
 
-    function handleClickOutside(e: MouseEvent) {
-      const target = e.target as HTMLElement;
-      if (!target.closest("[data-todo-menu]")) {
-        setMenuOpenId(null);
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+
+      if (!target.closest("[data-todo-delete]")) {
+        cancelPendingDelete();
       }
     }
 
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setMenuOpenId(null);
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        cancelPendingDelete();
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [menuOpenId]);
+  }, [pendingDeleteId, cancelPendingDelete]);
 
-  // Ctrl+S / Cmd+S handler
+  const openCreate = useCallback(() => {
+    flushPendingSave();
+    cancelPendingDelete();
+    setDraft(emptyDraft);
+    setDrawerMode("create");
+    setDrawerOpen(true);
+  }, [flushPendingSave, cancelPendingDelete]);
+
+  const openTodo = useCallback(
+    (todo: TodoRecord) => {
+      flushPendingSave();
+      cancelPendingDelete();
+      setDraft(toDraft(todo));
+      setDrawerMode("edit");
+      setDrawerOpen(true);
+    },
+    [flushPendingSave, cancelPendingDelete],
+  );
+
+  const closeDrawer = useCallback(() => {
+    flushPendingSave();
+    setDrawerOpen(false);
+  }, [flushPendingSave]);
+
+  const handleCycleStatus = useCallback(
+    (todo: TodoRecord) => {
+      const value = nextStatus(todo.status);
+
+      if (draftRef.current.id === todo.id) {
+        setDraft((current) => ({ ...current, status: value }));
+      }
+
+      void saveImmediate(todo.id, { status: value });
+    },
+    [saveImmediate],
+  );
+
+  const handleCyclePriority = useCallback(
+    (todo: TodoRecord) => {
+      const value = nextPriority(todo.priority);
+
+      if (draftRef.current.id === todo.id) {
+        setDraft((current) => ({ ...current, priority: value }));
+      }
+
+      void saveImmediate(todo.id, { priority: value });
+    },
+    [saveImmediate],
+  );
+
+  const cycleDraftStatus = useCallback(() => {
+    const current = draftRef.current;
+
+    if (!current.id) {
+      return;
+    }
+
+    const value = nextStatus(current.status);
+    setDraft((draftValue) => ({ ...draftValue, status: value }));
+    void saveImmediate(current.id, { status: value });
+  }, [saveImmediate]);
+
+  const cycleDraftPriority = useCallback(() => {
+    const current = draftRef.current;
+    const value = nextPriority(current.priority);
+    setDraft((draftValue) => ({ ...draftValue, priority: value }));
+
+    if (current.id) {
+      void saveImmediate(current.id, { priority: value });
+    }
+  }, [saveImmediate]);
+
+  const handleTitleChange = useCallback(
+    (title: string) => {
+      setDraft((current) => ({ ...current, title }));
+      debouncedSave();
+    },
+    [debouncedSave],
+  );
+
+  const handleContentChange = useCallback(
+    (content: string) => {
+      setDraft((current) => ({ ...current, content }));
+      debouncedSave();
+    },
+    [debouncedSave],
+  );
+
+  const retrySave = useCallback(() => {
+    void saveTodo();
+  }, [saveTodo]);
+
+  const dismissError = useCallback(() => {
+    setSaveError(null);
+  }, []);
+
+  // Ctrl+S / Cmd+S saves the open drawer immediately
   useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
+    function handleKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+        event.preventDefault();
 
-        if (!(isCreating || Boolean(todos.find((t) => t.id === selectedId)))) {
+        if (!drawerOpen) {
           return;
         }
 
-        // Clear pending debounce and save immediately
         if (debounceRef.current) {
           clearTimeout(debounceRef.current);
           debounceRef.current = null;
@@ -383,413 +476,121 @@ export function TodoManager() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [saveTodo, isCreating, selectedId, todos]);
+  }, [drawerOpen, saveTodo]);
+
+  const activeTodo = draft.id ? todos.find((todo) => todo.id === draft.id) ?? null : null;
+  const updatedAtLabel = activeTodo ? `更新于 ${formatTime(activeTodo.updatedAt)}` : "新建待办";
 
   return (
     <main className="app-shell h-full overflow-hidden text-[#171717]">
-      <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="dark-panel rise-in relative hidden h-full overflow-hidden border-r border-white/10 p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:block">
-          <div className="relative flex h-full flex-col">
-            <div className="border-b border-white/8 pb-4">
-              <ModuleSwitcher />
-            </div>
+      <section className="glass-panel rise-in flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-[rgba(23,23,23,0.08)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <Link
+            href="/"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)]"
+            aria-label="返回聊天"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </Link>
+          <h1 className="text-lg font-semibold tracking-[-0.02em] text-[#241c15]">
+            待办清单
+          </h1>
+        </div>
 
-            <div className="pt-4">
-              <div className="space-y-1 border-b border-white/8 pb-4">
-                {stats.map((item) => (
-                  <button
-                    key={item.filter}
-                    type="button"
-                    onClick={() => setActiveFilter(item.filter)}
-                    className={`flex w-full items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
-                      activeFilter === item.filter
-                        ? "border-white/16 bg-white/10 text-[#fff7ef]"
-                        : "border-transparent text-[#cabfb2] hover:border-white/10 hover:bg-white/6 hover:text-[#fff7ef]"
-                    }`}
-                  >
-                    <span className="text-sm font-medium">{item.label}</span>
-                    <span className="font-mono text-xs text-[#d8c9b7]">
-                      {item.value}
-                    </span>
-                  </button>
-                ))}
+        <div className="border-b border-[rgba(23,23,23,0.08)] px-4 py-3">
+          <div className="mx-auto w-full max-w-3xl">
+            <TodoToolbar
+              filter={filter}
+              counts={counts}
+              query={query}
+              saveError={saveError}
+              onFilterChange={setFilter}
+              onQueryChange={setQuery}
+              onCreate={openCreate}
+              onRetrySave={retrySave}
+              onDismissError={dismissError}
+            />
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+          <div className="mx-auto w-full max-w-3xl">
+            {loadState === "loading" ? (
+              <div className="py-12 text-center text-sm text-[#8a8176]">
+                加载待办中...
               </div>
-            </div>
-          </div>
-        </aside>
-
-        <section className="glass-panel rise-in flex h-full min-h-0 flex-col overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-[rgba(23,23,23,0.08)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
-            <Link
-              href="/"
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)]"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </Link>
-            <p className="text-lg font-semibold tracking-[-0.02em] text-[#241c15]">
-              TODO
-            </p>
-          </div>
-
-          <header className="hidden border-b border-[rgba(23,23,23,0.08)] px-4 py-3 lg:block">
-            <div className="flex items-center justify-between gap-6">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.28em] text-[#8a8176]">
-                  Todo Manager
+            ) : loadState === "error" ? (
+              <div className="accent-line py-12 pl-4">
+                <p className="text-lg font-semibold tracking-[-0.02em] text-[#352d25]">
+                  加载待办失败
                 </p>
-                <h1 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[#241c15]">
-                  待办清单
-                </h1>
-              </div>
-              <button
-                type="button"
-                onClick={startCreate}
-                className="rounded-full bg-[#171717] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#2b241d]"
-              >
-                新增 TODO
-              </button>
-            </div>
-          </header>
-
-          <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
-            <div className="min-h-0 overflow-y-auto border-r border-[rgba(23,23,23,0.08)] px-3 py-3">
-              <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center">
-                <label className="min-w-0 flex-1">
-                  <span className="sr-only">搜索待办</span>
-                  <input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="搜索 TODO..."
-                    className="w-full rounded-lg border border-[rgba(23,23,23,0.1)] bg-[rgba(255,255,255,0.72)] px-3 py-2 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
-                  />
-                </label>
+                <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+                  请检查网络后重试。
+                </p>
                 <button
                   type="button"
-                  onClick={startCreate}
-                  className="rounded-lg border border-[rgba(23,23,23,0.1)] px-3 py-2 text-sm font-medium text-[#352d25] transition hover:border-[rgba(201,106,43,0.45)] hover:bg-white/55 lg:hidden"
+                  onClick={retryLoad}
+                  className="mt-4 rounded-full bg-[#171717] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#2b241d]"
                 >
-                  新增 TODO
+                  重试
                 </button>
               </div>
-
-              <div className="mb-3 flex gap-2 overflow-x-auto pb-1 lg:hidden">
-                {stats.map((item) => (
-                  <button
-                    key={item.filter}
-                    type="button"
-                    onClick={() => setActiveFilter(item.filter)}
-                    className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                      activeFilter === item.filter
-                        ? "bg-[#171717] text-white"
-                        : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
-                    }`}
-                  >
-                    {item.label} {item.value}
-                  </button>
+            ) : visibleTodos.length === 0 ? (
+              <div className="accent-line py-12 pl-4">
+                <p className="text-lg font-semibold tracking-[-0.02em] text-[#352d25]">
+                  没有匹配的待办
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+                  调整筛选条件，或新建一条待办。
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {visibleTodos.map((todo, index) => (
+                  <TodoRow
+                    key={todo.id}
+                    todo={todo}
+                    isActive={drawerOpen && draft.id === todo.id}
+                    isPendingDelete={pendingDeleteId === todo.id}
+                    animationDelay={Math.min(index * 28, 180)}
+                    onOpen={() => openTodo(todo)}
+                    onCycleStatus={() => handleCycleStatus(todo)}
+                    onCyclePriority={() => handleCyclePriority(todo)}
+                    onRequestDelete={() => requestDelete(todo.id)}
+                    onConfirmDelete={() => void confirmDelete(todo.id)}
+                  />
                 ))}
               </div>
-
-              {isLoading ? (
-                <div className="py-12 text-center text-sm text-[#8a8176]">
-                  加载 TODO 中...
-                </div>
-              ) : visibleTodos.length === 0 ? (
-                <div className="accent-line py-12 pl-4">
-                  <p className="text-lg font-semibold tracking-[-0.02em] text-[#352d25]">
-                    没有匹配的待办
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-[#6e665d]">
-                    调整筛选条件，或创建一个新的 TODO。
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {visibleTodos.map((todo, index) => {
-                    const selected = todo.id === selectedId;
-                    const mark = priorityMark(todo.priority);
-
-                    return (
-                      <div
-                        key={todo.id}
-                        className={`rise-in group relative w-full rounded-[22px] border px-4 py-3 text-left transition ${
-                          menuOpenId === todo.id ? "z-40" : ""
-                        } ${
-                          selected
-                            ? "border-[rgba(201,106,43,0.32)] bg-white"
-                            : "border-transparent bg-transparent hover:border-[rgba(23,23,23,0.08)] hover:bg-white/72"
-                        }`}
-                        style={{ animationDelay: `${Math.min(index * 28, 180)}ms` }}
-                      >
-                        {/* Clickable area for selecting the todo */}
-                        <button
-                          type="button"
-                          onClick={() => selectTodo(todo)}
-                          className="flex w-full items-start gap-3 text-left"
-                        >
-                          <span
-                            className={`mt-1.5 h-3 w-3 shrink-0 rounded-full border ${statusDotStyles[todo.status]}`}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[15px] font-medium tracking-[-0.025em] text-[#282019]">
-                              {todo.title}
-                            </p>
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              <span
-                                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${
-                                  statusPillStyles[todo.status]
-                                }`}
-                              >
-                                {statusLabels[todo.status]}
-                              </span>
-                              {mark ? (
-                                <span
-                                  className={`text-[13px] font-bold tracking-[0.12em] ${
-                                    todo.priority === "highest" ? "text-[#9a3818]" : "text-[#9a5b22]"
-                                  }`}
-                                  aria-label={`优先级${priorityLabels[todo.priority]}`}
-                                  title={`优先级${priorityLabels[todo.priority]}`}
-                                >
-                                  {mark}
-                                </span>
-                              ) : null}
-                              <span className="text-[11px] text-[#908679]">
-                                更新 {formatTime(todo.updatedAt)}
-                              </span>
-                              {todo.completedAt ? (
-                                <span className="text-[11px] text-[#908679]">
-                                  完成 {formatTime(todo.completedAt)}
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </button>
-
-                        {/* Three-dot menu trigger */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMenuOpenId(menuOpenId === todo.id ? null : todo.id);
-                          }}
-                          className={`absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-lg text-[#8a8176] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#5c544a] ${menuOpenId === todo.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-                          aria-label="操作菜单"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="5" r="1" />
-                            <circle cx="12" cy="12" r="1" />
-                            <circle cx="12" cy="19" r="1" />
-                          </svg>
-                        </button>
-
-                        {/* Dropdown menu */}
-                        {menuOpenId === todo.id ? (
-                          <div
-                            data-todo-menu
-                            className="menu-appear absolute right-0 top-10 z-50 w-48 rounded-xl border border-[rgba(23,23,23,0.1)] bg-white py-1.5 shadow-[0_8px_30px_-8px_rgba(23,23,23,0.2)]"
-                          >
-                            {/* Status section */}
-                            <div className="px-3 py-1.5">
-                              <p className="text-[10px] uppercase tracking-[0.2em] text-[#8d8478]">状态</p>
-                            </div>
-                            {statusOptions.map((option) => (
-                              <button
-                                key={option.value}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void saveImmediate(todo.id, { status: option.value });
-                                  setMenuOpenId(null);
-                                }}
-                                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-[#352d25] transition hover:bg-[rgba(23,23,23,0.04)]"
-                              >
-                                <span className={`h-2 w-2 rounded-full ${
-                                  option.value === "todo" ? "bg-[#b8a58d]"
-                                  : option.value === "in_progress" ? "bg-[#d98a52]"
-                                  : "bg-[#6d8c55]"
-                                }`} />
-                                <span className="flex-1">{option.label}</span>
-                                {todo.status === option.value ? (
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#6d8c55]">
-                                    <polyline points="20 6 9 17 4 12" />
-                                  </svg>
-                                ) : null}
-                              </button>
-                            ))}
-
-                            {/* Divider */}
-                            <div className="my-1.5 h-px bg-[rgba(23,23,23,0.08)]" />
-
-                            {/* Priority section */}
-                            <div className="flex items-center gap-1 px-3 py-1.5">
-                              <span className="mr-1 text-[10px] uppercase tracking-[0.2em] text-[#8d8478]">优先级</span>
-                              {priorityOptions.map((option) => (
-                                <button
-                                  key={option.value}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    void saveImmediate(todo.id, { priority: option.value });
-                                    setMenuOpenId(null);
-                                  }}
-                                  className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold transition ${
-                                    todo.priority === option.value
-                                      ? option.value === "highest"
-                                        ? "bg-[#fff0ec] text-[#9a3818]"
-                                        : option.value === "high"
-                                          ? "bg-[#fff4e7] text-[#96581f]"
-                                          : "bg-[rgba(23,23,23,0.08)] text-[#352d25]"
-                                      : option.value === "highest"
-                                        ? "text-[#d4a096] hover:bg-[#fff0ec] hover:text-[#9a3818]"
-                                        : option.value === "high"
-                                          ? "text-[#d4b48a] hover:bg-[#fff4e7] hover:text-[#96581f]"
-                                          : "text-[#8d8478] hover:bg-[rgba(23,23,23,0.04)] hover:text-[#5c544a]"
-                                  }`}
-                                  title={priorityLabels[option.value]}
-                                >
-                                  {priorityMark(option.value) || "—"}
-                                </button>
-                              ))}
-                            </div>
-
-                            {/* Divider */}
-                            <div className="my-1.5 h-px bg-[rgba(23,23,23,0.08)]" />
-
-                            {/* Delete */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void handleDelete(todo.id);
-                                setMenuOpenId(null);
-                              }}
-                              className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-[#9a3818] transition hover:bg-[#fff1ec]"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              </svg>
-                              <span>删除</span>
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <aside
-              className={`min-h-0 overflow-y-auto bg-[rgba(255,250,244,0.7)] px-4 py-4 lg:px-6 ${
-                isEditorOpen ? "block" : "hidden lg:block"
-              }`}
-            >
-              {isEditorOpen ? (
-                <div className="flex min-h-full flex-col">
-                  <div className="flex items-center justify-end">
-                    <button
-                      type="button"
-                      onClick={closeEditor}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg text-[#8a8176] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#5c544a]"
-                      aria-label="关闭"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  <div className="flex flex-1 flex-col pt-2">
-                    <input
-                      value={draft.title}
-                      onChange={(event) => {
-                        setDraft((current) => ({ ...current, title: event.target.value }));
-                        debouncedSave();
-                      }}
-                      placeholder="例如：整理下周发布清单"
-                      className="w-full border-none bg-transparent px-0 py-0 text-[clamp(1.65rem,3vw,2.35rem)] font-bold leading-[1.08] tracking-[-0.035em] text-[#171717] outline-none placeholder:text-[#b0a395]"
-                    />
-
-                    <div className="mt-6 h-px bg-[rgba(23,23,23,0.08)]" />
-
-                    <div className="min-h-[420px] flex-1 pt-6">
-                      <MarkdownEditor
-                        value={draft.content}
-                        onChange={(content) => {
-                          setDraft((current) => ({ ...current, content }));
-                          debouncedSave();
-                        }}
-                        placeholder="补充上下文、验收标准或下一步动作..."
-                        variant="minimal"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="sticky bottom-0 -mx-4 mt-auto border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.94)] px-4 py-2.5 backdrop-blur lg:-mx-6 lg:px-6">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-[#908679]">
-                        {selectedTodo ? `更新于 ${formatTime(selectedTodo.updatedAt)}` : "新建待办"}
-                      </p>
-                      <span
-                        className={`text-xs transition-opacity duration-500 ${
-                          saveStatus === "saved"
-                            ? "text-[#6d8c55] opacity-100"
-                            : saveStatus === "error"
-                              ? "text-[#9a3818] opacity-100"
-                              : saveStatus === "saving"
-                                ? "text-[#908679] opacity-100"
-                                : "opacity-0"
-                        }`}
-                      >
-                        {saveStatus === "saved" ? "已保存" : saveStatus === "error" ? "保存失败" : saveStatus === "saving" ? "保存中..." : "已保存"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex h-full min-h-[540px] items-center justify-center px-8">
-                  <div className="max-w-sm text-center">
-                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[28px] border border-[rgba(23,23,23,0.08)] bg-white/72 shadow-[0_18px_50px_-36px_rgba(23,23,23,0.5)]">
-                      <svg
-                        width="34"
-                        height="34"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-[#6b5f51]"
-                      >
-                        <path d="M9 11.5 11.5 14 15.5 9.5" />
-                        <path d="M8 5.5h8" />
-                        <path d="M8 18.5h5" />
-                        <rect x="4.5" y="3.5" width="15" height="17" rx="3.5" />
-                      </svg>
-                    </div>
-                    <p className="mt-6 text-[1.75rem] font-semibold tracking-[-0.05em] text-[#241c15]">
-                      先选一条待办
-                    </p>
-                    <p className="mt-3 text-sm leading-6 text-[#6e665d]">
-                      右侧只在需要编辑时展开。你可以从左侧选择一项继续处理，或者直接新建一条 TODO。
-                    </p>
-                    <button
-                      type="button"
-                      onClick={startCreate}
-                      className="mt-6 rounded-full bg-[#171717] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#2b241d]"
-                    >
-                      新建 TODO
-                    </button>
-                  </div>
-                </div>
-              )}
-            </aside>
+            )}
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
+
+      <TodoDrawer
+        open={drawerOpen}
+        mode={drawerMode}
+        draft={draft}
+        saveStatus={saveStatus}
+        updatedAtLabel={drawerMode === "create" && !draft.id ? "新建待办" : updatedAtLabel}
+        isPendingDelete={draft.id !== null && pendingDeleteId === draft.id}
+        onTitleChange={handleTitleChange}
+        onContentChange={handleContentChange}
+        onCycleStatus={cycleDraftStatus}
+        onCyclePriority={cycleDraftPriority}
+        onClose={closeDrawer}
+        onRequestDelete={() => {
+          if (draft.id) {
+            requestDelete(draft.id);
+          }
+        }}
+        onConfirmDelete={() => {
+          if (draft.id) {
+            void confirmDelete(draft.id);
+          }
+        }}
+      />
     </main>
   );
 }
