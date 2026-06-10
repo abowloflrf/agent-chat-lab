@@ -10,12 +10,13 @@ import { after } from "next/server";
 import { z } from "zod";
 import { getChatModel } from "@/lib/ai/model";
 import {
+  buildMcpContextPrompt,
   buildTimeContextPrompt,
   buildUrlContextPrompt,
   systemPrompt,
 } from "@/lib/ai/system-prompt";
 import { createAgentTools } from "@/lib/ai/tools";
-import { connectMcpServers } from "@/lib/ai/mcp";
+import { connectMcpServers, type McpServerToolInfo } from "@/lib/ai/mcp";
 import { persistFinishedConversation, persistIncomingMessages, generateConversationTitle } from "@/lib/persistence";
 import type {
   AgentTimelineStep,
@@ -23,9 +24,10 @@ import type {
   ChatUIMessage,
 } from "@/lib/observability";
 import {
-  getEnabledMcpServers,
-  getRuntimeProviderConfig,
-  getProviderConfigByOverride,
+  getSystemSettings,
+  getEnabledMcpServersFromSettings,
+  getRuntimeProviderConfigFromSettings,
+  getProviderConfigByOverrideFromSettings,
 } from "@/lib/settings";
 
 export const runtime = "nodejs";
@@ -123,7 +125,10 @@ function extractLatestUserText(messages: ChatUIMessage[]) {
     .trim();
 }
 
-function buildRuntimeSystemPrompt(messages: ChatUIMessage[]) {
+function buildRuntimeSystemPrompt(
+  messages: ChatUIMessage[],
+  mcpServers: McpServerToolInfo[],
+) {
   const now = new Date();
   const currentDateTime = new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "full",
@@ -136,6 +141,11 @@ function buildRuntimeSystemPrompt(messages: ChatUIMessage[]) {
 
   if (urls.length > 0) {
     promptSections.push(buildUrlContextPrompt());
+  }
+
+  const mcpSection = buildMcpContextPrompt(mcpServers);
+  if (mcpSection) {
+    promptSections.push(mcpSection);
   }
 
   promptSections.push(buildTimeContextPrompt(currentDateTime, now.toISOString()));
@@ -212,11 +222,18 @@ export async function POST(request: Request) {
     );
   }
 
+  // Read system settings once, then derive both the provider config and the
+  // MCP server list from that single snapshot instead of querying twice.
+  const settings = await getSystemSettings();
   const providerConfig = parsed.data.modelOverride
-    ? await getProviderConfigByOverride(parsed.data.modelOverride.providerId, parsed.data.modelOverride.modelId)
-    : await getRuntimeProviderConfig();
+    ? getProviderConfigByOverrideFromSettings(
+        settings,
+        parsed.data.modelOverride.providerId,
+        parsed.data.modelOverride.modelId,
+      )
+    : getRuntimeProviderConfigFromSettings(settings);
+  const mcpServers = getEnabledMcpServersFromSettings(settings);
   const agentTools = createAgentTools(providerConfig);
-  const runtimeSystemPrompt = buildRuntimeSystemPrompt(parsed.data.messages);
 
   const sanitizedMessages = autoRejectPendingApprovals(parsed.data.messages);
   const modelMessages = await convertToModelMessages(
@@ -236,13 +253,41 @@ export async function POST(request: Request) {
     );
   }
 
-  await persistIncomingMessages(parsed.data.conversationId, sanitizedMessages);
+  // Persist the incoming messages and open MCP connections in parallel so the
+  // MCP handshake doesn't queue behind the DB write. connectMcpServers never
+  // throws (per-server failures are swallowed), so only the persist can
+  // reject — in which case we still close any connections that opened.
+  const mcpBundlePromise = connectMcpServers(mcpServers);
 
-  // Connect to enabled MCP servers and merge their tools in. Built-in tools
-  // take precedence so a remote server cannot shadow Bash/WebSearch/etc.
-  const mcpServers = await getEnabledMcpServers();
-  const mcpBundle = await connectMcpServers(mcpServers);
+  try {
+    await persistIncomingMessages(parsed.data.conversationId, sanitizedMessages);
+  } catch (error) {
+    void mcpBundlePromise.then((bundle) => bundle.close());
+    throw error;
+  }
+
+  // Built-in tools take precedence so a remote server cannot shadow
+  // Bash/WebSearch/etc.
+  const mcpBundle = await mcpBundlePromise;
   const tools = { ...mcpBundle.tools, ...agentTools };
+
+  // Only advertise MCP tools that survive into the final tool set. A built-in
+  // wins on name collision, so an MCP tool sharing a built-in's name resolves
+  // to the built-in — advertising it as MCP-provided would mislead the model.
+  const builtInToolNames = new Set(Object.keys(agentTools));
+  const advertisedMcpServers = mcpBundle.servers
+    .map((server) => ({
+      serverName: server.serverName,
+      toolNames: server.toolNames.filter((name) => !builtInToolNames.has(name)),
+    }))
+    .filter((server) => server.toolNames.length > 0);
+
+  // Build the prompt after connecting so it can advertise the MCP tools that
+  // actually came online this turn.
+  const runtimeSystemPrompt = buildRuntimeSystemPrompt(
+    parsed.data.messages,
+    advertisedMcpServers,
+  );
 
   const requestStartedAt = Date.now();
   const stepStartTimes = new Map<number, number>();

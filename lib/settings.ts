@@ -115,7 +115,7 @@ function buildProviderConfigFromSettings(
   });
 }
 
-function getRuntimeProviderConfigFromSettings(settings: SystemSettings): ProviderConfig {
+export function getRuntimeProviderConfigFromSettings(settings: SystemSettings): ProviderConfig {
   const provider = pickActiveProvider(settings.providers);
   const model = pickActiveModel(provider);
 
@@ -124,6 +124,25 @@ function getRuntimeProviderConfigFromSettings(settings: SystemSettings): Provide
   }
 
   return buildProviderConfigFromSettings(settings, provider, model.modelId);
+}
+
+export function getProviderConfigByOverrideFromSettings(
+  settings: SystemSettings,
+  providerId: string,
+  modelId: string,
+): ProviderConfig {
+  const provider = settings.providers.find((p) => p.id === providerId && p.isEnabled);
+  const model = provider?.models.find((item) => item.modelId === modelId && item.isEnabled);
+
+  if (!provider || !model) {
+    return getRuntimeProviderConfigFromSettings(settings);
+  }
+
+  return buildProviderConfigFromSettings(settings, provider, model.modelId);
+}
+
+export function getEnabledMcpServersFromSettings(settings: SystemSettings): McpServer[] {
+  return settings.mcpServers.filter((server) => server.isEnabled && server.url);
 }
 
 function assertValidMcpServerUrls(servers: McpServer[]) {
@@ -306,7 +325,7 @@ export async function getRuntimeProviderConfig(): Promise<ProviderConfig> {
 
 export async function getEnabledMcpServers(): Promise<McpServer[]> {
   const settings = await getSystemSettings();
-  return settings.mcpServers.filter((server) => server.isEnabled && server.url);
+  return getEnabledMcpServersFromSettings(settings);
 }
 
 export async function getProviderConfigByOverride(
@@ -314,14 +333,7 @@ export async function getProviderConfigByOverride(
   modelId: string,
 ): Promise<ProviderConfig> {
   const settings = await getSystemSettings();
-  const provider = settings.providers.find((p) => p.id === providerId && p.isEnabled);
-  const model = provider?.models.find((item) => item.modelId === modelId && item.isEnabled);
-
-  if (!provider || !model) {
-    return getRuntimeProviderConfigFromSettings(settings);
-  }
-
-  return buildProviderConfigFromSettings(settings, provider, model.modelId);
+  return getProviderConfigByOverrideFromSettings(settings, providerId, modelId);
 }
 
 export function resolveProviderConfig(input: unknown): ProviderConfig {

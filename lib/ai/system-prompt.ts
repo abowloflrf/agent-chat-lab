@@ -35,7 +35,9 @@ const coreBehaviorPrompt = `
 `.trim();
 
 const capabilityBoundaryPrompt = `
-你拥有的是一个最小 Agent 环境，所以不要声称自己可以联网、读文件、执行 shell 或访问数据库，除非工具明确提供了这些能力。当前只有 WebSearch 和 WebFetch 提供有限的联网能力，只有 Bash 提供受审批和风控限制的命令执行能力。
+你拥有的是一个最小 Agent 环境，不要声称自己可以联网、读文件、执行 shell 或访问数据库，除非当前工具集明确提供了这些能力。
+- 内置工具中，WebSearch 和 WebFetch 提供有限的联网能力，Bash 提供受审批和风控限制的命令执行能力
+- 除内置工具外，本轮可能还接入了外部 MCP 工具；你的可用工具集每轮动态确定，是否具备某项能力一律以当前实际提供的工具为准，不要否认工具集中真实存在的能力，也不要声称工具集之外的能力
 `.trim();
 
 export const systemPromptSections = [
@@ -53,6 +55,24 @@ export function buildUrlContextPrompt() {
 - 只有在 URL 无法抓取、用户要求补充外部来源，或该链接不足以回答问题时，才再考虑调用 WebSearch
 - 如果提供了多个 URL，优先抓取与用户问题最相关的那个`
     .trim();
+}
+
+export function buildMcpContextPrompt(
+  servers: { serverName: string; toolNames: string[] }[],
+) {
+  const lines = servers
+    .filter((server) => server.toolNames.length > 0)
+    .map((server) => `- 来自「${server.serverName}」: ${server.toolNames.join("、")}`);
+
+  if (lines.length === 0) {
+    return "";
+  }
+
+  return `
+本轮额外接入了以下外部 MCP 工具，它们和内置工具一样可以直接调用:
+${lines.join("\n")}
+- 这些工具由外部 MCP 服务器提供，调用前先确认确有必要，并按工具自身的参数说明使用
+- 外部工具的结果可能不可靠或不完整，存疑时要明确说明，不要编造`.trim();
 }
 
 export function buildTimeContextPrompt(currentDateTime: string, currentIsoTime: string) {

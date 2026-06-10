@@ -10,8 +10,15 @@ import type { McpServer } from "@/lib/provider-config";
 // unreachable server must not stall the whole request.
 const MCP_CONNECT_TIMEOUT_MS = 8000;
 
+export type McpServerToolInfo = {
+  serverName: string;
+  toolNames: string[];
+};
+
 export type McpToolBundle = {
   tools: ToolSet;
+  /** Successfully connected servers and the tools each contributed. */
+  servers: McpServerToolInfo[];
   close: () => Promise<void>;
 };
 
@@ -64,6 +71,10 @@ function withTimeout<T>(
 export async function connectMcpServers(servers: McpServer[]): Promise<McpToolBundle> {
   const clients: MCPClient[] = [];
   const tools: ToolSet = {};
+  // Which server currently owns each tool name. `Object.assign` below is
+  // last-write-wins, so this map mirrors it: when two servers expose the same
+  // name, only the winner (the one whose tool stays in `tools`) keeps it.
+  const toolOwner = new Map<string, string>();
 
   await Promise.all(
     servers.map(async (server) => {
@@ -93,6 +104,9 @@ export async function connectMcpServers(servers: McpServer[]): Promise<McpToolBu
 
         clients.push(client);
         Object.assign(tools, serverTools);
+        for (const toolName of Object.keys(serverTools)) {
+          toolOwner.set(toolName, server.name);
+        }
       } catch (error) {
         void client?.close().catch(() => {});
         logger.warn(
@@ -107,10 +121,25 @@ export async function connectMcpServers(servers: McpServer[]): Promise<McpToolBu
     }),
   );
 
+  // Group surviving tools by their owning server so `servers` reflects what is
+  // actually callable, not raw discovery output: a tool shadowed by a later
+  // server is attributed only to the winner, and a server whose tools were all
+  // shadowed drops out entirely.
+  const toolsByServer = new Map<string, string[]>();
+  for (const [toolName, serverName] of toolOwner) {
+    const owned = toolsByServer.get(serverName) ?? [];
+    owned.push(toolName);
+    toolsByServer.set(serverName, owned);
+  }
+  const connectedServers: McpServerToolInfo[] = [...toolsByServer].map(
+    ([serverName, toolNames]) => ({ serverName, toolNames }),
+  );
+
   let closed = false;
 
   return {
     tools,
+    servers: connectedServers,
     close: async () => {
       if (closed) {
         return;
