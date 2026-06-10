@@ -255,10 +255,16 @@ export async function POST(request: Request) {
     messages: modelMessages,
     tools,
     stopWhen: stepCountIs(AGENT_MAX_STEPS),
+    // Stop generating when the client disconnects or hits "stop", and close
+    // MCP connections on every terminal path (finish / error / abort).
+    abortSignal: request.signal,
     onFinish: () => {
       void mcpBundle.close();
     },
     onError: () => {
+      void mcpBundle.close();
+    },
+    onAbort: () => {
       void mcpBundle.close();
     },
     experimental_onStepStart: ({ stepNumber }) => {

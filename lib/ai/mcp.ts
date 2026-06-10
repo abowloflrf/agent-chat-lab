@@ -25,13 +25,31 @@ function headersToRecord(server: McpServer): Record<string, string> | undefined 
   return Object.fromEntries(entries.map((header) => [header.key, header.value]));
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} 连接超时（${ms}ms）`)), ms),
-    ),
-  ]);
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+  onLateSuccess?: (value: T) => void,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      // The losing operation keeps running after the race; a late success
+      // must still be cleaned up by the caller or its connection leaks.
+      promise.then(onLateSuccess, () => {});
+      reject(new Error(`${label} 连接超时（${ms}ms）`));
+    }, ms);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 /**
@@ -49,8 +67,10 @@ export async function connectMcpServers(servers: McpServer[]): Promise<McpToolBu
 
   await Promise.all(
     servers.map(async (server) => {
+      let client: MCPClient | undefined;
+
       try {
-        const client = await withTimeout(
+        client = await withTimeout(
           createMCPClient({
             transport: {
               type: "http",
@@ -60,6 +80,9 @@ export async function connectMcpServers(servers: McpServer[]): Promise<McpToolBu
           }),
           MCP_CONNECT_TIMEOUT_MS,
           server.name,
+          (lateClient) => {
+            void lateClient.close().catch(() => {});
+          },
         );
 
         const serverTools = await withTimeout(
@@ -71,6 +94,7 @@ export async function connectMcpServers(servers: McpServer[]): Promise<McpToolBu
         clients.push(client);
         Object.assign(tools, serverTools);
       } catch (error) {
+        void client?.close().catch(() => {});
         logger.warn(
           {
             mcpServer: server.name,
@@ -83,9 +107,15 @@ export async function connectMcpServers(servers: McpServer[]): Promise<McpToolBu
     }),
   );
 
+  let closed = false;
+
   return {
     tools,
     close: async () => {
+      if (closed) {
+        return;
+      }
+      closed = true;
       await Promise.allSettled(clients.map((client) => client.close()));
     },
   };

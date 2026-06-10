@@ -37,8 +37,18 @@ function parseMcpServersColumn(raw: string | null | undefined): McpServer[] {
   }
 
   try {
-    const parsed = mcpServerSchema.array().safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : [];
+    const json: unknown = JSON.parse(raw);
+
+    if (!Array.isArray(json)) {
+      return [];
+    }
+
+    // Parse entry by entry so one corrupt record drops only itself instead of
+    // silently wiping the whole server list.
+    return json.flatMap((entry) => {
+      const parsed = mcpServerSchema.safeParse(entry);
+      return parsed.success ? [parsed.data] : [];
+    });
   } catch {
     return [];
   }
@@ -116,6 +126,22 @@ function getRuntimeProviderConfigFromSettings(settings: SystemSettings): Provide
   return buildProviderConfigFromSettings(settings, provider, model.modelId);
 }
 
+function assertValidMcpServerUrls(servers: McpServer[]) {
+  for (const server of servers) {
+    let parsedUrl: URL | null = null;
+
+    try {
+      parsedUrl = new URL(server.url);
+    } catch {
+      parsedUrl = null;
+    }
+
+    if (!parsedUrl || (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:")) {
+      throw new Error(`MCP 服务器「${server.name}」的 URL 无效，请填写完整的 http(s) 地址。`);
+    }
+  }
+}
+
 function parseSettingsInput(input: unknown) {
   const parsed = systemSettingsInputSchema.safeParse(input);
 
@@ -123,7 +149,7 @@ function parseSettingsInput(input: unknown) {
     throw new Error("Invalid settings payload.");
   }
 
-  return normalizeSystemSettings({
+  const normalized = normalizeSystemSettings({
     tavilyApiKey: parsed.data.tavilyApiKey ?? "",
     providers: (parsed.data.providers ?? []).map((provider) => ({
       id: provider.id?.trim() || crypto.randomUUID(),
@@ -151,6 +177,10 @@ function parseSettingsInput(input: unknown) {
       isEnabled: server.isEnabled ?? true,
     })),
   });
+
+  assertValidMcpServerUrls(normalized.mcpServers);
+
+  return normalized;
 }
 
 async function seedDefaultSystemSettings() {
