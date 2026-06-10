@@ -12,7 +12,6 @@ import { getChatModel } from "@/lib/ai/model";
 import {
   buildMcpContextPrompt,
   buildTimeContextPrompt,
-  buildUrlContextPrompt,
   systemPrompt,
 } from "@/lib/ai/system-prompt";
 import { createAgentTools } from "@/lib/ai/tools";
@@ -44,8 +43,6 @@ const requestSchema = z.object({
   messages: z.array(z.custom<ChatUIMessage>()),
   modelOverride: modelOverrideSchema.optional(),
 });
-
-const urlPattern = /https?:\/\/[^\s)>"'`]+/gi;
 
 function stripMessageId(message: ChatUIMessage): Omit<ChatUIMessage, "id"> {
   const { id, ...rest } = message;
@@ -107,48 +104,33 @@ function toNonNegativeInt(value: number | undefined) {
   return value === undefined ? 0 : Math.max(0, Math.round(value));
 }
 
-function extractLatestUserText(messages: ChatUIMessage[]) {
-  const latestUserMessage = [...messages]
-    .reverse()
-    .find((message) => message.role === "user");
-
-  if (!latestUserMessage) {
-    return "";
-  }
-
-  return latestUserMessage.parts
-    .filter((part): part is Extract<(typeof latestUserMessage.parts)[number], { type: "text" }> =>
-      part.type === "text",
-    )
-    .map((part) => part.text)
-    .join("\n")
-    .trim();
-}
-
 function buildRuntimeSystemPrompt(
   messages: ChatUIMessage[],
   mcpServers: McpServerToolInfo[],
 ) {
-  const now = new Date();
+  // Pin time to the conversation's first message so the entire system
+  // prompt stays identical for every request in the same session,
+  // maximizing prefix-cache hits.  Falls back to now for the very
+  // first message (which hasn't been persisted yet).
+  const firstMessageCreatedAt = messages[0]?.metadata?.createdAt;
+  const pinnedNow =
+    typeof firstMessageCreatedAt === "number"
+      ? new Date(firstMessageCreatedAt)
+      : new Date();
+
   const currentDateTime = new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "full",
     timeStyle: "long",
     timeZone: "Asia/Shanghai",
-  }).format(now);
-  const latestUserText = extractLatestUserText(messages);
-  const urls = latestUserText.match(urlPattern) ?? [];
+  }).format(pinnedNow);
   const promptSections = [systemPrompt];
-
-  if (urls.length > 0) {
-    promptSections.push(buildUrlContextPrompt());
-  }
 
   const mcpSection = buildMcpContextPrompt(mcpServers);
   if (mcpSection) {
     promptSections.push(mcpSection);
   }
 
-  promptSections.push(buildTimeContextPrompt(currentDateTime, now.toISOString()));
+  promptSections.push(buildTimeContextPrompt(currentDateTime, pinnedNow.toISOString()));
 
   return promptSections.join("\n\n").trim();
 }
