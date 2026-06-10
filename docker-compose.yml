@@ -1,9 +1,7 @@
 services:
   agent-chat-lab:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      network: host
+    image: ghcr.io/abowloflrf/agent-chat-lab:main
+    pull_policy: always
     container_name: agent-chat-lab
     network_mode: host
     env_file:
