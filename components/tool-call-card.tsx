@@ -107,8 +107,21 @@ function extractInputSummary(toolName: string, input: unknown): string | null {
     return record.query;
   }
 
-  if (toolName === "WebFetch" && typeof record.url === "string") {
-    return record.url;
+  if (toolName === "WebFetch") {
+    if (Array.isArray(record.urls)) {
+      const urls = record.urls.filter(
+        (value): value is string => typeof value === "string",
+      );
+
+      if (urls.length > 0) {
+        return urls.length === 1 ? urls[0] : `${urls[0]} 等 ${urls.length} 个 URL`;
+      }
+    }
+
+    // 兼容历史会话里用单数 url 抓取的旧 WebFetch 调用
+    if (typeof record.url === "string") {
+      return record.url;
+    }
   }
 
   if (isTodoToolName(toolName)) {

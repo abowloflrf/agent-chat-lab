@@ -29,6 +29,6 @@ export const builtInTools = [
   },
   {
     name: "WebFetch",
-    description: "使用 Tavily 抓取指定 URL 的网页正文，适合在搜索后继续读取原文内容。",
+    description: "使用 Tavily 抓取一个或多个 URL 的网页正文，适合在搜索后继续读取原文内容。",
   },
 ] as const;

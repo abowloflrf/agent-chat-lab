@@ -19,6 +19,8 @@ const MAX_TODO_CONTENT_LENGTH = 500;
 const TODO_READ_CONTENT_PREVIEW_LENGTH = 120;
 const DEFAULT_WEB_SEARCH_LIMIT = 5;
 const MAX_WEB_SEARCH_LIMIT = 10;
+const MAX_WEB_FETCH_URLS = 5;
+const WEB_FETCH_CONTENT_PREVIEW_LENGTH = 1200;
 const TAVILY_SEARCH_URL = "https://api.tavily.com/search";
 const TAVILY_EXTRACT_URL = "https://api.tavily.com/extract";
 
@@ -54,7 +56,13 @@ const tavilySearchInputSchema = z.object({
 type TavilySearchInput = z.infer<typeof tavilySearchInputSchema>;
 
 const tavilyExtractInputSchema = z.object({
-  url: z.string().trim().url().max(500).describe("要抓取并提取内容的网页 URL。"),
+  urls: z
+    .array(z.string().trim().url().max(500))
+    .min(1)
+    .max(MAX_WEB_FETCH_URLS)
+    .describe(
+      `要抓取并提取正文的网页 URL 列表，可一次传入多个并发抓取（最多 ${MAX_WEB_FETCH_URLS} 个）。`,
+    ),
   query: z
     .string()
     .trim()
@@ -124,7 +132,7 @@ async function searchWithTavily(
     answer: payload?.answer ?? null,
     responseTime: payload?.response_time ?? null,
     suggestedNextAction:
-      "如果需要核对原文、总结网页正文或提取细节，请从 results 中选择最相关的 url 再调用 WebFetch。",
+      "如果需要核对原文、总结网页正文或提取细节，请从 results 中挑出最相关的一个或多个 url，一次性传给 WebFetch 并发抓取。",
     results: (payload?.results ?? []).map((result) => ({
       title: result.title ?? "",
       url: result.url ?? "",
@@ -146,7 +154,7 @@ async function extractWithTavily(
       Authorization: `Bearer ${tavilyApiKey}`,
     },
     body: JSON.stringify({
-      urls: [input.url],
+      urls: input.urls,
       query: input.query,
       extract_depth: input.extractDepth,
       format: input.format,
@@ -176,24 +184,29 @@ async function extractWithTavily(
     throw new Error(payload?.error || `Tavily Extract 请求失败 (${response.status})`);
   }
 
-  const result = payload?.results?.[0];
-  const failedResult = payload?.failed_results?.[0];
+  const results = (payload?.results ?? []).map((result) => {
+    const content = result.raw_content ?? null;
+
+    return {
+      url: result.url ?? "",
+      content,
+      favicon: result.favicon ?? null,
+      contentPreview: content
+        ? content.slice(0, WEB_FETCH_CONTENT_PREVIEW_LENGTH)
+        : null,
+      contentLength: content?.length ?? 0,
+    };
+  });
+
+  const failedResults = (payload?.failed_results ?? []).map((failed) => ({
+    url: failed.url ?? "",
+    error: failed.error ?? "抓取失败。",
+  }));
 
   return {
-    url: result?.url ?? input.url,
-    content: result?.raw_content ?? null,
-    favicon: result?.favicon ?? null,
     responseTime: payload?.response_time ?? null,
-    contentPreview: result?.raw_content
-      ? result.raw_content.slice(0, 1200)
-      : null,
-    contentLength: result?.raw_content?.length ?? 0,
-    failedResult: failedResult
-      ? {
-          url: failedResult.url ?? input.url,
-          error: failedResult.error ?? "抓取失败。",
-        }
-      : null,
+    results,
+    failedResults,
   };
 }
 
@@ -408,7 +421,7 @@ export function createAgentTools(config: ProviderConfig) {
 
     WebFetch: tool({
       description:
-        "使用 Tavily 抓取并提取指定网页正文，适合在已经知道 URL 后读取页面内容、核对原文或提取文档要点。常见知名网站 URL：Hacker News (https://news.ycombinator.com)、GitHub (https://github.com)、Reddit (https://www.reddit.com)、ProductHunt (https://www.producthunt.com)。当用户提到这些网站名称时，直接构造对应 URL 调用本工具，无需先搜索。",
+        "使用 Tavily 抓取并提取网页正文，可一次传入多个 URL 并发抓取，适合在已经知道 URL 后读取页面内容、核对原文、对比多个来源或提取文档要点。需要读取多个页面时把它们一起放进 urls，不要拆成多次调用。常见知名网站 URL：Hacker News (https://news.ycombinator.com)、GitHub (https://github.com)、Reddit (https://www.reddit.com)、ProductHunt (https://www.producthunt.com)。当用户提到这些网站名称时，直接构造对应 URL 调用本工具，无需先搜索。",
       inputSchema: tavilyExtractInputSchema,
       execute: async (input) => {
         if (!config.tavilyApiKey) {
@@ -421,13 +434,17 @@ export function createAgentTools(config: ProviderConfig) {
 
         try {
           const result = await extractWithTavily(input, config.tavilyApiKey);
+          const hasLongContent = result.results.some(
+            (item) =>
+              item.content &&
+              item.content.length > WEB_FETCH_CONTENT_PREVIEW_LENGTH,
+          );
           return {
             ok: true,
             ...result,
-            suggestedNextAction:
-              result.content && result.content.length > 1200
-                ? "如果只需要回答当前问题，优先基于 contentPreview 提炼；只有在必要时再引用更长正文。"
-                : "可以直接基于提取结果回答用户问题。",
+            suggestedNextAction: hasLongContent
+              ? "如果只需要回答当前问题，优先基于各结果的 contentPreview 提炼；只有在必要时再引用更长正文。"
+              : "可以直接基于提取结果回答用户问题。",
           };
         } catch (error) {
           return {
