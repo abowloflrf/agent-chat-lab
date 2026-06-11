@@ -47,13 +47,11 @@ export function ConversationList({
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [hasMoreConversations, setHasMoreConversations] = useState(false);
-  const [showLoadMore, setShowLoadMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null);
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [busyConversationId, setBusyConversationId] = useState<string | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const listRootRef = useRef<HTMLDivElement>(null);
@@ -238,31 +236,6 @@ export function ConversationList({
       }
     };
   }, [searchInput]);
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-
-    if (!container) {
-      return;
-    }
-
-    const updateLoadMoreVisibility = () => {
-      const distanceToBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight;
-      const isNearBottom = distanceToBottom <= 24;
-
-      setShowLoadMore(hasMoreConversations && isNearBottom);
-    };
-
-    updateLoadMoreVisibility();
-    container.addEventListener("scroll", updateLoadMoreVisibility);
-    window.addEventListener("resize", updateLoadMoreVisibility);
-
-    return () => {
-      container.removeEventListener("scroll", updateLoadMoreVisibility);
-      window.removeEventListener("resize", updateLoadMoreVisibility);
-    };
-  }, [conversations.length, hasMoreConversations]);
 
   const loadConversations = useCallback(async ({
     reset,
@@ -592,10 +565,7 @@ export function ConversationList({
         </button>
       </div>
 
-      <div
-        ref={scrollContainerRef}
-        className="scrollbar-hidden mt-4 min-h-0 flex-1 overflow-y-auto pr-1"
-      >
+      <div className="scrollbar-hidden mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
         {isLoading ? (
           <div className="border-t border-white/8 py-4 text-sm text-[#a99b8a]">
             正在读取会话...
@@ -740,7 +710,7 @@ export function ConversationList({
               })}
             </ul>
 
-            {showLoadMore ? (
+            {hasMoreConversations ? (
               <div className="border-t border-white/8 py-3">
                 <button
                   type="button"
