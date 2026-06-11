@@ -26,10 +26,10 @@ export function proxy(request: NextRequest) {
   const isPublicRoute =
     pathname === "/api/auth" ||
     pathname === "/login" ||
-    pathname === "/api/icon" ||
     pathname === "/manifest.webmanifest" ||
-    pathname === "/icon" ||
-    pathname === "/apple-icon";
+    pathname === "/apple-icon.png" ||
+    pathname === "/icon-192.png" ||
+    pathname === "/icon-512.png";
 
   // Skip auth check for public routes
   if (isPublicRoute) {
