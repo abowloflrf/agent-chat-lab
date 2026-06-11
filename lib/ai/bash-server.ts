@@ -73,12 +73,19 @@ export async function executeBashCommand(command: string): Promise<BashExecution
   const startedAt = Date.now();
 
   return new Promise<BashExecutionResult>((resolve, reject) => {
-    const child = spawn(assessment.argv[0], assessment.argv.slice(1), {
-      cwd: workdir,
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: process.env,
-    });
+    const child = assessment.usesShell
+      ? spawn(command, [], {
+          cwd: workdir,
+          shell: true,
+          stdio: ["ignore", "pipe", "pipe"],
+          env: process.env,
+        })
+      : spawn(assessment.argv[0], assessment.argv.slice(1), {
+          cwd: workdir,
+          shell: false,
+          stdio: ["ignore", "pipe", "pipe"],
+          env: process.env,
+        });
 
     let stdout = "";
     let stderr = "";

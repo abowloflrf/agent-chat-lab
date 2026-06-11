@@ -1,6 +1,6 @@
 export const BASH_TOOL_TIMEOUT_MS = 15_000;
 export const BASH_TOOL_OUTPUT_LIMIT = 16 * 1024;
-export const BASH_TOOL_MAX_COMMAND_LENGTH = 400;
+export const BASH_TOOL_MAX_COMMAND_LENGTH = 1600;
 export const BASH_TOOL_WORKDIR_LABEL = "服务端运行时工作目录";
 
 export type BashRiskLevel = "low" | "medium" | "high" | "critical";
@@ -21,6 +21,7 @@ export type BashAssessment = {
   timeoutMs: number;
   outputLimit: number;
   argv: string[];
+  usesShell: boolean;
 };
 
 const CONTROL_CHARACTER_PATTERN = /[\r\n\t\0]/;
@@ -119,7 +120,8 @@ function collapseWhitespace(command: string) {
   return command.trim().replace(/\s+/g, " ");
 }
 
-function findForbiddenSyntax(command: string) {
+/** 需要 shell 解释执行的特性：管道、重定向、命令替换、命令链、后台执行、通配符等。 */
+function hasShellFeatures(command: string): boolean {
   let quote: "'" | '"' | null = null;
 
   for (let index = 0; index < command.length; index += 1) {
@@ -157,17 +159,17 @@ function findForbiddenSyntax(command: string) {
 
     if (
       char === "|" ||
-      char === ";" ||
       char === ">" ||
       char === "<" ||
+      char === ";" ||
       char === "&" ||
       char === "`"
     ) {
-      return "不支持管道、重定向、命令替换或后台执行等复杂 shell 特性。";
+      return true;
     }
 
     if (char === "$" && next === "(") {
-      return "不支持命令替换。";
+      return true;
     }
 
     if (
@@ -179,11 +181,11 @@ function findForbiddenSyntax(command: string) {
       char === "}" ||
       char === "~"
     ) {
-      return "不支持通配符或大括号扩展。";
+      return true;
     }
   }
 
-  return null;
+  return false;
 }
 
 export function tokenizeBashCommand(command: string): string[] {
@@ -298,16 +300,24 @@ function isAutoApprovedCommand(argv: string[]) {
   return READONLY_COMMANDS.has(executable);
 }
 
-function buildDeniedAssessment(command: string, reason: string): BashAssessment {
+function buildBaseAssessment(command: string): Omit<BashAssessment, "argv" | "usesShell"> {
   return {
     normalizedCommand: collapseWhitespace(command),
     riskLevel: "critical",
     decision: "deny",
-    reasons: [reason],
+    reasons: [],
     workdir: BASH_TOOL_WORKDIR_LABEL,
     timeoutMs: BASH_TOOL_TIMEOUT_MS,
     outputLimit: BASH_TOOL_OUTPUT_LIMIT,
+  };
+}
+
+function buildDeniedAssessment(command: string, reason: string): BashAssessment {
+  return {
+    ...buildBaseAssessment(command),
+    reasons: [reason],
     argv: [],
+    usesShell: false,
   };
 }
 
@@ -326,10 +336,7 @@ export function assessBashCommand(command: string): BashAssessment {
     return buildDeniedAssessment(command, "不支持换行、制表符或其他控制字符。");
   }
 
-  const forbiddenSyntaxReason = findForbiddenSyntax(command);
-  if (forbiddenSyntaxReason) {
-    return buildDeniedAssessment(command, forbiddenSyntaxReason);
-  }
+  const usesShell = hasShellFeatures(command);
 
   let argv: string[];
   try {
@@ -349,28 +356,20 @@ export function assessBashCommand(command: string): BashAssessment {
   const blockedReason = BLOCKED_COMMANDS.get(executable);
   if (blockedReason) {
     return {
-      normalizedCommand,
-      riskLevel: "critical",
-      decision: "deny",
+      ...buildBaseAssessment(command),
       reasons: [blockedReason],
-      workdir: BASH_TOOL_WORKDIR_LABEL,
-      timeoutMs: BASH_TOOL_TIMEOUT_MS,
-      outputLimit: BASH_TOOL_OUTPUT_LIMIT,
       argv,
+      usesShell: false,
     };
   }
 
   const gitDenyReason = findGitDenyReason(argv);
   if (gitDenyReason) {
     return {
-      normalizedCommand,
-      riskLevel: "critical",
-      decision: "deny",
+      ...buildBaseAssessment(command),
       reasons: [gitDenyReason],
-      workdir: BASH_TOOL_WORKDIR_LABEL,
-      timeoutMs: BASH_TOOL_TIMEOUT_MS,
-      outputLimit: BASH_TOOL_OUTPUT_LIMIT,
       argv,
+      usesShell: false,
     };
   }
 
@@ -383,38 +382,43 @@ export function assessBashCommand(command: string): BashAssessment {
   const highRiskReason = HIGH_RISK_COMMANDS.get(executable);
   if (highRiskReason) {
     return {
-      normalizedCommand,
+      ...buildBaseAssessment(command),
       riskLevel: "high",
       decision: "approval",
       reasons: [highRiskReason, ...executionConstraints],
-      workdir: BASH_TOOL_WORKDIR_LABEL,
-      timeoutMs: BASH_TOOL_TIMEOUT_MS,
-      outputLimit: BASH_TOOL_OUTPUT_LIMIT,
       argv,
+      usesShell,
+    };
+  }
+
+  if (usesShell) {
+    return {
+      ...buildBaseAssessment(command),
+      riskLevel: "medium",
+      decision: "approval",
+      reasons: ["命令包含管道、重定向、命令替换或通配符等 shell 特性，需用户批准后执行。", ...executionConstraints],
+      argv,
+      usesShell: true,
     };
   }
 
   if (isAutoApprovedCommand(argv)) {
     return {
-      normalizedCommand,
+      ...buildBaseAssessment(command),
       riskLevel: "low",
       decision: "auto",
       reasons: ["已识别为低风险只读命令，自动执行无需审批。", ...executionConstraints],
-      workdir: BASH_TOOL_WORKDIR_LABEL,
-      timeoutMs: BASH_TOOL_TIMEOUT_MS,
-      outputLimit: BASH_TOOL_OUTPUT_LIMIT,
       argv,
+      usesShell: false,
     };
   }
 
   return {
-    normalizedCommand,
+    ...buildBaseAssessment(command),
     riskLevel: "medium",
     decision: "approval",
     reasons: ["命令可能修改文件或系统状态，需用户批准后执行。", ...executionConstraints],
-    workdir: BASH_TOOL_WORKDIR_LABEL,
-    timeoutMs: BASH_TOOL_TIMEOUT_MS,
-    outputLimit: BASH_TOOL_OUTPUT_LIMIT,
     argv,
+    usesShell: false,
   };
 }
