@@ -24,6 +24,11 @@ export const builtInTools = [
     description: "执行受审批与风险判定约束的单条非交互命令。每次调用都必须先由用户明确允许。",
   },
   {
+    name: "AskUserQuestion",
+    description:
+      "在缺少关键信息时向用户弹出提问卡片，支持选项快选、自由输入或跳过，作答后 Agent 自动继续。",
+  },
+  {
     name: "WebSearch",
     description: "使用 Tavily 联网搜索最新网页信息，适合处理时效性或外部事实查询。",
   },

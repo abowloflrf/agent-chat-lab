@@ -8,6 +8,11 @@ import { useChat } from "@ai-sdk/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import {
+  ASK_USER_QUESTION_PART_TYPE,
+  ASK_USER_QUESTION_TOOL_NAME,
+  type AskUserQuestionOutput,
+} from "@/lib/ai/ask-user-question";
 import { ChatMessage } from "@/components/chat-message";
 import { ConversationList } from "@/components/conversation-list";
 import { ModuleSwitcher } from "@/components/module-switcher";
@@ -37,6 +42,46 @@ const MIN_TEXTAREA_ROWS = 1;
 const MAX_TEXTAREA_ROWS = 6;
 const STREAM_RECOVERY_IDLE_MS = 20000;
 const CHAT_INSTANCE_ID = "chat-shell";
+
+/**
+ * Auto-resend only when the last step contains an answered AskUserQuestion.
+ *
+ * Deliberately NOT the SDK's lastAssistantMessageIsCompleteWithToolCalls:
+ * sendAutomaticallyWhen is also evaluated after every normal stream finish,
+ * and that predicate returns true whenever the last step has only resolved
+ * tool calls — which is exactly the state when the agent hits the
+ * AGENT_MAX_STEPS cap, so it would auto-resend in an endless loop. Requiring
+ * an AskUserQuestion part narrows the trigger to the answer-then-continue
+ * flow.
+ */
+function lastAssistantMessageIsCompleteWithQuestionAnswers({
+  messages,
+}: {
+  messages: ChatUIMessage[];
+}) {
+  const message = messages[messages.length - 1];
+
+  if (!message || message.role !== "assistant") {
+    return false;
+  }
+
+  const lastStepStartIndex = message.parts.reduce(
+    (lastIndex, part, index) => (part.type === "step-start" ? index : lastIndex),
+    -1,
+  );
+  const lastStepToolParts = message.parts
+    .slice(lastStepStartIndex + 1)
+    .filter((part) => part.type === "dynamic-tool" || part.type.startsWith("tool-"));
+
+  return (
+    lastStepToolParts.some((part) => part.type === ASK_USER_QUESTION_PART_TYPE) &&
+    lastStepToolParts.every(
+      (part) =>
+        "state" in part &&
+        (part.state === "output-available" || part.state === "output-error"),
+    )
+  );
+}
 
 type ChatShellProps = {
   initialConversationId: string | null;
@@ -332,13 +377,16 @@ export function ChatShell({
     setMessages,
     clearError,
     addToolApprovalResponse,
+    addToolOutput,
   } =
     useChat<ChatUIMessage>({
       id: CHAT_INSTANCE_ID,
       messages: currentMessages,
       messageMetadataSchema: agentObservabilitySchema,
       transport,
-      sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+      sendAutomaticallyWhen: ({ messages }) =>
+        lastAssistantMessageIsCompleteWithApprovalResponses({ messages }) ||
+        lastAssistantMessageIsCompleteWithQuestionAnswers({ messages }),
     });
 
   useEffect(() => {
@@ -798,6 +846,22 @@ export function ChatShell({
     });
   }
 
+  async function handleQuestionAnswer(
+    toolCallId: string,
+    output: AskUserQuestionOutput,
+  ) {
+    if (isBusy) {
+      return;
+    }
+
+    clearError();
+    await addToolOutput({
+      tool: ASK_USER_QUESTION_TOOL_NAME,
+      toolCallId,
+      output,
+    });
+  }
+
   function handleNewConversation() {
     if (isCreatingConversation) {
       return;
@@ -1021,6 +1085,10 @@ export function ChatShell({
                         onToolApprovalResponse={(approvalId, approved) =>
                           handleToolApprovalResponse(approvalId, approved)
                         }
+                        onQuestionAnswer={(toolCallId, output) =>
+                          handleQuestionAnswer(toolCallId, output)
+                        }
+                        questionInteractionEnabled={isLastMessage && !isBusy}
                       />
                     </div>
                   );

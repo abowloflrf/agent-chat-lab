@@ -23,6 +23,7 @@ type HastElementLike = {
 type HastNodeLike = HastElementLike | HastTextLike | { type: string; value?: unknown; children?: unknown };
 import { AgentTimeline } from "@/components/agent-timeline";
 import { ToolCallCard } from "@/components/tool-call-card";
+import type { AskUserQuestionOutput } from "@/lib/ai/ask-user-question";
 import { formatMessageDateTime } from "@/lib/datetime";
 import { getMessageTimestamp, parseAgentObservability } from "@/lib/observability";
 
@@ -475,12 +476,19 @@ export const ChatMessage = memo(function ChatMessage({
   onRegenerate,
   canRegenerate = false,
   onToolApprovalResponse,
+  onQuestionAnswer,
+  questionInteractionEnabled = false,
   isStreaming = false,
 }: {
   message: UIMessage;
   onRegenerate?: () => void;
   canRegenerate?: boolean;
   onToolApprovalResponse?: (approvalId: string, approved: boolean) => Promise<void> | void;
+  onQuestionAnswer?: (
+    toolCallId: string,
+    output: AskUserQuestionOutput,
+  ) => Promise<void> | void;
+  questionInteractionEnabled?: boolean;
   isStreaming?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
@@ -698,6 +706,8 @@ export const ChatMessage = memo(function ChatMessage({
                     key={`${message.id}-tool-${index}`}
                     invocation={part}
                     onApprovalResponse={onToolApprovalResponse}
+                    onQuestionAnswer={onQuestionAnswer}
+                    questionInteractionEnabled={questionInteractionEnabled}
                   />
                 );
               }

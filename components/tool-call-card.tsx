@@ -3,10 +3,15 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  ASK_USER_QUESTION_TOOL_NAME,
+  type AskUserQuestionOutput,
+} from "@/lib/ai/ask-user-question";
+import {
   assessBashCommand,
   BASH_TOOL_OUTPUT_LIMIT,
   BASH_TOOL_TIMEOUT_MS,
 } from "@/lib/ai/bash-policy";
+import { AskUserQuestionPanel } from "@/components/ask-user-question-card";
 import {
   isTodoToolName,
   summarizeTodoInput,
@@ -101,6 +106,14 @@ function extractInputSummary(toolName: string, input: unknown): string | null {
   if (toolName === "Bash" && typeof record.command === "string") {
     const cmd = record.command.trim();
     return cmd.length > 80 ? cmd.slice(0, 77) + "..." : cmd;
+  }
+
+  if (
+    toolName === ASK_USER_QUESTION_TOOL_NAME &&
+    typeof record.question === "string"
+  ) {
+    const question = record.question.trim();
+    return question.length > 80 ? question.slice(0, 77) + "..." : question;
   }
 
   if (toolName === "WebSearch" && typeof record.query === "string") {
@@ -276,9 +289,16 @@ function ContentModal({
 export function ToolCallCard({
   invocation,
   onApprovalResponse,
+  onQuestionAnswer,
+  questionInteractionEnabled,
 }: {
   invocation: ToolInvocation;
   onApprovalResponse?: (approvalId: string, approved: boolean) => Promise<void> | void;
+  onQuestionAnswer?: (
+    toolCallId: string,
+    output: AskUserQuestionOutput,
+  ) => Promise<void> | void;
+  questionInteractionEnabled?: boolean;
 }) {
   const toolName = toToolName(invocation);
   const failed = invocation.state === "output-error";
@@ -286,7 +306,11 @@ export function ToolCallCard({
   const isApprovalRequested = invocation.state === "approval-requested";
   const isApprovalResponded = invocation.state === "approval-responded";
   const approvalId = invocation.approval?.id;
-  const needsAttention = isApprovalRequested && !!approvalId;
+  const isQuestionTool = toolName === ASK_USER_QUESTION_TOOL_NAME;
+  const isPendingQuestion = isQuestionTool && invocation.state === "input-available";
+  const needsAttention =
+    (isApprovalRequested && !!approvalId) ||
+    (isPendingQuestion && !!questionInteractionEnabled);
 
   const [userExpanded, setUserExpanded] = useState(false);
   const expanded = needsAttention || userExpanded;
@@ -374,7 +398,7 @@ export function ToolCallCard({
               status === "running" ? "tool-running-indicator" : ""
             }`}
           >
-            {stateLabel(invocation.state)}
+            {isPendingQuestion ? "等待回答" : stateLabel(invocation.state)}
           </span>
 
           {/* Chevron */}
@@ -502,6 +526,18 @@ export function ToolCallCard({
                     拒绝执行
                   </button>
                 </div>
+              ) : null}
+
+              {/* AskUserQuestion interactive panel / answered summary */}
+              {isQuestionTool ? (
+                <AskUserQuestionPanel
+                  input={invocation.input}
+                  output={invocation.output}
+                  state={invocation.state}
+                  toolCallId={invocation.toolCallId}
+                  interactive={isPendingQuestion && !!questionInteractionEnabled}
+                  onAnswer={onQuestionAnswer}
+                />
               ) : null}
 
               {/* Todo-specific formatted result */}

@@ -8,6 +8,10 @@ import {
 } from "ai";
 import { after } from "next/server";
 import { z } from "zod";
+import {
+  ASK_USER_QUESTION_PART_TYPE,
+  buildUnansweredOutput,
+} from "@/lib/ai/ask-user-question";
 import { getChatModel } from "@/lib/ai/model";
 import {
   buildMcpContextPrompt,
@@ -93,6 +97,44 @@ function autoRejectPendingApprovals(messages: ChatUIMessage[]): ChatUIMessage[] 
           approved: false as const,
           reason: "工具调用未经用户审批，已自动拒绝。",
         },
+      };
+    });
+
+    return changed ? { ...message, parts: nextParts } : message;
+  });
+}
+
+/**
+ * Resolve dangling AskUserQuestion calls left in "input-available" state.
+ *
+ * AskUserQuestion is a client-side tool (no execute): when the user answers
+ * the question card, the frontend patches the part to "output-available"
+ * before sending.  So any AskUserQuestion part that arrives here still in
+ * "input-available" means the user skipped the card and sent a new message
+ * directly — without a tool result, `convertToModelMessages` would fail the
+ * same way as dangling approvals.  Patch in an "unanswered" output that
+ * tells the model to follow the user's latest message instead.
+ */
+function resolveUnansweredQuestions(messages: ChatUIMessage[]): ChatUIMessage[] {
+  return messages.map((message) => {
+    if (message.role !== "assistant") {
+      return message;
+    }
+
+    let changed = false;
+    const nextParts = message.parts.map((part) => {
+      if (part.type !== ASK_USER_QUESTION_PART_TYPE) {
+        return part;
+      }
+      if (!("state" in part) || part.state !== "input-available") {
+        return part;
+      }
+
+      changed = true;
+      return {
+        ...part,
+        state: "output-available" as const,
+        output: buildUnansweredOutput(),
       };
     });
 
@@ -217,7 +259,9 @@ export async function POST(request: Request) {
   const mcpServers = getEnabledMcpServersFromSettings(settings);
   const agentTools = createAgentTools(providerConfig);
 
-  const sanitizedMessages = autoRejectPendingApprovals(parsed.data.messages);
+  const sanitizedMessages = resolveUnansweredQuestions(
+    autoRejectPendingApprovals(parsed.data.messages),
+  );
   const modelMessages = await convertToModelMessages(
     sanitizedMessages.map(stripMessageId),
     {
@@ -336,8 +380,10 @@ export async function POST(request: Request) {
     },
   });
 
+  // Use the sanitized history so onFinish persistence doesn't resurrect
+  // dangling approval-requested / input-available parts into the DB.
   const uiMessageStream = createUIMessageStream<ChatUIMessage>({
-    originalMessages: parsed.data.messages,
+    originalMessages: sanitizedMessages,
     execute: async ({ writer }) => {
       const innerStream = result.toUIMessageStream<ChatUIMessage>({
         messageMetadata: ({ part }) => {

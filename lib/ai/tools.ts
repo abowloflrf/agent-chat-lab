@@ -1,6 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
 import {
+  askUserQuestionInputSchema,
+  askUserQuestionOutputSchema,
+} from "@/lib/ai/ask-user-question";
+import {
   assessBashCommand,
   BASH_TOOL_MAX_COMMAND_LENGTH,
 } from "@/lib/ai/bash-policy";
@@ -239,6 +243,15 @@ function evaluateExpression(expression: string) {
 
 export function createAgentTools(config: ProviderConfig) {
   return {
+    // 客户端工具：无 execute，模型调用后流结束，由前端收集用户答案
+    // 通过 addToolOutput 回填，再自动发起下一轮请求。
+    AskUserQuestion: tool({
+      description:
+        'Ask the user one clarifying question and wait for their answer before continuing. Use it only when information essential to proceeding is missing AND no reasonable default assumption can be made. Never ask for facts you can obtain with other tools; do not ask frequently, and do not use it to confirm things you can reasonably infer. Prefer 2-4 mutually exclusive options; only mark a recommendation (first position, label suffixed with "(Recommended)") when you are reasonably confident in it — for genuinely open choices, mark none. Do not include catch-all options like "Other" — the UI provides free-form input automatically. Write the question and options in the user\'s conversation language. If the user skips, proceed with the recommended option, or make a reasonable assumption if none was marked.',
+      inputSchema: askUserQuestionInputSchema,
+      outputSchema: askUserQuestionOutputSchema,
+    }),
+
     calculator: tool({
       description: "计算基础数学表达式，仅支持 + - * / () 和小数。",
       inputSchema: z.object({
