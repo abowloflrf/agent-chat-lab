@@ -9,6 +9,19 @@
 - **持久化**：SQLite + Drizzle 保存会话、消息、笔记、TODO 和设置
 - **安全**：静态密码登录，proxy 层统一保护
 
+## 界面预览
+
+<table>
+  <tr>
+    <td width="65%"><img src="docs/screenshots/desktop.jpg" alt="桌面端聊天界面" /></td>
+    <td width="35%"><img src="docs/screenshots/mobile.jpg" alt="移动端聊天界面" /></td>
+  </tr>
+  <tr>
+    <td align="center">桌面端：会话列表、工具调用卡片、token 统计</td>
+    <td align="center">移动端：自适应窄屏布局</td>
+  </tr>
+</table>
+
 ## 快速开始
 
 ```bash
