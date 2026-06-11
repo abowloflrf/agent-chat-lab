@@ -1,7 +1,6 @@
 services:
   agent-chat-lab:
     image: ghcr.io/abowloflrf/agent-chat-lab:main
-    pull_policy: always
     container_name: agent-chat-lab
     network_mode: host
     env_file:
@@ -15,4 +14,5 @@ services:
       - NODE_ENV=production
       - PORT=${PORT:-3000}
       - BASH_TOOL_WORKDIR=/app/workspace
+      - TZ=Asia/Shanghai
     restart: unless-stopped
