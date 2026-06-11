@@ -27,10 +27,10 @@ import {
 import type { ProviderSettings } from "@/lib/provider-config";
 
 const starterPrompts = [
-  "现在几点了？",
-  "帮我计算 (18.5 + 7.2) * 3",
-  "记住一条笔记：标题是 Agent 学习目标，内容是先学会工具调用和状态管理",
-  "帮我回忆一下和 Agent 学习有关的笔记",
+  "查看 Hacker News 当前最热门的 5 篇内容，分别总结主题、热度和网友讨论重点",
+  "查一下当前国内外大模型 AI 公司有没有什么最新新闻，挑 3 条重要的总结",
+  "帮我规划一个周末两天的杭州轻旅行行程，要求少走路、预算适中",
+  "帮我创建 3 个待办：交水电费、预约体检、周五前整理报销材料",
 ];
 
 const MIN_TEXTAREA_ROWS = 1;
