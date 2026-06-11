@@ -356,7 +356,7 @@ export function createAgentTools(config: ProviderConfig) {
 
     Bash: tool({
       description:
-        "执行一条单段、非交互式 shell 命令。此工具每次都必须先获得用户批准，且高风险命令会被直接拒绝。",
+        "执行一条单段、非交互式 shell 命令。低风险只读命令会自动执行；可能修改状态的命令需用户批准；确定高危的命令会被直接拒绝。",
       inputSchema: z.object({
         command: z
           .string()
@@ -371,11 +371,8 @@ export function createAgentTools(config: ProviderConfig) {
           .optional()
           .describe("可选，说明为什么必须执行这条命令。"),
       }),
-      needsApproval: true,
+      needsApproval: (input) => assessBashCommand(input.command).decision === "approval",
       execute: async ({ command }) => executeBashCommand(command),
-      onInputAvailable: ({ input }) => {
-        assessBashCommand(input.command);
-      },
     }),
 
     WebSearch: tool({

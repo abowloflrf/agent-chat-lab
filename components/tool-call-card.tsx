@@ -392,14 +392,16 @@ export function ToolCallCard({
                       className={`rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] ${
                         bashAssessment.decision === "deny"
                           ? "bg-[#fee2e2] text-[#991b1b]"
-                          : bashAssessment.riskLevel === "low"
+                          : bashAssessment.decision === "auto"
                             ? "bg-[#e7f4e5] text-[#36643a]"
                             : "bg-[#fff1d6] text-[#9a5b05]"
                       }`}
                     >
                       {bashAssessment.decision === "deny"
-                        ? "高风险已拦截"
-                        : `风险 ${bashAssessment.riskLevel}`}
+                        ? "高危已拦截"
+                        : bashAssessment.decision === "auto"
+                          ? "自动执行 · 低风险"
+                          : `需审批 · 风险 ${bashAssessment.riskLevel}`}
                     </span>
                   </div>
 

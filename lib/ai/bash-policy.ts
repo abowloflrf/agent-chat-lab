@@ -4,7 +4,13 @@ export const BASH_TOOL_MAX_COMMAND_LENGTH = 400;
 export const BASH_TOOL_WORKDIR_LABEL = "服务端运行时工作目录";
 
 export type BashRiskLevel = "low" | "medium" | "high" | "critical";
-export type BashDecision = "allow" | "deny";
+
+/**
+ * auto：低风险只读命令，直接执行无需审批。
+ * approval：可能修改文件或系统状态，需用户人工批准。
+ * deny：确定高危或执行架构不支持，直接拒绝，批准也不会执行。
+ */
+export type BashDecision = "auto" | "approval" | "deny";
 
 export type BashAssessment = {
   normalizedCommand: string;
@@ -19,12 +25,12 @@ export type BashAssessment = {
 
 const CONTROL_CHARACTER_PATTERN = /[\r\n\t\0]/;
 
+// 确定高危：即使用户批准也不执行。
 const BLOCKED_COMMANDS = new Map<string, string>([
   ["rm", "禁止执行删除文件命令。"],
+  ["shred", "禁止执行文件擦除命令。"],
   ["sudo", "禁止请求提权执行命令。"],
   ["su", "禁止切换用户。"],
-  ["chmod", "禁止修改文件权限。"],
-  ["chown", "禁止修改文件归属。"],
   ["dd", "禁止执行底层磁盘写入命令。"],
   ["mkfs", "禁止执行文件系统格式化命令。"],
   ["mount", "禁止挂载文件系统。"],
@@ -32,32 +38,82 @@ const BLOCKED_COMMANDS = new Map<string, string>([
   ["shutdown", "禁止执行关机命令。"],
   ["reboot", "禁止执行重启命令。"],
   ["poweroff", "禁止执行电源控制命令。"],
-  ["kill", "禁止结束进程。"],
-  ["pkill", "禁止结束进程。"],
-  ["killall", "禁止结束进程。"],
+  ["halt", "禁止执行电源控制命令。"],
   ["init", "禁止切换系统运行级别。"],
-  ["systemctl", "禁止修改系统服务状态。"],
-  ["service", "禁止修改系统服务状态。"],
-  ["launchctl", "禁止修改系统服务状态。"],
   ["diskutil", "禁止执行磁盘管理命令。"],
   ["fdisk", "禁止执行磁盘分区命令。"],
   ["parted", "禁止执行磁盘分区命令。"],
-  ["bash", "禁止再启动 shell 解释器。"],
-  ["sh", "禁止再启动 shell 解释器。"],
-  ["zsh", "禁止再启动 shell 解释器。"],
-  ["fish", "禁止再启动 shell 解释器。"],
-  ["env", "禁止通过 env 注入环境后再执行命令。"],
-  ["python", "第一版禁止执行解释器脚本。"],
-  ["python3", "第一版禁止执行解释器脚本。"],
-  ["node", "第一版禁止执行解释器脚本。"],
-  ["ruby", "第一版禁止执行解释器脚本。"],
-  ["perl", "第一版禁止执行解释器脚本。"],
-  ["php", "第一版禁止执行解释器脚本。"],
-  ["npm", "第一版禁止执行可能修改依赖树的包管理命令。"],
-  ["pnpm", "第一版禁止执行可能修改依赖树的包管理命令。"],
-  ["yarn", "第一版禁止执行可能修改依赖树的包管理命令。"],
-  ["bun", "第一版禁止执行可能修改依赖树的包管理命令。"],
 ]);
+
+// 高风险：需用户人工批准后才执行。
+const HIGH_RISK_COMMANDS = new Map<string, string>([
+  ["chmod", "修改文件权限属于高风险操作。"],
+  ["chown", "修改文件归属属于高风险操作。"],
+  ["kill", "结束进程属于高风险操作。"],
+  ["pkill", "结束进程属于高风险操作。"],
+  ["killall", "结束进程属于高风险操作。"],
+  ["systemctl", "修改系统服务状态属于高风险操作。"],
+  ["service", "修改系统服务状态属于高风险操作。"],
+  ["launchctl", "修改系统服务状态属于高风险操作。"],
+  ["bash", "再启动 shell 可执行任意内嵌命令，绕过策略检查。"],
+  ["sh", "再启动 shell 可执行任意内嵌命令，绕过策略检查。"],
+  ["zsh", "再启动 shell 可执行任意内嵌命令，绕过策略检查。"],
+  ["fish", "再启动 shell 可执行任意内嵌命令，绕过策略检查。"],
+  ["env", "env 可注入环境后执行任意命令，绕过策略检查。"],
+  ["python", "解释器可执行任意脚本逻辑。"],
+  ["python3", "解释器可执行任意脚本逻辑。"],
+  ["node", "解释器可执行任意脚本逻辑。"],
+  ["ruby", "解释器可执行任意脚本逻辑。"],
+  ["perl", "解释器可执行任意脚本逻辑。"],
+  ["php", "解释器可执行任意脚本逻辑。"],
+]);
+
+// 低风险只读命令：自动执行无需审批。
+const READONLY_COMMANDS = new Set([
+  "pwd",
+  "ls",
+  "cat",
+  "head",
+  "tail",
+  "wc",
+  "grep",
+  "rg",
+  "which",
+  "date",
+  "uname",
+  "stat",
+  "echo",
+  "du",
+  "df",
+  "ps",
+  "whoami",
+  "hostname",
+  "id",
+  "file",
+  "tree",
+  "sort",
+  "uniq",
+  "cut",
+  "diff",
+  "basename",
+  "dirname",
+  "realpath",
+]);
+
+const GIT_READONLY_SUBCOMMANDS = new Set([
+  "status",
+  "log",
+  "diff",
+  "show",
+  "blame",
+  "shortlog",
+  "describe",
+  "rev-parse",
+  "ls-files",
+]);
+
+// find 带这些参数时会删除文件、执行命令或写文件，不能自动放行。
+const FIND_MUTATING_FLAGS = ["-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fls"];
 
 function collapseWhitespace(command: string) {
   return command.trim().replace(/\s+/g, " ");
@@ -107,11 +163,11 @@ function findForbiddenSyntax(command: string) {
       char === "&" ||
       char === "`"
     ) {
-      return "第一版不支持管道、重定向、命令替换或后台执行等复杂 shell 特性。";
+      return "不支持管道、重定向、命令替换或后台执行等复杂 shell 特性。";
     }
 
     if (char === "$" && next === "(") {
-      return "第一版不支持命令替换。";
+      return "不支持命令替换。";
     }
 
     if (
@@ -123,7 +179,7 @@ function findForbiddenSyntax(command: string) {
       char === "}" ||
       char === "~"
     ) {
-      return "第一版不支持通配符或大括号扩展。";
+      return "不支持通配符或大括号扩展。";
     }
   }
 
@@ -204,7 +260,7 @@ export function tokenizeBashCommand(command: string): string[] {
   return tokens;
 }
 
-function assessGitCommand(argv: string[]) {
+function findGitDenyReason(argv: string[]) {
   if (argv[0] !== "git") {
     return null;
   }
@@ -222,11 +278,24 @@ function assessGitCommand(argv: string[]) {
     return "禁止执行 git clean 强制清理。";
   }
 
-  if (subCommand === "checkout" && argv.some((arg) => arg === "--" || arg.startsWith("--"))) {
-    return "第一版禁止执行可能覆写工作区的 git checkout。";
+  return null;
+}
+
+function isAutoApprovedCommand(argv: string[]) {
+  const executable = argv[0]?.toLowerCase() ?? "";
+
+  if (executable === "git") {
+    const subCommand = argv[1]?.toLowerCase() ?? "";
+    return GIT_READONLY_SUBCOMMANDS.has(subCommand);
   }
 
-  return null;
+  if (executable === "find") {
+    return !argv.some((arg) =>
+      FIND_MUTATING_FLAGS.some((flag) => arg.toLowerCase().startsWith(flag)),
+    );
+  }
+
+  return READONLY_COMMANDS.has(executable);
 }
 
 function buildDeniedAssessment(command: string, reason: string): BashAssessment {
@@ -250,11 +319,11 @@ export function assessBashCommand(command: string): BashAssessment {
   }
 
   if (normalizedCommand.length > BASH_TOOL_MAX_COMMAND_LENGTH) {
-    return buildDeniedAssessment(command, "命令过长，已超过第一版限制。");
+    return buildDeniedAssessment(command, "命令过长，已超过长度限制。");
   }
 
   if (CONTROL_CHARACTER_PATTERN.test(command)) {
-    return buildDeniedAssessment(command, "第一版不支持换行、制表符或其他控制字符。");
+    return buildDeniedAssessment(command, "不支持换行、制表符或其他控制字符。");
   }
 
   const forbiddenSyntaxReason = findForbiddenSyntax(command);
@@ -291,13 +360,13 @@ export function assessBashCommand(command: string): BashAssessment {
     };
   }
 
-  const gitReason = assessGitCommand(argv);
-  if (gitReason) {
+  const gitDenyReason = findGitDenyReason(argv);
+  if (gitDenyReason) {
     return {
       normalizedCommand,
       riskLevel: "critical",
       decision: "deny",
-      reasons: [gitReason],
+      reasons: [gitDenyReason],
       workdir: BASH_TOOL_WORKDIR_LABEL,
       timeoutMs: BASH_TOOL_TIMEOUT_MS,
       outputLimit: BASH_TOOL_OUTPUT_LIMIT,
@@ -305,36 +374,44 @@ export function assessBashCommand(command: string): BashAssessment {
     };
   }
 
-  const reasons = [
+  const executionConstraints = [
     "命令将以非交互模式执行。",
     `执行目录固定为${BASH_TOOL_WORKDIR_LABEL}。`,
     "输出与执行时长都会受到限制。",
   ];
 
-  const readOnlyCommands = new Set([
-    "pwd",
-    "ls",
-    "cat",
-    "sed",
-    "head",
-    "tail",
-    "wc",
-    "find",
-    "rg",
-    "git",
-    "which",
-    "date",
-    "uname",
-    "stat",
-  ]);
+  const highRiskReason = HIGH_RISK_COMMANDS.get(executable);
+  if (highRiskReason) {
+    return {
+      normalizedCommand,
+      riskLevel: "high",
+      decision: "approval",
+      reasons: [highRiskReason, ...executionConstraints],
+      workdir: BASH_TOOL_WORKDIR_LABEL,
+      timeoutMs: BASH_TOOL_TIMEOUT_MS,
+      outputLimit: BASH_TOOL_OUTPUT_LIMIT,
+      argv,
+    };
+  }
 
-  const riskLevel: BashRiskLevel = readOnlyCommands.has(executable) ? "low" : "medium";
+  if (isAutoApprovedCommand(argv)) {
+    return {
+      normalizedCommand,
+      riskLevel: "low",
+      decision: "auto",
+      reasons: ["已识别为低风险只读命令，自动执行无需审批。", ...executionConstraints],
+      workdir: BASH_TOOL_WORKDIR_LABEL,
+      timeoutMs: BASH_TOOL_TIMEOUT_MS,
+      outputLimit: BASH_TOOL_OUTPUT_LIMIT,
+      argv,
+    };
+  }
 
   return {
     normalizedCommand,
-    riskLevel,
-    decision: "allow",
-    reasons,
+    riskLevel: "medium",
+    decision: "approval",
+    reasons: ["命令可能修改文件或系统状态，需用户批准后执行。", ...executionConstraints],
     workdir: BASH_TOOL_WORKDIR_LABEL,
     timeoutMs: BASH_TOOL_TIMEOUT_MS,
     outputLimit: BASH_TOOL_OUTPUT_LIMIT,
