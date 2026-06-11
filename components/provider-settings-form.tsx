@@ -22,6 +22,12 @@ type FetchModelsState =
   | { status: "success"; error: string | null }
   | { status: "error"; error: string };
 
+type McpTestState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; tools: Array<{ name: string; description: string }> }
+  | { status: "error"; error: string };
+
 type SettingsSection = "model" | "tools";
 
 function generateId() {
@@ -148,6 +154,7 @@ export function ProviderSettingsForm() {
   const [settings, setSettings] = useState<SystemSettings>(defaultSystemSettings);
   const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
   const [expandedMcpServerId, setExpandedMcpServerId] = useState<string | null>(null);
+  const [mcpTestStates, setMcpTestStates] = useState<Record<string, McpTestState>>({});
   const [fetchStates, setFetchStates] = useState<Record<string, FetchModelsState>>({});
   const [fetchedModels, setFetchedModels] = useState<Record<string, string[]>>({});
   const [addingModelForProvider, setAddingModelForProvider] = useState<string | null>(null);
@@ -404,6 +411,44 @@ export function ProviderSettingsForm() {
     }));
   }
 
+  function testMcpServerConnection(server: McpServer) {
+    if (!server.url.trim()) return;
+
+    setMcpTestStates((prev) => ({ ...prev, [server.id]: { status: "loading" } }));
+
+    fetch("/api/mcp-test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: server.name.trim() || undefined,
+        url: server.url.trim(),
+        headers: server.headers.filter((header) => header.key.trim()),
+      }),
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as {
+          tools?: Array<{ name: string; description: string }>;
+          error?: string;
+        };
+        if (!response.ok) {
+          throw new Error(payload.error || "连接失败。");
+        }
+        setMcpTestStates((prev) => ({
+          ...prev,
+          [server.id]: { status: "success", tools: payload.tools ?? [] },
+        }));
+      })
+      .catch((error) => {
+        setMcpTestStates((prev) => ({
+          ...prev,
+          [server.id]: {
+            status: "error",
+            error: error instanceof Error ? error.message : "连接失败。",
+          },
+        }));
+      });
+  }
+
   function addModelToProvider(providerId: string, modelId: string) {
     if (!modelId.trim()) return;
     setSettings((current) => ({
@@ -599,7 +644,7 @@ export function ProviderSettingsForm() {
                       activeSection === "tools" ? "text-[#fff7ef]" : "text-[#e2d7ca]"
                     }`}
                   >
-                    内置 Tools
+                    工具配置
                   </span>
                   <span className="text-xs">↗</span>
                 </button>
@@ -641,7 +686,7 @@ export function ProviderSettingsForm() {
                     : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
                 }`}
               >
-                Tools
+                工具
               </button>
             </div>
           </div>
@@ -1143,6 +1188,8 @@ export function ProviderSettingsForm() {
                       <div className="space-y-2">
                         {settings.mcpServers.map((server) => {
                           const isExpanded = expandedMcpServerId === server.id;
+                          const testState: McpTestState =
+                            mcpTestStates[server.id] ?? { status: "idle" };
                           return (
                             <div
                               key={server.id}
@@ -1289,6 +1336,60 @@ export function ProviderSettingsForm() {
                                         ))}
                                       </div>
                                     )}
+                                  </div>
+
+                                  <div>
+                                    <div className="mb-2 flex items-center justify-between">
+                                      <span className={labelClass}>连接测试</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => testMcpServerConnection(server)}
+                                        disabled={
+                                          !server.url.trim() || testState.status === "loading"
+                                        }
+                                        className="text-[11px] text-[#9c5626] transition hover:text-[#a44d16] disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        {testState.status === "loading" ? "测试中…" : "测试连接"}
+                                      </button>
+                                    </div>
+
+                                    {testState.status === "idle" && (
+                                      <p className="text-xs text-[#a39a90]">
+                                        使用当前填写的 URL 与 Headers 连接一次，并列出该 Server 提供的工具。
+                                      </p>
+                                    )}
+                                    {testState.status === "loading" && (
+                                      <p className="text-xs text-[#a39a90]">正在连接并发现工具…</p>
+                                    )}
+                                    {testState.status === "error" && (
+                                      <p className="text-xs text-red-500">{testState.error}</p>
+                                    )}
+                                    {testState.status === "success" &&
+                                      (testState.tools.length === 0 ? (
+                                        <p className="text-xs text-green-600">
+                                          连接成功，但该 Server 未提供任何工具。
+                                        </p>
+                                      ) : (
+                                        <div>
+                                          <p className="mb-2 text-xs text-green-600">
+                                            连接成功，发现 {testState.tools.length} 个工具。
+                                          </p>
+                                          <ul className="space-y-2 rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.5)] px-4 py-3">
+                                            {testState.tools.map((tool) => (
+                                              <li key={tool.name}>
+                                                <p className="font-mono text-xs text-[#241c15]">
+                                                  {tool.name}
+                                                </p>
+                                                {tool.description && (
+                                                  <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-[#8a8176]">
+                                                    {tool.description}
+                                                  </p>
+                                                )}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      ))}
                                   </div>
                                 </div>
                               )}

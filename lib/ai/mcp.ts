@@ -15,6 +15,11 @@ export type McpServerToolInfo = {
   toolNames: string[];
 };
 
+export type McpToolDescriptor = {
+  name: string;
+  description: string;
+};
+
 export type McpToolBundle = {
   tools: ToolSet;
   /** Successfully connected servers and the tools each contributed. */
@@ -22,7 +27,7 @@ export type McpToolBundle = {
   close: () => Promise<void>;
 };
 
-function headersToRecord(server: McpServer): Record<string, string> | undefined {
+function headersToRecord(server: Pick<McpServer, "headers">): Record<string, string> | undefined {
   const entries = server.headers.filter((header) => header.key);
 
   if (entries.length === 0) {
@@ -57,6 +62,44 @@ function withTimeout<T>(
       },
     );
   });
+}
+
+/**
+ * Connect to a single MCP server, list its tools, and disconnect.
+ *
+ * Unlike `connectMcpServers`, failures are thrown instead of swallowed so the
+ * settings UI can show the user exactly why a server is unreachable.
+ */
+export async function testMcpServer(
+  server: Pick<McpServer, "name" | "url" | "headers">,
+): Promise<McpToolDescriptor[]> {
+  let client: MCPClient | undefined;
+
+  try {
+    client = await withTimeout(
+      createMCPClient({
+        transport: {
+          type: "http",
+          url: server.url,
+          headers: headersToRecord(server),
+        },
+      }),
+      MCP_CONNECT_TIMEOUT_MS,
+      server.name,
+      (lateClient) => {
+        void lateClient.close().catch(() => {});
+      },
+    );
+
+    const tools = await withTimeout(client.tools(), MCP_CONNECT_TIMEOUT_MS, server.name);
+
+    return Object.entries(tools).map(([name, tool]) => ({
+      name,
+      description: tool.description ?? "",
+    }));
+  } finally {
+    void client?.close().catch(() => {});
+  }
 }
 
 /**

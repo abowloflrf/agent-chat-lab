@@ -27,7 +27,7 @@
 - [ ] 新建对话时支持首条消息配置“纯对话模式”：关闭后续整个会话的 tool 调用，默认关闭该选项
 - [ ] 完善异常处理
 - [ ] 为高风险工具补充更细粒度的风险规则与测试
-- [ ] MCP 扩展：支持 stdio / SSE transport、工具级启用开关与连接状态测试（当前仅 Streamable HTTP + server 级开关）
+- [ ] MCP 扩展：支持 stdio / SSE transport 与工具级启用开关（当前仅 Streamable HTTP + server 级开关）
 - [ ] MCP 工具按服务器名加前缀，消除跨服务器同名工具的覆盖顺序不确定问题
 - [ ] 为 MCP 工具增加调用审批开关（对齐内置 Bash 的 `needsApproval` 机制）
 - [ ] MCP 连接复用/缓存（当前每次请求重新握手并拉取工具列表，拖慢首 token）
