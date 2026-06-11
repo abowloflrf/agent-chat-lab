@@ -100,11 +100,11 @@ export function TodoDrawer({
         aria-modal="true"
         aria-label={mode === "create" ? "新建待办" : "编辑待办"}
         inert={!open}
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#fffaf4] shadow-[-24px_0_60px_-30px_rgba(23,23,23,0.35)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[min(640px,92vw)] sm:border-l sm:border-[rgba(23,23,23,0.08)] ${
+        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#fffaf4] shadow-[-24px_0_60px_-30px_rgba(23,23,23,0.35)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[min(800px,92vw)] lg:w-[min(960px,88vw)] sm:border-l sm:border-[rgba(23,23,23,0.08)] ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between gap-2 border-b border-[rgba(23,23,23,0.08)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6">
+        <div className="flex items-center justify-between gap-2 border-b border-[rgba(23,23,23,0.08)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
             {mode === "edit" ? (
               <button
@@ -144,7 +144,7 @@ export function TodoDrawer({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 lg:px-8">
           <input
             ref={titleInputRef}
             value={draft.title}
@@ -166,7 +166,7 @@ export function TodoDrawer({
           </div>
         </div>
 
-        <div className="border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.94)] px-4 py-2.5 backdrop-blur sm:px-6">
+        <div className="border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.94)] px-4 py-2.5 backdrop-blur sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-3">
             <p className="min-w-0 truncate text-xs text-[#908679]">
               {updatedAtLabel ?? "新建待办"}
