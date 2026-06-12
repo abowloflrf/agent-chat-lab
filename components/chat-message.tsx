@@ -393,7 +393,7 @@ function CodeBlock({
     <div className={styles.codeFrame}>
       <div className={styles.codeHeader}>
         <span className={styles.codeLabel}>
-          {language ?? "code"}
+          {language && language !== "text" ? language : "code"}
         </span>
         <div className="flex items-center gap-2 text-[10px] text-[#8c7767]">
           <button
@@ -465,7 +465,13 @@ function CodeBlock({
         </div>
       </div>
       <pre className={`${styles.pre} ${wrapped ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
-        {children}
+        {language ? (
+          children
+        ) : (
+          // 无语言的 <code> 不带 language-* class，code 覆写会把它误判为
+          // 行内代码（深色贴字背景），这里直接按块级样式渲染原始文本
+          <code className={styles.codeInPre}>{code.replace(/\n$/, "")}</code>
+        )}
       </pre>
     </div>
   );
@@ -503,6 +509,7 @@ export const ChatMessage = memo(function ChatMessage({
         {
           theme: SHIKI_THEME,
           addLanguageClass: true,
+          defaultLanguage: "text",
         },
       ]);
     }
