@@ -37,6 +37,22 @@ export function formatCompactTokens(tokenCount: number | null): string {
   return `${(tokenCount / 1_000_000).toFixed(1)}M`;
 }
 
+export function formatDataSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
 export function formatDurationMs(durationMs: number): string {
   if (durationMs < 1000) {
     return `${durationMs} ms`;

@@ -582,6 +582,7 @@ export type ConversationStat = {
   cacheHitRate: number | null;
   contextTokens: number | null;
   lastModelId: string | null;
+  dataBytes: number;
   hasUsage: boolean;
 };
 
@@ -597,6 +598,7 @@ type RawConversationStat = {
   total_tokens: number;
   context_tokens: number | null;
   last_model_id: string | null;
+  data_bytes: number;
   has_usage: number;
 };
 
@@ -616,6 +618,7 @@ export async function listConversationStats(): Promise<ConversationStat[]> {
       COALESCE(u.total_tokens, 0) AS total_tokens,
       u.context_tokens AS context_tokens,
       l.model_id AS last_model_id,
+      COALESCE(m.data_bytes, 0) AS data_bytes,
       CASE WHEN u.conversation_id IS NULL THEN 0 ELSE 1 END AS has_usage
     FROM conversations c
     LEFT JOIN (
@@ -630,9 +633,14 @@ export async function listConversationStats(): Promise<ConversationStat[]> {
       GROUP BY conversation_id
     ) u ON u.conversation_id = c.id
     LEFT JOIN (
-      SELECT conversation_id, COUNT(*) AS user_turns
+      SELECT
+        conversation_id,
+        SUM(CASE WHEN role = 'user' THEN 1 ELSE 0 END) AS user_turns,
+        SUM(
+          LENGTH(CAST(parts_json AS BLOB))
+          + LENGTH(CAST(COALESCE(metadata_json, '') AS BLOB))
+        ) AS data_bytes
       FROM messages
-      WHERE role = 'user'
       GROUP BY conversation_id
     ) m ON m.conversation_id = c.id
     LEFT JOIN (
@@ -660,6 +668,7 @@ export async function listConversationStats(): Promise<ConversationStat[]> {
       cacheHitRate: inputTokens > 0 ? cachedInputTokens / inputTokens : null,
       contextTokens: row.context_tokens === null ? null : Number(row.context_tokens),
       lastModelId: row.last_model_id,
+      dataBytes: Number(row.data_bytes) || 0,
       hasUsage: Number(row.has_usage) === 1,
     };
   });

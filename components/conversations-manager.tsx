@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConversationStat } from "@/lib/persistence";
 import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
 import { formatFullDateTime } from "@/lib/datetime";
-import { formatCacheHitRate, formatCompactTokens } from "@/lib/format";
+import { formatCacheHitRate, formatCompactTokens, formatDataSize } from "@/lib/format";
 import { formatRelativeTime } from "@/lib/todo-ui";
 
 type LoadState = "loading" | "error" | "ready";
@@ -297,7 +297,7 @@ export function ConversationsManager() {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-[13px]">
+          <table className="w-full min-w-[840px] border-collapse text-[13px]">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-[0.1em] text-[#a0937f]">
                 <th className="w-9 px-2 py-2">
@@ -317,6 +317,7 @@ export function ConversationsManager() {
                 <th className="px-2 py-2 text-right font-medium">轮次</th>
                 <th className="px-2 py-2 font-medium">模型</th>
                 <th className="px-2 py-2 text-right font-medium">上下文</th>
+                <th className="px-2 py-2 text-right font-medium">数据量</th>
                 <th className="w-10 px-2 py-2" />
               </tr>
             </thead>
@@ -403,6 +404,9 @@ export function ConversationsManager() {
                     </td>
                     <td className="px-2 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
                       {row.contextTokens === null ? DASH : formatCompactTokens(row.contextTokens)}
+                    </td>
+                    <td className="px-2 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
+                      {formatDataSize(row.dataBytes)}
                     </td>
                     <td className="relative px-2 py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
                       {/* 确认态下保留占位以免列宽/行高跳动，确认按钮以浮层覆盖。 */}
