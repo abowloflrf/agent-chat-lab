@@ -8,7 +8,7 @@
 - 系统设置四个子菜单改为独立 URL（`/settings/model`、`/settings/tools`、`/settings/stats`、`/settings/conversations`），`/settings` 重定向到模型配置，支持直接深链与浏览器前进/后退
 
 ### 用量统计 + 会话管理
-- 系统设置新增「用量统计」「会话管理」两个子 tab：前者含汇总卡片、按天 Token 趋势图（Recharts，支持 7/30/90 天切换）、模型用量明细与性能洞察；后者为高密度会话列表，支持标题搜索与单条/批量删除。数据由新表 `usage_records`（每 step 一行，含历史回填）聚合而来
+- 系统设置新增「用量统计」「会话管理」两个子 tab：前者含汇总卡片、按天 Token 趋势图（Recharts，支持 7/30/90 天切换）、模型用量明细与性能洞察；后者为高密度会话列表，支持标题搜索与单条/批量删除（行内两段式确认），命中率列带红→绿色阶与迷你进度条。数据由新表 `usage_records`（每 step 一行，含历史回填）聚合而来
 
 ### CI/CD
 - Docker 镜像发布改为 `linux/amd64`、`linux/arm64` 原生 runner 分平台并行构建并合并 manifest，同时停止生成短 SHA 标签
