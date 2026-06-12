@@ -65,7 +65,7 @@ export function ModelSelector({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-2.5 py-1.5 text-[12px] text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[#6c6156] transition hover:bg-[rgba(23,23,23,0.05)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className="max-w-[180px] truncate font-mono text-[11px]">
           {displayLabel}
@@ -87,7 +87,7 @@ export function ModelSelector({
       </button>
 
       {open ? (
-        <div className="absolute bottom-full left-0 z-50 mb-2 min-w-[240px] max-w-[320px] overflow-hidden rounded-lg border border-[rgba(23,23,23,0.1)] bg-white shadow-lg shadow-black/8">
+        <div className="menu-appear absolute bottom-full left-0 z-50 mb-2 min-w-[240px] max-w-[320px] overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white shadow-lg shadow-black/8">
           <div className="max-h-[280px] overflow-y-auto py-1">
             {groups.map((group) => (
               <div key={group.providerId}>

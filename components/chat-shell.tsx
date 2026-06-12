@@ -1154,9 +1154,9 @@ export function ChatShell({
               </div>
             ) : null}
 
-            <form onSubmit={handleSubmit} className="space-y-2 lg:space-y-4">
-              <div className="flex items-start gap-2">
-                <label className="block min-w-0 flex-1">
+            <form onSubmit={handleSubmit}>
+              <div className="rounded-2xl border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] shadow-[0_1px_2px_rgba(23,23,23,0.04)] transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-[rgba(201,106,43,0.45)] focus-within:bg-white focus-within:shadow-[0_4px_18px_rgba(201,106,43,0.1)]">
+                <label className="block">
                   <span className="sr-only">输入消息</span>
                   <textarea
                     ref={textareaRef}
@@ -1165,42 +1165,48 @@ export function ChatShell({
                     onKeyDown={handleKeyDown}
                     placeholder="输入消息..."
                     rows={MIN_TEXTAREA_ROWS}
-                    className="w-full resize-none rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-3 py-2 text-[15px] leading-7 text-[#171717] outline-none transition placeholder:text-[#9f968b] focus:border-[rgba(201,106,43,0.45)] focus:bg-white lg:px-4 lg:py-2.5"
+                    className="w-full resize-none bg-transparent px-3.5 pb-1.5 pt-3 text-[15px] leading-7 text-[#171717] outline-none placeholder:text-[#9f968b] lg:px-4"
                     style={{
-                      minHeight: `calc(${MIN_TEXTAREA_ROWS}lh + 1rem)`,
-                      maxHeight: `calc(${MAX_TEXTAREA_ROWS}lh + 1rem)`,
+                      minHeight: `calc(${MIN_TEXTAREA_ROWS}lh + 1.125rem)`,
+                      maxHeight: `calc(${MAX_TEXTAREA_ROWS}lh + 1.125rem)`,
                     }}
                   />
                 </label>
-                {isBusy ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleStop()}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition hover:bg-[#9c5626] animate-[pulse-ring_2s_ease-in-out_infinite]"
-                  >
-                    <svg className="animate-[square-breathe_2s_ease-in-out_infinite]" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5" /></svg>
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    disabled={draft.trim().length === 0}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
-                  </button>
-                )}
-              </div>
 
-              <div className="flex items-center gap-3">
-                <ModelSelector
-                  providers={providers}
-                  selected={selectedModel}
-                  onSelect={setSelectedModel}
-                  disabled={isBusy}
-                />
-                <span className="hidden text-[11px] text-[#9f968b] sm:inline">
-                  Enter 发送 · Shift+Enter 换行
-                </span>
+                <div className="flex items-center justify-between gap-2 px-2 pb-2 lg:px-2.5 lg:pb-2.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <ModelSelector
+                      providers={providers}
+                      selected={selectedModel}
+                      onSelect={setSelectedModel}
+                      disabled={isBusy}
+                    />
+                    <span className="hidden truncate text-[11px] text-[#b0a496] sm:inline">
+                      Enter 发送 · Shift+Enter 换行
+                    </span>
+                  </div>
+                  {isBusy ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleStop()}
+                      title="停止生成"
+                      aria-label="停止生成"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition hover:bg-[#9c5626] animate-[pulse-ring_2s_ease-in-out_infinite]"
+                    >
+                      <svg className="animate-[square-breathe_2s_ease-in-out_infinite]" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5" /></svg>
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={draft.trim().length === 0}
+                      title="发送消息"
+                      aria-label="发送消息"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition-colors duration-200 hover:bg-[#9c5626] disabled:cursor-not-allowed disabled:bg-[rgba(23,23,23,0.07)] disabled:text-[#b3a797]"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 13V3M4 7l4-4 4 4" /></svg>
+                    </button>
+                  )}
+                </div>
               </div>
             </form>
           </div>
