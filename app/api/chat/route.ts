@@ -352,7 +352,7 @@ export async function POST(request: Request) {
         finishedAt,
         durationMs: Math.max(0, finishedAt - startedAt),
         finishReason: step.finishReason,
-        provider: step.model.provider,
+        provider: providerConfig.providerName || step.model.provider,
         modelId: step.model.modelId,
         text: step.text,
         toolCalls: step.toolCalls.map((toolCall) => ({

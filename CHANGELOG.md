@@ -4,6 +4,9 @@
 
 ## 2026-06-12
 
+### 用量记录供应商字段修复
+- 用量记录的 `provider` 改为记录设置中的供应商名称（此前误存 AI SDK 协议标识如 `openai.chat`），用量明细与 agent 时间线随之显示真实供应商；历史数据保留旧值
+
 ### 设置页子菜单可路由
 - 系统设置四个子菜单改为独立 URL（`/settings/model`、`/settings/tools`、`/settings/stats`、`/settings/conversations`），`/settings` 重定向到模型配置，支持直接深链与浏览器前进/后退
 

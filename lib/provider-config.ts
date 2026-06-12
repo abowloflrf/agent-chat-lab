@@ -93,6 +93,7 @@ export const systemSettingsInputSchema = z.object({
 });
 
 export const providerConfigSchema = z.object({
+  providerName: z.string().trim().default(""),
   baseUrl: z.string().trim().default("https://api.openai.com/v1"),
   apiKey: z.string().trim().default(""),
   model: z.string().trim().default(""),
@@ -116,6 +117,7 @@ export type SystemSettings = z.infer<typeof systemSettingsSchema>;
 export type ProviderConfig = z.infer<typeof providerConfigSchema>;
 
 export const defaultProviderConfig: ProviderConfig = {
+  providerName: "OpenAI Compatible",
   baseUrl: "https://api.openai.com/v1",
   apiKey: "",
   model: "",
@@ -157,6 +159,7 @@ export function normalizeMcpServer(input: McpServer): McpServer {
 
 export function normalizeProviderConfig(config: ProviderConfig): ProviderConfig {
   return {
+    providerName: config.providerName.trim() || defaultProviderConfig.providerName,
     baseUrl: (config.baseUrl || defaultProviderConfig.baseUrl).trim().replace(/\/+$/, ""),
     apiKey: config.apiKey.trim(),
     model: config.model.trim(),

@@ -20,6 +20,7 @@ import {
 const SETTINGS_ROW_ID = 1;
 
 const envProviderConfig: ProviderConfig = normalizeProviderConfig({
+  providerName: defaultProviderSettings.name,
   baseUrl: process.env.OPENAI_BASE_URL ?? defaultProviderConfig.baseUrl,
   apiKey: process.env.OPENAI_API_KEY ?? "",
   model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
@@ -107,6 +108,7 @@ function buildProviderConfigFromSettings(
   modelId: string,
 ): ProviderConfig {
   return normalizeProviderConfig({
+    providerName: provider.name || envProviderConfig.providerName,
     baseUrl: provider.baseUrl || envProviderConfig.baseUrl,
     apiKey: provider.apiKey || envProviderConfig.apiKey,
     model: modelId || envProviderConfig.model,
@@ -344,6 +346,7 @@ export function resolveProviderConfig(input: unknown): ProviderConfig {
   }
 
   return normalizeProviderConfig({
+    providerName: envProviderConfig.providerName,
     baseUrl: parsed.data.baseUrl || envProviderConfig.baseUrl,
     apiKey: parsed.data.apiKey || envProviderConfig.apiKey,
     model: parsed.data.model || envProviderConfig.model,
