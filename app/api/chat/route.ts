@@ -142,6 +142,88 @@ function resolveUnansweredQuestions(messages: ChatUIMessage[]): ChatUIMessage[] 
   });
 }
 
+/**
+ * Settle tool calls interrupted mid-execution (e.g. the stream died while a
+ * server tool was running, then the client recovered and sent a new message).
+ *
+ * Such parts arrive as `input-streaming` / `input-available` with no output —
+ * or as `approval-responded` with no output when the run died after the user
+ * approved but before the tool finished.  `convertToModelMessages` emits a
+ * tool-call for these but never a matching tool-result, so the provider
+ * rejects the request.  Drop parts whose input never finished streaming, and
+ * patch complete-but-unexecuted calls to an error/denied result.
+ *
+ * `approval-responded` is only settled in non-final assistant messages: a
+ * trailing assistant message with approval-responded parts is exactly the
+ * legitimate approval-continuation request, which streamText must execute.
+ *
+ * Must run AFTER `resolveUnansweredQuestions` so pending AskUserQuestion
+ * parts have already been given their "unanswered" output.
+ */
+function settleInterruptedToolCalls(messages: ChatUIMessage[]): ChatUIMessage[] {
+  const lastIndex = messages.length - 1;
+
+  return messages.map((message, messageIndex) => {
+    if (message.role !== "assistant") {
+      return message;
+    }
+
+    const isLastMessage = messageIndex === lastIndex;
+    let changed = false;
+    const nextParts = message.parts.flatMap((part) => {
+      const isToolPart =
+        part.type === "dynamic-tool" || part.type.startsWith("tool-");
+
+      if (!isToolPart || !("state" in part)) {
+        return [part];
+      }
+
+      if (part.state === "input-streaming") {
+        changed = true;
+        return [];
+      }
+
+      if (part.state === "input-available") {
+        changed = true;
+        return [
+          {
+            ...part,
+            state: "output-error",
+            errorText: "执行被中断，未返回结果。",
+          } as ChatUIMessage["parts"][number],
+        ];
+      }
+
+      if (
+        part.state === "approval-responded" &&
+        !isLastMessage &&
+        !("output" in part && part.output !== undefined)
+      ) {
+        changed = true;
+        const approval = (part as { approval?: { approved?: boolean } }).approval;
+
+        if (approval?.approved === false) {
+          return [
+            { ...part, state: "output-denied" } as ChatUIMessage["parts"][number],
+          ];
+        }
+
+        return [
+          {
+            ...part,
+            state: "output-error",
+            errorText: "已批准但执行被中断，未返回结果。",
+          } as ChatUIMessage["parts"][number],
+        ];
+      }
+
+      return [part];
+    });
+
+    return changed ? { ...message, parts: nextParts } : message;
+  });
+}
+
 function toNonNegativeInt(value: number | undefined) {
   return value === undefined ? 0 : Math.max(0, Math.round(value));
 }
@@ -259,13 +341,16 @@ export async function POST(request: Request) {
   const mcpServers = getEnabledMcpServersFromSettings(settings);
   const agentTools = createAgentTools(providerConfig);
 
-  const sanitizedMessages = resolveUnansweredQuestions(
-    autoRejectPendingApprovals(parsed.data.messages),
+  const sanitizedMessages = settleInterruptedToolCalls(
+    resolveUnansweredQuestions(autoRejectPendingApprovals(parsed.data.messages)),
   );
   const modelMessages = await convertToModelMessages(
     sanitizedMessages.map(stripMessageId),
     {
       tools: agentTools,
+      // 防御性兜底：上面的 sanitize 链应已消化所有未完成的工具调用，
+      // 万一漏掉也不要把悬空 tool-call 发给 provider。
+      ignoreIncompleteToolCalls: true,
     },
   );
 

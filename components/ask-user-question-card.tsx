@@ -40,7 +40,7 @@ export function AskUserQuestionPanel({
 
     if (parsedOutput.outcome === "selected_option") {
       return (
-        <div className="mb-4 rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#36643a]">
+        <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#36643a]">
           ✓ 已选择：{parsedOutput.answer}
         </div>
       );
@@ -48,14 +48,14 @@ export function AskUserQuestionPanel({
 
     if (parsedOutput.outcome === "free_text") {
       return (
-        <div className="mb-4 rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#36643a]">
+        <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#36643a]">
           ✓ 已回答：{parsedOutput.answer}
         </div>
       );
     }
 
     return (
-      <div className="mb-4 rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#8e8070]">
+      <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#8e8070]">
         {parsedOutput.outcome === "skipped"
           ? "用户跳过了此问题"
           : "未作答（用户已另行回复）"}
@@ -75,19 +75,25 @@ export function AskUserQuestionPanel({
 
   if (!interactive) {
     return (
-      <div className="mb-4 rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#8e8070]">
+      <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#8e8070]">
         此提问已失效（未作答）
       </div>
     );
   }
 
-  const submit = (answer: AskUserQuestionOutput) => {
+  const submit = async (answer: AskUserQuestionOutput) => {
     if (submitting) {
       return;
     }
 
     setSubmitting(true);
-    void onAnswer?.(toolCallId, answer);
+    try {
+      await onAnswer?.(toolCallId, answer);
+    } finally {
+      // 正常路径下回答已写入、面板切换为已答分支；这里复位是为了
+      // onAnswer 提前返回或失败时按钮不至于永久禁用。
+      setSubmitting(false);
+    }
   };
 
   // 退化输入（无选项且禁用自由输入）时强制显示输入框，避免只剩跳过的死局。
@@ -95,7 +101,7 @@ export function AskUserQuestionPanel({
   const canSubmitFreeText = freeText.trim().length > 0 && !submitting;
 
   return (
-    <div className="mb-4 rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 p-3.5">
+    <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 p-3.5">
       <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
         需要你确认
       </p>
@@ -105,12 +111,12 @@ export function AskUserQuestionPanel({
 
       {parsedInput.options.length > 0 ? (
         <div className="mt-3 space-y-2">
-          {parsedInput.options.map((option) => (
+          {parsedInput.options.map((option, index) => (
             <button
-              key={option.label}
+              key={`${index}-${option.label}`}
               type="button"
               disabled={submitting}
-              onClick={() => submit(buildSelectedOptionOutput(option.label))}
+              onClick={() => void submit(buildSelectedOptionOutput(option.label))}
               className="block w-full rounded-[10px] border border-[rgba(23,23,23,0.14)] px-3.5 py-2.5 text-left transition hover:border-[rgba(201,106,43,0.35)] hover:bg-[rgba(255,248,241,0.9)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <span className="block text-[13px] leading-5 text-[#282019]">
@@ -140,7 +146,7 @@ export function AskUserQuestionPanel({
                 !event.nativeEvent.isComposing &&
                 canSubmitFreeText
               ) {
-                submit(buildFreeTextOutput(freeText.trim()));
+                void submit(buildFreeTextOutput(freeText.trim()));
               }
             }}
             placeholder="输入你的回答…"
@@ -149,7 +155,7 @@ export function AskUserQuestionPanel({
           <button
             type="button"
             disabled={!canSubmitFreeText}
-            onClick={() => submit(buildFreeTextOutput(freeText.trim()))}
+            onClick={() => void submit(buildFreeTextOutput(freeText.trim()))}
             className="flex-shrink-0 rounded-full bg-[#171717] px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:bg-[#b8afa6]"
           >
             回复
@@ -161,8 +167,8 @@ export function AskUserQuestionPanel({
         <button
           type="button"
           disabled={submitting}
-          onClick={() => submit(buildSkippedOutput())}
-          className="rounded-full border border-[rgba(23,23,23,0.14)] px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => void submit(buildSkippedOutput())}
+          className="rounded-full border border-[rgba(23,23,23,0.14)] px-4 py-2 text-[11px] font-medium text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
         >
           跳过，让助手自行判断
         </button>

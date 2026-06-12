@@ -22,7 +22,7 @@ type HastElementLike = {
 };
 type HastNodeLike = HastElementLike | HastTextLike | { type: string; value?: unknown; children?: unknown };
 import { AgentTimeline } from "@/components/agent-timeline";
-import { ToolCallCard } from "@/components/tool-call-card";
+import { ToolCallGroup } from "@/components/tool-call-card";
 import type { AskUserQuestionOutput } from "@/lib/ai/ask-user-question";
 import { formatMessageDateTime } from "@/lib/datetime";
 import { formatTokenCount } from "@/lib/format";
@@ -213,6 +213,49 @@ type ToolLikePart = ToolUIPart | DynamicToolUIPart;
 
 function isToolPart(part: UIMessage["parts"][number]): part is ToolLikePart {
   return part.type === "dynamic-tool" || part.type.startsWith("tool-");
+}
+
+type TextPart = Extract<UIMessage["parts"][number], { type: "text" }>;
+type ReasoningPart = Extract<UIMessage["parts"][number], { type: "reasoning" }>;
+
+type RenderBlock =
+  | { kind: "text"; part: TextPart; index: number }
+  | { kind: "reasoning"; part: ReasoningPart; index: number }
+  | { kind: "tools"; parts: ToolLikePart[]; key: string };
+
+/**
+ * 把 parts 折叠成渲染块：相邻的工具调用聚合成一个分组。
+ * step-start / source-* 等不渲染的 part 视为透明，不打断工具分组，
+ * 这样跨 step 的连续调用也能合并进同一个容器。
+ */
+function buildRenderBlocks(parts: UIMessage["parts"]): RenderBlock[] {
+  const blocks: RenderBlock[] = [];
+
+  parts.forEach((part, index) => {
+    if (part.type === "text") {
+      if (part.text.trim() !== "") {
+        blocks.push({ kind: "text", part, index });
+      }
+      return;
+    }
+
+    if (part.type === "reasoning") {
+      blocks.push({ kind: "reasoning", part, index });
+      return;
+    }
+
+    if (isToolPart(part)) {
+      const last = blocks[blocks.length - 1];
+
+      if (last && last.kind === "tools") {
+        last.parts.push(part);
+      } else {
+        blocks.push({ kind: "tools", parts: [part], key: part.toolCallId });
+      }
+    }
+  });
+
+  return blocks;
 }
 
 function isSvgContent(language: string | null, code: string): boolean {
@@ -484,7 +527,7 @@ export const ChatMessage = memo(function ChatMessage({
   isStreaming = false,
 }: {
   message: UIMessage;
-  onRegenerate?: () => void;
+  onRegenerate?: (messageId: string) => void;
   canRegenerate?: boolean;
   onToolApprovalResponse?: (approvalId: string, approved: boolean) => Promise<void> | void;
   onQuestionAnswer?: (
@@ -564,13 +607,12 @@ export const ChatMessage = memo(function ChatMessage({
         </div>
 
         <div className="space-y-3">
-          {message.parts
-            .filter((part) => !(part.type === "text" && part.text.trim() === ""))
-            .map((part, index) => {
-              if (part.type === "text") {
+          {buildRenderBlocks(message.parts).map((block) => {
+              if (block.kind === "text") {
+                const part = block.part;
                 return (
                   <div
-                    key={`${message.id}-text-${index}`}
+                    key={`${message.id}-text-${block.index}`}
                     className={`${
                       isUser ? "w-fit max-w-full" : ""
                     } rounded-[16px] px-4 py-3 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 ${
@@ -684,14 +726,11 @@ export const ChatMessage = memo(function ChatMessage({
                 );
               }
 
-              if (part.type === "source-url" || part.type === "source-document") {
-                return null;
-              }
-
-              if (part.type === "reasoning") {
+              if (block.kind === "reasoning") {
+                const part = block.part;
                 return (
                   <details
-                    key={`${message.id}-reasoning-${index}`}
+                    key={`${message.id}-reasoning-${block.index}`}
                     className="rounded-[16px] border border-[rgba(201,106,43,0.18)] bg-[rgba(255,241,229,0.72)] px-4 py-3 text-sm text-[#4c3829]"
                   >
                     <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-[0.22em] text-[#a44d16]">
@@ -704,19 +743,15 @@ export const ChatMessage = memo(function ChatMessage({
                 );
               }
 
-              if (isToolPart(part)) {
-                return (
-                  <ToolCallCard
-                    key={`${message.id}-tool-${index}`}
-                    invocation={part}
-                    onApprovalResponse={onToolApprovalResponse}
-                    onQuestionAnswer={onQuestionAnswer}
-                    questionInteractionEnabled={questionInteractionEnabled}
-                  />
-                );
-              }
-
-              return null;
+              return (
+                <ToolCallGroup
+                  key={`${message.id}-tools-${block.key}`}
+                  parts={block.parts}
+                  onApprovalResponse={onToolApprovalResponse}
+                  onQuestionAnswer={onQuestionAnswer}
+                  interactionEnabled={questionInteractionEnabled}
+                />
+              );
             })}
         </div>
 
@@ -817,7 +852,7 @@ export const ChatMessage = memo(function ChatMessage({
               {!isUser && canRegenerate ? (
                 <button
                   type="button"
-                  onClick={onRegenerate}
+                  onClick={() => onRegenerate?.(message.id)}
                   aria-label="从这条回复重新生成"
                   title="从这条回复重新生成"
                   className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#8f8172] transition hover:text-[#9c5626]"
@@ -843,7 +878,7 @@ export const ChatMessage = memo(function ChatMessage({
         ) : null}
 
         {!isUser && observability ? (
-          <div className="mt-3">
+          <div className="mt-2">
             <AgentTimeline observability={observability} />
           </div>
         ) : null}

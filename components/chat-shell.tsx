@@ -490,6 +490,18 @@ export function ChatShell({
 
   const isBusy = status === "submitted" || status === "streaming";
   const prevIsBusyRef = useRef(isBusy);
+  // 供稳定回调读取最新值，避免把 messages / isBusy 写进依赖导致
+  // 每个流式 chunk 都生成新回调、击穿 ChatMessage 的 memo。
+  const isBusyRef = useRef(isBusy);
+  const messagesRef = useRef(messages);
+
+  useEffect(() => {
+    isBusyRef.current = isBusy;
+  }, [isBusy]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     const wasBusy = prevIsBusyRef.current;
@@ -594,6 +606,35 @@ export function ChatShell({
       window.clearTimeout(timeoutId);
     };
   }, [clearError, isBusy, messages, setMessages, status, stop]);
+  /**
+   * 把当前内存中的消息按"流已死"整理一遍：补结束 metadata、settle 悬空
+   * 工具 part。用于用户主动停止、流错误与发送新消息前——否则被打断的
+   * 工具行会一直显示假"运行中"，直到刷新页面。
+   */
+  const recoverDeadStream = useCallback(() => {
+    const recovered = normalizeRecoveredMessages(messagesRef.current);
+    setCurrentMessages(recovered);
+    setMessages(recovered);
+    setInterruptedRunDetected(
+      (prev) =>
+        prev || recovered.some((message) => isInterruptedMessage(message.metadata)),
+    );
+  }, [setMessages]);
+
+  const handleStop = useCallback(async () => {
+    await stop();
+    // 等 SDK 把中止后的最终消息状态刷进 React，再做整理。
+    window.setTimeout(recoverDeadStream, 0);
+  }, [recoverDeadStream, stop]);
+
+  useEffect(() => {
+    if (status !== "error") {
+      return;
+    }
+
+    recoverDeadStream();
+  }, [recoverDeadStream, status]);
+
   const latestUserMessageText = findLastUserMessageText(messages);
   const canReplayLatestTurn = !isBusy && latestUserMessageText.length > 0;
   const userMessageCount = messages.filter(
@@ -703,6 +744,9 @@ export function ChatShell({
     }
 
     clearError();
+    // 先把内存里可能残留的悬空工具 part 整理成与服务端 settle 一致的
+    // 终态，避免发送后旧消息还显示假"运行中"徽标。
+    recoverDeadStream();
     setConversationCreationError(null);
     setInterruptedRunDetected(false);
     scrollToBottom();
@@ -742,43 +786,49 @@ export function ChatShell({
     await sendMessage({ text: prompt });
   }
 
-  async function handleRegenerateFromMessage(messageId: string) {
-    if (isBusy) {
-      return;
-    }
+  const handleRegenerateFromMessage = useCallback(
+    async (messageId: string) => {
+      if (isBusyRef.current) {
+        return;
+      }
 
-    const assistantIndex = messages.findIndex((message) => message.id === messageId);
+      const messagesSnapshot = messagesRef.current;
+      const assistantIndex = messagesSnapshot.findIndex(
+        (message) => message.id === messageId,
+      );
 
-    if (assistantIndex <= 0) {
-      return;
-    }
+      if (assistantIndex <= 0) {
+        return;
+      }
 
-    const userIndex = [...messages]
-      .slice(0, assistantIndex)
-      .map((message, index) => ({ message, index }))
-      .reverse()
-      .find(({ message }) => message.role === "user")?.index;
+      const userIndex = [...messagesSnapshot]
+        .slice(0, assistantIndex)
+        .map((message, index) => ({ message, index }))
+        .reverse()
+        .find(({ message }) => message.role === "user")?.index;
 
-    if (userIndex === undefined) {
-      return;
-    }
+      if (userIndex === undefined) {
+        return;
+      }
 
-    const userText = extractMessageText(messages[userIndex]);
+      const userText = extractMessageText(messagesSnapshot[userIndex]);
 
-    if (!userText) {
-      return;
-    }
+      if (!userText) {
+        return;
+      }
 
-    const nextMessages = messages.slice(0, userIndex);
-    flushSync(() => {
-      setCurrentMessages(nextMessages);
-      setMessages(nextMessages);
-    });
-    clearError();
-    setConversationCreationError(null);
-    setInterruptedRunDetected(false);
-    await sendMessage({ text: userText });
-  }
+      const nextMessages = messagesSnapshot.slice(0, userIndex);
+      flushSync(() => {
+        setCurrentMessages(nextMessages);
+        setMessages(nextMessages);
+      });
+      clearError();
+      setConversationCreationError(null);
+      setInterruptedRunDetected(false);
+      await sendMessage({ text: userText });
+    },
+    [clearError, sendMessage, setMessages],
+  );
 
   async function handleReplayLatestTurn() {
     if (!latestUserMessageText || isBusy) {
@@ -805,34 +855,37 @@ export function ChatShell({
     await sendMessage({ text: latestUserMessageText });
   }
 
-  async function handleToolApprovalResponse(approvalId: string, approved: boolean) {
-    if (isBusy) {
-      return;
-    }
+  const handleToolApprovalResponse = useCallback(
+    async (approvalId: string, approved: boolean) => {
+      if (isBusyRef.current) {
+        return;
+      }
 
-    clearError();
-    await addToolApprovalResponse({
-      id: approvalId,
-      approved,
-      reason: approved ? "用户已允许执行此命令。" : "用户拒绝执行此命令。",
-    });
-  }
+      clearError();
+      await addToolApprovalResponse({
+        id: approvalId,
+        approved,
+        reason: approved ? "用户已允许执行此命令。" : "用户拒绝执行此命令。",
+      });
+    },
+    [addToolApprovalResponse, clearError],
+  );
 
-  async function handleQuestionAnswer(
-    toolCallId: string,
-    output: AskUserQuestionOutput,
-  ) {
-    if (isBusy) {
-      return;
-    }
+  const handleQuestionAnswer = useCallback(
+    async (toolCallId: string, output: AskUserQuestionOutput) => {
+      if (isBusyRef.current) {
+        return;
+      }
 
-    clearError();
-    await addToolOutput({
-      tool: ASK_USER_QUESTION_TOOL_NAME,
-      toolCallId,
-      output,
-    });
-  }
+      clearError();
+      await addToolOutput({
+        tool: ASK_USER_QUESTION_TOOL_NAME,
+        toolCallId,
+        output,
+      });
+    },
+    [addToolOutput, clearError],
+  );
 
   function handleNewConversation() {
     if (isCreatingConversation) {
@@ -1053,13 +1106,9 @@ export function ChatShell({
                         message={message}
                         canRegenerate={message.role === "assistant"}
                         isStreaming={isStreamingMessage}
-                        onRegenerate={() => void handleRegenerateFromMessage(message.id)}
-                        onToolApprovalResponse={(approvalId, approved) =>
-                          handleToolApprovalResponse(approvalId, approved)
-                        }
-                        onQuestionAnswer={(toolCallId, output) =>
-                          handleQuestionAnswer(toolCallId, output)
-                        }
+                        onRegenerate={handleRegenerateFromMessage}
+                        onToolApprovalResponse={handleToolApprovalResponse}
+                        onQuestionAnswer={handleQuestionAnswer}
                         questionInteractionEnabled={isLastMessage && !isBusy}
                       />
                     </div>
@@ -1091,8 +1140,17 @@ export function ChatShell({
             ) : null}
 
             {error ? (
-              <div className="mb-2 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818] lg:mb-3 lg:px-4 lg:py-3">
-                {error.message}
+              <div className="mb-2 flex items-center justify-between gap-2 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818] lg:mb-3 lg:gap-3 lg:px-4 lg:py-3">
+                <span className="min-w-0 break-words">{error.message}</span>
+                <button
+                  type="button"
+                  onClick={() => void handleReplayLatestTurn()}
+                  disabled={!canReplayLatestTurn}
+                  title="丢弃本轮已产生的回复与工具结果，从最后一条消息重新生成"
+                  className="shrink-0 rounded-full border border-[#d89a86] px-3 py-1.5 text-xs font-medium text-[#9a3818] transition hover:border-[#b86b36] hover:text-[#7f2f12] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  重试上一轮
+                </button>
               </div>
             ) : null}
 
@@ -1117,7 +1175,7 @@ export function ChatShell({
                 {isBusy ? (
                   <button
                     type="button"
-                    onClick={() => void stop()}
+                    onClick={() => void handleStop()}
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition hover:bg-[#9c5626] animate-[pulse-ring_2s_ease-in-out_infinite]"
                   >
                     <svg className="animate-[square-breathe_2s_ease-in-out_infinite]" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5" /></svg>

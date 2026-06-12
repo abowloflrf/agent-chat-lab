@@ -235,14 +235,14 @@ export function TodoToolPanel({
 
     if (!parsed.success) {
       return (
-        <div className="mb-4 rounded-[12px] border border-[rgba(153,27,27,0.15)] bg-[#fee2e2] px-3.5 py-2.5 text-[12px] leading-5 text-[#991b1b]">
+        <div className="rounded-[12px] border border-[rgba(153,27,27,0.15)] bg-[#fee2e2] px-3.5 py-2.5 text-[12px] leading-5 text-[#991b1b]">
           {todoWriteVerbs[parsed.action] ?? parsed.action}失败：{parsed.error}
         </div>
       );
     }
 
     return (
-      <div className="mb-4 rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 p-3.5">
+      <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 p-3.5">
         <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
           {todoWriteResultLabels[parsed.action] ?? parsed.action}
         </p>
@@ -262,7 +262,7 @@ export function TodoToolPanel({
   const filterLabel = readFilterLabel(parsed.status);
 
   return (
-    <div className="mb-4 rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 p-3.5">
+    <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 p-3.5">
       <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
         共 {parsed.totalMatches} 项
         {parsed.query ? ` · 关键词 "${parsed.query}"` : ""}
