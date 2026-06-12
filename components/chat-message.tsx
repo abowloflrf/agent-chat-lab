@@ -25,6 +25,7 @@ import { AgentTimeline } from "@/components/agent-timeline";
 import { ToolCallCard } from "@/components/tool-call-card";
 import type { AskUserQuestionOutput } from "@/lib/ai/ask-user-question";
 import { formatMessageDateTime } from "@/lib/datetime";
+import { formatTokenCount } from "@/lib/format";
 import { getMessageTimestamp, parseAgentObservability } from "@/lib/observability";
 
 const markdownTextStyles = {
@@ -147,10 +148,6 @@ function formatRate(value: number) {
   }
 
   return value >= 100 ? value.toFixed(0) : value.toFixed(1);
-}
-
-function formatTokenCount(value: number) {
-  return new Intl.NumberFormat("zh-CN").format(value);
 }
 
 function getAssistantStats(observability: ReturnType<typeof parseAgentObservability>) {

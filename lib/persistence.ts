@@ -1,10 +1,19 @@
 import "server-only";
 
-import { and, asc, desc, eq, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, notInArray, sql } from "drizzle-orm";
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
 import { db, ensureDatabase } from "@/lib/db/client";
-import { conversations, messages, notes, todos, toolCalls } from "@/lib/db/schema";
+import {
+  conversations,
+  messages,
+  notes,
+  todos,
+  toolCalls,
+  usageRecords,
+} from "@/lib/db/schema";
 import type { ChatUIMessage } from "@/lib/observability";
+import { buildConversationUsageRecords } from "@/lib/usage-records";
+import { toDayKey } from "@/lib/datetime";
 import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import type { ProviderConfig } from "@/lib/provider-config";
@@ -327,29 +336,35 @@ function saveConversationSnapshot(
 
     const persistedToolCalls = extractToolInvocations(chatMessages);
 
-    if (persistedToolCalls.length === 0) {
-      return;
+    if (persistedToolCalls.length > 0) {
+      tx.insert(toolCalls)
+        .values(
+          persistedToolCalls.map((toolCall, position) => ({
+            conversationId,
+            messageId: toolCall.messageId,
+            toolCallId: toolCall.toolCallId,
+            toolName: toolCall.toolName,
+            state: toolCall.state,
+            inputJson:
+              toolCall.input === undefined ? null : JSON.stringify(toolCall.input),
+            outputJson:
+              toolCall.output === undefined ? null : JSON.stringify(toolCall.output),
+            errorText: toolCall.errorText ?? null,
+            position,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        )
+        .run();
     }
 
-    tx.insert(toolCalls)
-      .values(
-        persistedToolCalls.map((toolCall, position) => ({
-          conversationId,
-          messageId: toolCall.messageId,
-          toolCallId: toolCall.toolCallId,
-          toolName: toolCall.toolName,
-          state: toolCall.state,
-          inputJson:
-            toolCall.input === undefined ? null : JSON.stringify(toolCall.input),
-          outputJson:
-            toolCall.output === undefined ? null : JSON.stringify(toolCall.output),
-          errorText: toolCall.errorText ?? null,
-          position,
-          createdAt: now,
-          updatedAt: now,
-        })),
-      )
-      .run();
+    tx.delete(usageRecords).where(eq(usageRecords.conversationId, conversationId)).run();
+
+    const usageRows = buildConversationUsageRecords(conversationId, chatMessagesWithIds);
+
+    if (usageRows.length > 0) {
+      tx.insert(usageRecords).values(usageRows).run();
+    }
   });
 }
 
@@ -420,6 +435,253 @@ export async function getBuiltInToolUsageCounts(): Promise<Record<string, number
   return Object.fromEntries(
     rows.map((row) => [row.toolName, Number(row.count) || 0]),
   );
+}
+
+export type UsageOverview = {
+  totalConversations: number;
+  totalTokens: number;
+  totalToolCalls: number;
+  totalDurationMs: number;
+  totalSteps: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+};
+
+export async function getUsageOverview(): Promise<UsageOverview> {
+  await ensureDatabase();
+
+  const totals = db
+    .select({
+      totalSteps: sql<number>`count(*)`,
+      totalTokens: sql<number>`coalesce(sum(${usageRecords.totalTokens}), 0)`,
+      inputTokens: sql<number>`coalesce(sum(${usageRecords.inputTokens}), 0)`,
+      outputTokens: sql<number>`coalesce(sum(${usageRecords.outputTokens}), 0)`,
+      cachedInputTokens: sql<number>`coalesce(sum(${usageRecords.cachedInputTokens}), 0)`,
+      totalToolCalls: sql<number>`coalesce(sum(${usageRecords.toolCallCount}), 0)`,
+      totalDurationMs: sql<number>`coalesce(sum(${usageRecords.durationMs}), 0)`,
+    })
+    .from(usageRecords)
+    .all()[0];
+
+  const conversationCount = db
+    .select({ count: sql<number>`count(*)` })
+    .from(conversations)
+    .all()[0];
+
+  return {
+    totalConversations: Number(conversationCount?.count ?? 0),
+    totalTokens: Number(totals?.totalTokens ?? 0),
+    totalToolCalls: Number(totals?.totalToolCalls ?? 0),
+    totalDurationMs: Number(totals?.totalDurationMs ?? 0),
+    totalSteps: Number(totals?.totalSteps ?? 0),
+    inputTokens: Number(totals?.inputTokens ?? 0),
+    outputTokens: Number(totals?.outputTokens ?? 0),
+    cachedInputTokens: Number(totals?.cachedInputTokens ?? 0),
+  };
+}
+
+export type ModelUsage = {
+  provider: string;
+  modelId: string;
+  steps: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cachedInputTokens: number;
+  toolCalls: number;
+  avgDurationMs: number;
+  totalDurationMs: number;
+};
+
+export async function getModelUsage(): Promise<ModelUsage[]> {
+  await ensureDatabase();
+
+  const rows = db
+    .select({
+      provider: usageRecords.provider,
+      modelId: usageRecords.modelId,
+      steps: sql<number>`count(*)`,
+      inputTokens: sql<number>`coalesce(sum(${usageRecords.inputTokens}), 0)`,
+      outputTokens: sql<number>`coalesce(sum(${usageRecords.outputTokens}), 0)`,
+      totalTokens: sql<number>`coalesce(sum(${usageRecords.totalTokens}), 0)`,
+      cachedInputTokens: sql<number>`coalesce(sum(${usageRecords.cachedInputTokens}), 0)`,
+      toolCalls: sql<number>`coalesce(sum(${usageRecords.toolCallCount}), 0)`,
+      avgDurationMs: sql<number>`coalesce(avg(${usageRecords.durationMs}), 0)`,
+      totalDurationMs: sql<number>`coalesce(sum(${usageRecords.durationMs}), 0)`,
+    })
+    .from(usageRecords)
+    .groupBy(usageRecords.provider, usageRecords.modelId)
+    .orderBy(desc(sql`sum(${usageRecords.totalTokens})`))
+    .all();
+
+  return rows.map((row) => ({
+    provider: row.provider,
+    modelId: row.modelId,
+    steps: Number(row.steps) || 0,
+    inputTokens: Number(row.inputTokens) || 0,
+    outputTokens: Number(row.outputTokens) || 0,
+    totalTokens: Number(row.totalTokens) || 0,
+    cachedInputTokens: Number(row.cachedInputTokens) || 0,
+    toolCalls: Number(row.toolCalls) || 0,
+    avgDurationMs: Number(row.avgDurationMs) || 0,
+    totalDurationMs: Number(row.totalDurationMs) || 0,
+  }));
+}
+
+export type UsageTrendRow = {
+  dayKey: number;
+  modelId: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  toolCalls: number;
+};
+
+export async function getUsageTrends(days: number): Promise<UsageTrendRow[]> {
+  await ensureDatabase();
+
+  const normalizedDays = Math.min(Math.max(days, 1), 365);
+  const since = toDayKey(Date.now() - (normalizedDays - 1) * 86_400_000);
+
+  const rows = db
+    .select({
+      dayKey: usageRecords.dayKey,
+      modelId: usageRecords.modelId,
+      inputTokens: sql<number>`coalesce(sum(${usageRecords.inputTokens}), 0)`,
+      outputTokens: sql<number>`coalesce(sum(${usageRecords.outputTokens}), 0)`,
+      totalTokens: sql<number>`coalesce(sum(${usageRecords.totalTokens}), 0)`,
+      toolCalls: sql<number>`coalesce(sum(${usageRecords.toolCallCount}), 0)`,
+    })
+    .from(usageRecords)
+    .where(gte(usageRecords.dayKey, since))
+    .groupBy(usageRecords.dayKey, usageRecords.modelId)
+    .orderBy(asc(usageRecords.dayKey))
+    .all();
+
+  return rows.map((row) => ({
+    dayKey: Number(row.dayKey),
+    modelId: row.modelId,
+    inputTokens: Number(row.inputTokens) || 0,
+    outputTokens: Number(row.outputTokens) || 0,
+    totalTokens: Number(row.totalTokens) || 0,
+    toolCalls: Number(row.toolCalls) || 0,
+  }));
+}
+
+export type ConversationStat = {
+  id: string;
+  title: string | null;
+  createdAt: string;
+  lastMessageAt: string;
+  userTurns: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+  cacheHitRate: number | null;
+  contextTokens: number | null;
+  lastModelId: string | null;
+  hasUsage: boolean;
+};
+
+type RawConversationStat = {
+  id: string;
+  title: string | null;
+  created_at: number;
+  last_message_at: number;
+  user_turns: number;
+  input_tokens: number;
+  output_tokens: number;
+  cached_input_tokens: number;
+  total_tokens: number;
+  context_tokens: number | null;
+  last_model_id: string | null;
+  has_usage: number;
+};
+
+export async function listConversationStats(): Promise<ConversationStat[]> {
+  await ensureDatabase();
+
+  const rows = db.all(sql`
+    SELECT
+      c.id AS id,
+      c.title AS title,
+      c.created_at AS created_at,
+      c.last_message_at AS last_message_at,
+      COALESCE(m.user_turns, 0) AS user_turns,
+      COALESCE(u.input_tokens, 0) AS input_tokens,
+      COALESCE(u.output_tokens, 0) AS output_tokens,
+      COALESCE(u.cached_input_tokens, 0) AS cached_input_tokens,
+      COALESCE(u.total_tokens, 0) AS total_tokens,
+      u.context_tokens AS context_tokens,
+      l.model_id AS last_model_id,
+      CASE WHEN u.conversation_id IS NULL THEN 0 ELSE 1 END AS has_usage
+    FROM conversations c
+    LEFT JOIN (
+      SELECT
+        conversation_id,
+        SUM(input_tokens) AS input_tokens,
+        SUM(output_tokens) AS output_tokens,
+        SUM(cached_input_tokens) AS cached_input_tokens,
+        SUM(total_tokens) AS total_tokens,
+        MAX(input_tokens) AS context_tokens
+      FROM usage_records
+      GROUP BY conversation_id
+    ) u ON u.conversation_id = c.id
+    LEFT JOIN (
+      SELECT conversation_id, COUNT(*) AS user_turns
+      FROM messages
+      WHERE role = 'user'
+      GROUP BY conversation_id
+    ) m ON m.conversation_id = c.id
+    LEFT JOIN (
+      SELECT conversation_id, model_id
+      FROM usage_records
+      WHERE id IN (SELECT MAX(id) FROM usage_records GROUP BY conversation_id)
+    ) l ON l.conversation_id = c.id
+    ORDER BY c.last_message_at DESC
+  `) as RawConversationStat[];
+
+  return rows.map((row) => {
+    const inputTokens = Number(row.input_tokens) || 0;
+    const cachedInputTokens = Number(row.cached_input_tokens) || 0;
+
+    return {
+      id: row.id,
+      title: row.title,
+      createdAt: toIsoString(row.created_at),
+      lastMessageAt: toIsoString(row.last_message_at),
+      userTurns: Number(row.user_turns) || 0,
+      inputTokens,
+      outputTokens: Number(row.output_tokens) || 0,
+      cachedInputTokens,
+      totalTokens: Number(row.total_tokens) || 0,
+      cacheHitRate: inputTokens > 0 ? cachedInputTokens / inputTokens : null,
+      contextTokens: row.context_tokens === null ? null : Number(row.context_tokens),
+      lastModelId: row.last_model_id,
+      hasUsage: Number(row.has_usage) === 1,
+    };
+  });
+}
+
+export async function batchDeleteConversations(ids: string[]): Promise<number> {
+  await ensureDatabase();
+
+  if (ids.length === 0) {
+    return 0;
+  }
+
+  let deleted = 0;
+
+  db.transaction((tx) => {
+    tx.delete(usageRecords).where(inArray(usageRecords.conversationId, ids)).run();
+    tx.delete(toolCalls).where(inArray(toolCalls.conversationId, ids)).run();
+    tx.delete(messages).where(inArray(messages.conversationId, ids)).run();
+    deleted = tx.delete(conversations).where(inArray(conversations.id, ids)).run().changes;
+  });
+
+  return deleted;
 }
 
 export async function getConversation(conversationId: string): Promise<ChatSnapshot | null> {

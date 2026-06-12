@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { AgentObservability } from "@/lib/observability";
 import { formatClockTime } from "@/lib/datetime";
+import { formatTokenCount } from "@/lib/format";
 
 function formatDuration(durationMs: number) {
   if (durationMs < 1000) {
@@ -23,10 +24,6 @@ function formatPreview(text: string) {
   return normalized.length > 180
     ? `${normalized.slice(0, 180).trimEnd()}...`
     : normalized;
-}
-
-function formatTokenCount(value: number) {
-  return new Intl.NumberFormat("zh-CN").format(value);
 }
 
 type AgentTimelineProps = {

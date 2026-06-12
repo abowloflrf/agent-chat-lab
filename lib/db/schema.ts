@@ -60,6 +60,38 @@ export const toolCalls = sqliteTable(
   ],
 );
 
+export const usageRecords = sqliteTable(
+  "usage_records",
+  {
+    id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    stepNumber: integer("step_number", { mode: "number" }).notNull(),
+    provider: text("provider").notNull(),
+    modelId: text("model_id").notNull(),
+    finishReason: text("finish_reason").notNull(),
+    inputTokens: integer("input_tokens", { mode: "number" }).notNull(),
+    outputTokens: integer("output_tokens", { mode: "number" }).notNull(),
+    totalTokens: integer("total_tokens", { mode: "number" }).notNull(),
+    reasoningTokens: integer("reasoning_tokens", { mode: "number" }).notNull(),
+    cachedInputTokens: integer("cached_input_tokens", { mode: "number" }).notNull(),
+    durationMs: integer("duration_ms", { mode: "number" }).notNull(),
+    toolCallCount: integer("tool_call_count", { mode: "number" }).notNull(),
+    startedAt: integer("started_at", { mode: "number" }).notNull(),
+    finishedAt: integer("finished_at", { mode: "number" }).notNull(),
+    dayKey: integer("day_key", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    index("usage_records_day_model_idx").on(table.dayKey, table.modelId),
+    index("usage_records_conversation_idx").on(table.conversationId),
+    index("usage_records_model_idx").on(table.modelId),
+  ],
+);
+
 export const notes = sqliteTable(
   "notes",
   {

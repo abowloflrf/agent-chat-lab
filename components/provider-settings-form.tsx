@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { builtInTools } from "@/lib/built-in-tools";
 import { ModuleSwitcher } from "@/components/module-switcher";
+import { StatsDashboard } from "@/components/stats-dashboard";
+import { ConversationsManager } from "@/components/conversations-manager";
 import {
   defaultProviderSettings,
   defaultSystemSettings,
@@ -28,7 +30,7 @@ type McpTestState =
   | { status: "success"; tools: Array<{ name: string; description: string }> }
   | { status: "error"; error: string };
 
-type SettingsSection = "model" | "tools";
+type SettingsSection = "model" | "tools" | "stats" | "conversations";
 
 function generateId() {
   return crypto.randomUUID
@@ -648,6 +650,44 @@ export function ProviderSettingsForm() {
                   </span>
                   <span className="text-xs">↗</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveSection("stats")}
+                  className={`flex w-full cursor-pointer items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
+                    activeSection === "stats"
+                      ? "border-white/16 bg-white/10 text-[#fff7ef]"
+                      : "border-transparent text-[#cabfb2] hover:border-white/10 hover:bg-white/6 hover:text-[#fff7ef]"
+                  }`}
+                >
+                  <span
+                    className={`text-sm font-medium ${
+                      activeSection === "stats" ? "text-[#fff7ef]" : "text-[#e2d7ca]"
+                    }`}
+                  >
+                    用量统计
+                  </span>
+                  <span className="text-xs">↗</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveSection("conversations")}
+                  className={`flex w-full cursor-pointer items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
+                    activeSection === "conversations"
+                      ? "border-white/16 bg-white/10 text-[#fff7ef]"
+                      : "border-transparent text-[#cabfb2] hover:border-white/10 hover:bg-white/6 hover:text-[#fff7ef]"
+                  }`}
+                >
+                  <span
+                    className={`text-sm font-medium ${
+                      activeSection === "conversations" ? "text-[#fff7ef]" : "text-[#e2d7ca]"
+                    }`}
+                  >
+                    会话管理
+                  </span>
+                  <span className="text-xs">↗</span>
+                </button>
               </div>
             </div>
           </div>
@@ -688,6 +728,28 @@ export function ProviderSettingsForm() {
               >
                 工具
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection("stats")}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  activeSection === "stats"
+                    ? "bg-[#171717] text-white"
+                    : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
+                }`}
+              >
+                用量
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection("conversations")}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  activeSection === "conversations"
+                    ? "bg-[#171717] text-white"
+                    : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
+                }`}
+              >
+                会话
+              </button>
             </div>
           </div>
 
@@ -698,6 +760,15 @@ export function ProviderSettingsForm() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            {activeSection === "stats" ? (
+              <div className="mx-auto w-full max-w-5xl">
+                <StatsDashboard />
+              </div>
+            ) : activeSection === "conversations" ? (
+              <div className="mx-auto w-full max-w-5xl">
+                <ConversationsManager />
+              </div>
+            ) : (
             <form onSubmit={handleSave} className="max-w-3xl space-y-6">
               {activeSection === "model" ? (
                 <>
@@ -1429,6 +1500,7 @@ export function ProviderSettingsForm() {
                 </section>
               )}
             </form>
+            )}
           </div>
         </section>
       </div>

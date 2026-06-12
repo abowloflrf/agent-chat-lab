@@ -18,6 +18,11 @@ import { ConversationList } from "@/components/conversation-list";
 import { ModuleSwitcher } from "@/components/module-switcher";
 import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
 import {
+  formatCacheHitRate,
+  formatCompactTokens,
+  formatContextLength,
+} from "@/lib/format";
+import {
   ModelSelector,
   type ModelSelection,
 } from "@/components/model-selector";
@@ -115,39 +120,6 @@ class ConversationIdStore {
   set(value: string | null) {
     this.#value = value;
   }
-}
-
-function formatContextLength(tokenCount: number | null) {
-  if (tokenCount === null) {
-    return "--";
-  }
-
-  return new Intl.NumberFormat("zh-CN").format(tokenCount);
-}
-
-function formatCacheHitRate(rate: number | null) {
-  if (rate === null) {
-    return "--";
-  }
-
-  return (rate * 100).toFixed(1);
-}
-
-function formatCompactTokens(tokenCount: number | null) {
-  if (tokenCount === null) {
-    return "--";
-  }
-
-  if (tokenCount < 1000) {
-    return String(tokenCount);
-  }
-
-  if (tokenCount < 1_000_000) {
-    const thousands = tokenCount / 1000;
-    return `${thousands >= 100 ? Math.round(thousands) : thousands.toFixed(1)}k`;
-  }
-
-  return `${(tokenCount / 1_000_000).toFixed(1)}M`;
 }
 
 function StatusMetric({
@@ -988,13 +960,13 @@ export function ChatShell({
                 />
                 <StatusMetric
                   label="CACHE"
-                  value={`${formatCacheHitRate(cacheHitRate)}%`}
+                  value={`${formatCacheHitRate(cacheHitRate)}${cacheHitRate === null ? "" : "%"}`}
                   suffix={
                     tokenTotals.cachedInputTokens > 0
                       ? formatCompactTokens(tokenTotals.cachedInputTokens)
                       : undefined
                   }
-                  title={`缓存命中率 ${formatCacheHitRate(cacheHitRate)}% · 命中 ${formatContextLength(tokenTotals.cachedInputTokens)} tokens`}
+                  title={`缓存命中率 ${formatCacheHitRate(cacheHitRate)}${cacheHitRate === null ? "" : "%"} · 命中 ${formatContextLength(tokenTotals.cachedInputTokens)} tokens`}
                 />
 
                 <span

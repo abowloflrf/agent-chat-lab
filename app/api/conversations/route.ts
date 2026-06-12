@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { getAllConversations, createConversation } from "@/lib/persistence";
+import {
+  getAllConversations,
+  createConversation,
+  batchDeleteConversations,
+} from "@/lib/persistence";
 
 export const runtime = "nodejs";
 
@@ -11,6 +15,10 @@ const listRequestSchema = z.object({
 
 const createRequestSchema = z.object({
   title: z.string().trim().max(200).optional(),
+});
+
+const batchDeleteRequestSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(500),
 });
 
 export async function GET(request: Request) {
@@ -49,4 +57,21 @@ export async function POST(request: Request) {
 
   const conversation = await createConversation(parsed.data.title);
   return Response.json({ conversation });
+}
+
+export async function DELETE(request: Request) {
+  const json = await request.json();
+  const parsed = batchDeleteRequestSchema.safeParse(json);
+
+  if (!parsed.success) {
+    return Response.json(
+      {
+        error: "Invalid request: body must contain ids array with 1-500 items.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const deleted = await batchDeleteConversations(parsed.data.ids);
+  return Response.json({ success: true, deleted });
 }

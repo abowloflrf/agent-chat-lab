@@ -3,9 +3,11 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import * as schema from "@/lib/db/schema";
+import { expandMessageUsageRecords } from "@/lib/usage-records";
 
 const dataDirectoryPath = path.join(process.cwd(), "data");
 const databaseFilePath = path.join(dataDirectoryPath, "agent-chat-lab.sqlite");
@@ -94,12 +96,61 @@ function seedDefaultTodos() {
   ).run();
 }
 
+// One-time migration of historical assistant-message metadata into usage_records.
+// Runs only when the table is empty so it is a no-op on every subsequent boot.
+function backfillUsageRecords() {
+  const existing = db
+    .select({ id: schema.usageRecords.id })
+    .from(schema.usageRecords)
+    .limit(1)
+    .all()[0];
+
+  if (existing) {
+    return;
+  }
+
+  const assistantRows = db
+    .select({
+      id: schema.messages.id,
+      conversationId: schema.messages.conversationId,
+      metadataJson: schema.messages.metadataJson,
+    })
+    .from(schema.messages)
+    .where(eq(schema.messages.role, "assistant"))
+    .all();
+
+  const seeds = assistantRows.flatMap((row) => {
+    if (!row.metadataJson) {
+      return [];
+    }
+
+    let metadata: unknown;
+    try {
+      metadata = JSON.parse(row.metadataJson);
+    } catch {
+      return [];
+    }
+
+    return expandMessageUsageRecords(row.conversationId, row.id, metadata);
+  });
+
+  if (seeds.length === 0) {
+    return;
+  }
+
+  const batchSize = 50;
+  for (let index = 0; index < seeds.length; index += batchSize) {
+    db.insert(schema.usageRecords).values(seeds.slice(index, index + batchSize)).run();
+  }
+}
+
 export async function ensureDatabase() {
   if (!initializationPromise) {
     initializationPromise = Promise.resolve().then(() => {
       migrate(db, { migrationsFolder: migrationsFolderPath });
       seedDefaultNotes();
       seedDefaultTodos();
+      backfillUsageRecords();
     });
   }
 

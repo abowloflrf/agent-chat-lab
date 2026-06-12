@@ -30,7 +30,6 @@
 - [ ] MCP 连接失败/耗时在 UI 上可观测（连接发生在 `streamText` 之前，不进 timeline，用户无法归因首字慢与失败）
 
 ### P2 体验与可观测性
-- [ ] 用量统计仪表盘（设计方案见 [docs/usage-stats-dashboard-design.md](docs/usage-stats-dashboard-design.md)）
 - [ ] 支持指定删除某条消息
 - [ ] 允许编辑用户已发送的某条消息，并基于编辑后的内容重新发送
 - [ ] Markdown 渲染增强（Mermaid 图表）
