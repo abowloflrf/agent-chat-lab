@@ -4,6 +4,9 @@
 
 ## 2026-06-12
 
+### 设置页子菜单可路由
+- 系统设置四个子菜单改为独立 URL（`/settings/model`、`/settings/tools`、`/settings/stats`、`/settings/conversations`），`/settings` 重定向到模型配置，支持直接深链与浏览器前进/后退
+
 ### 用量统计 + 会话管理
 - 系统设置新增「用量统计」「会话管理」两个子 tab：前者含汇总卡片、按天 Token 趋势图（Recharts，支持 7/30/90 天切换）、模型用量明细与性能洞察；后者为高密度会话列表，支持标题搜索与单条/批量删除。数据由新表 `usage_records`（每 step 一行，含历史回填）聚合而来
 

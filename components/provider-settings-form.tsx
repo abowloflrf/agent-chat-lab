@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { builtInTools } from "@/lib/built-in-tools";
 import { ModuleSwitcher } from "@/components/module-switcher";
@@ -17,6 +18,13 @@ import {
   type ProviderSettings,
   type SystemSettings,
 } from "@/lib/provider-config";
+import {
+  defaultSettingsSection,
+  isSettingsSection,
+  settingsSections,
+  settingsSectionLabels,
+  type SettingsSection,
+} from "@/lib/settings-sections";
 
 type FetchModelsState =
   | { status: "idle"; error: string | null }
@@ -29,8 +37,6 @@ type McpTestState =
   | { status: "loading" }
   | { status: "success"; tools: Array<{ name: string; description: string }> }
   | { status: "error"; error: string };
-
-type SettingsSection = "model" | "tools" | "stats" | "conversations";
 
 function generateId() {
   return crypto.randomUUID
@@ -153,6 +159,11 @@ function SecretInput({
 }
 
 export function ProviderSettingsForm() {
+  const pathname = usePathname();
+  const segment = pathname.split("/")[2] ?? "";
+  const section: SettingsSection = isSettingsSection(segment)
+    ? segment
+    : defaultSettingsSection;
   const [settings, setSettings] = useState<SystemSettings>(defaultSystemSettings);
   const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
   const [expandedMcpServerId, setExpandedMcpServerId] = useState<string | null>(null);
@@ -171,7 +182,6 @@ export function ProviderSettingsForm() {
   } | null>(null);
   const [tavilyUsageLoading, setTavilyUsageLoading] = useState(false);
   const [tavilyUsageError, setTavilyUsageError] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<SettingsSection>("model");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -247,7 +257,7 @@ export function ProviderSettingsForm() {
 
   // Load Tavily API usage when switching to tools section
   useEffect(() => {
-    if (activeSection !== "tools" || !settings.tavilyApiKey) {
+    if (section !== "tools" || !settings.tavilyApiKey) {
       return;
     }
 
@@ -292,7 +302,7 @@ export function ProviderSettingsForm() {
     return () => {
       cancelled = true;
     };
-  }, [activeSection, settings.tavilyApiKey]);
+  }, [section, settings.tavilyApiKey]);
 
   function updateProvider(providerId: string, updates: Partial<ProviderSettings>) {
     setSettings((current) => ({
@@ -613,81 +623,29 @@ export function ProviderSettingsForm() {
 
             <div className="pt-4">
               <div className="space-y-1 border-b border-white/8 pb-4">
-                <button
-                  type="button"
-                  onClick={() => setActiveSection("model")}
-                  className={`flex w-full cursor-pointer items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
-                    activeSection === "model"
-                      ? "border-white/16 bg-white/10 text-[#fff7ef]"
-                      : "border-transparent text-[#cabfb2] hover:border-white/10 hover:bg-white/6 hover:text-[#fff7ef]"
-                  }`}
-                >
-                  <span
-                    className={`text-sm font-medium ${
-                      activeSection === "model" ? "text-[#fff7ef]" : "text-[#e2d7ca]"
-                    }`}
-                  >
-                    模型配置
-                  </span>
-                  <span className="text-xs">↗</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveSection("tools")}
-                  className={`flex w-full cursor-pointer items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
-                    activeSection === "tools"
-                      ? "border-white/16 bg-white/10 text-[#fff7ef]"
-                      : "border-transparent text-[#cabfb2] hover:border-white/10 hover:bg-white/6 hover:text-[#fff7ef]"
-                  }`}
-                >
-                  <span
-                    className={`text-sm font-medium ${
-                      activeSection === "tools" ? "text-[#fff7ef]" : "text-[#e2d7ca]"
-                    }`}
-                  >
-                    工具配置
-                  </span>
-                  <span className="text-xs">↗</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveSection("stats")}
-                  className={`flex w-full cursor-pointer items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
-                    activeSection === "stats"
-                      ? "border-white/16 bg-white/10 text-[#fff7ef]"
-                      : "border-transparent text-[#cabfb2] hover:border-white/10 hover:bg-white/6 hover:text-[#fff7ef]"
-                  }`}
-                >
-                  <span
-                    className={`text-sm font-medium ${
-                      activeSection === "stats" ? "text-[#fff7ef]" : "text-[#e2d7ca]"
-                    }`}
-                  >
-                    用量统计
-                  </span>
-                  <span className="text-xs">↗</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveSection("conversations")}
-                  className={`flex w-full cursor-pointer items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
-                    activeSection === "conversations"
-                      ? "border-white/16 bg-white/10 text-[#fff7ef]"
-                      : "border-transparent text-[#cabfb2] hover:border-white/10 hover:bg-white/6 hover:text-[#fff7ef]"
-                  }`}
-                >
-                  <span
-                    className={`text-sm font-medium ${
-                      activeSection === "conversations" ? "text-[#fff7ef]" : "text-[#e2d7ca]"
-                    }`}
-                  >
-                    会话管理
-                  </span>
-                  <span className="text-xs">↗</span>
-                </button>
+                {settingsSections.map((item) => {
+                  const active = section === item;
+                  return (
+                    <Link
+                      key={item}
+                      href={`/settings/${item}`}
+                      className={`flex w-full cursor-pointer items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
+                        active
+                          ? "border-white/16 bg-white/10 text-[#fff7ef]"
+                          : "border-transparent text-[#cabfb2] hover:border-white/10 hover:bg-white/6 hover:text-[#fff7ef]"
+                      }`}
+                    >
+                      <span
+                        className={`text-sm font-medium ${
+                          active ? "text-[#fff7ef]" : "text-[#e2d7ca]"
+                        }`}
+                      >
+                        {settingsSectionLabels[item].full}
+                      </span>
+                      <span className="text-xs">↗</span>
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -706,50 +664,22 @@ export function ProviderSettingsForm() {
             </Link>
             <p className="text-lg font-semibold tracking-[-0.02em] text-[#241c15]">系统设置</p>
             <div className="ml-auto flex gap-1">
-              <button
-                type="button"
-                onClick={() => setActiveSection("model")}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                  activeSection === "model"
-                    ? "bg-[#171717] text-white"
-                    : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
-                }`}
-              >
-                模型
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveSection("tools")}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                  activeSection === "tools"
-                    ? "bg-[#171717] text-white"
-                    : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
-                }`}
-              >
-                工具
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveSection("stats")}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                  activeSection === "stats"
-                    ? "bg-[#171717] text-white"
-                    : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
-                }`}
-              >
-                用量
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveSection("conversations")}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                  activeSection === "conversations"
-                    ? "bg-[#171717] text-white"
-                    : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
-                }`}
-              >
-                会话
-              </button>
+              {settingsSections.map((item) => {
+                const active = section === item;
+                return (
+                  <Link
+                    key={item}
+                    href={`/settings/${item}`}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                      active
+                        ? "bg-[#171717] text-white"
+                        : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
+                    }`}
+                  >
+                    {settingsSectionLabels[item].short}
+                  </Link>
+                );
+              })}
             </div>
           </div>
 
@@ -760,17 +690,17 @@ export function ProviderSettingsForm() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-            {activeSection === "stats" ? (
+            {section === "stats" ? (
               <div className="mx-auto w-full max-w-5xl">
                 <StatsDashboard />
               </div>
-            ) : activeSection === "conversations" ? (
+            ) : section === "conversations" ? (
               <div className="mx-auto w-full max-w-5xl">
                 <ConversationsManager />
               </div>
             ) : (
             <form onSubmit={handleSave} className="max-w-3xl space-y-6">
-              {activeSection === "model" ? (
+              {section === "model" ? (
                 <>
                   <section className="pt-0">
                     <div className="mb-5">

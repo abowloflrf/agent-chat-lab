@@ -1,5 +1,6 @@
-import { ProviderSettingsForm } from "@/components/provider-settings-form";
+import { redirect } from "next/navigation";
+import { defaultSettingsSection } from "@/lib/settings-sections";
 
 export default function SettingsPage() {
-  return <ProviderSettingsForm />;
+  redirect(`/settings/${defaultSettingsSection}`);
 }
