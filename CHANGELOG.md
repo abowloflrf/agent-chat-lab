@@ -5,7 +5,7 @@
 ## 2026-06-12
 
 ### CI/CD
-- Docker 镜像发布改为 `linux/amd64`、`linux/arm64` 多架构构建，并停止生成短 SHA 标签
+- Docker 镜像发布改为 `linux/amd64`、`linux/arm64` 原生 runner 分平台并行构建并合并 manifest，同时停止生成短 SHA 标签
 
 ### 代码块渲染修复
 - 修复无语言代码块被误判为行内代码导致的深色贴字背景：`CodeBlock` 对无语言块直接按块级样式渲染，并为 Shiki 配置 `defaultLanguage: "text"` 让其走统一高亮管线
