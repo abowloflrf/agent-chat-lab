@@ -30,13 +30,20 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-环境变量至少需要配置 `AUTH_PASSWORD`、`OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL`（可选见 `.env.example`）。
+启动前配置 `AUTH_PASSWORD`、`OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL`。访问 `http://localhost:3000` 登录后，可在 `/settings` 调整模型、Tavily 和 MCP。
 
 ## Docker
 
 ```bash
 cp .env.example .env
+mkdir -p data workspace
 docker compose up -d
+```
+
+如遇到数据目录权限错误，可执行：
+
+```bash
+sudo chown -R 1000:1000 data workspace
 ```
 
 ## 入口
