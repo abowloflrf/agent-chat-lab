@@ -35,7 +35,7 @@ import {
 
 export const runtime = "nodejs";
 const AGENT_MAX_STEPS = 12;
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const modelOverrideSchema = z.object({
   providerId: z.string().trim().min(1),
