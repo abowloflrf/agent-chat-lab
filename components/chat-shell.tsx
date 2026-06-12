@@ -963,7 +963,7 @@ export function ChatShell({
         <section className="glass-panel rise-in relative flex h-full min-h-0 flex-col overflow-hidden">
           <header
             ref={headerRef}
-            className={`absolute inset-x-0 top-0 z-20 border-b border-[rgba(23,23,23,0.08)] bg-[rgba(255,252,247,0.95)] transition-transform duration-200 ease-out will-change-transform lg:static lg:z-auto lg:translate-y-0 lg:bg-transparent ${
+            className={`absolute inset-x-0 top-0 z-20 border-b border-[rgba(23,23,23,0.06)] bg-[rgba(255,252,247,0.62)] backdrop-blur-xl backdrop-saturate-150 transition-transform duration-200 ease-out will-change-transform lg:translate-y-0 ${
               headerHidden ? "-translate-y-full lg:translate-y-0" : "translate-y-0"
             }`}
           >
@@ -1052,7 +1052,7 @@ export function ChatShell({
 
           <div
             ref={scrollContainerRef}
-            className="relative flex-1 overflow-y-auto px-4 pb-4 pt-[calc(var(--header-h,3.5rem)+1rem)] lg:pt-4"
+            className="relative flex-1 overflow-y-auto px-4 pb-4 pt-[calc(var(--header-h,3.5rem)+1rem)]"
           >
             {messages.length === 0 ? (
               <div className="hidden min-h-[520px] items-center justify-center sm:flex">
