@@ -120,19 +120,6 @@ function extractLanguageFromHast(node: HastElementLike | undefined): string | nu
   return null;
 }
 
-function roleLabel(role: UIMessage["role"]) {
-  switch (role) {
-    case "user":
-      return "操作员";
-    case "assistant":
-      return "Agent";
-    case "system":
-      return "System";
-    default:
-      return role;
-  }
-}
-
 function formatDuration(durationMs: number) {
   if (durationMs < 1000) {
     return `${durationMs}ms`;
@@ -594,18 +581,6 @@ export const ChatMessage = memo(function ChatMessage({
             : "w-full max-w-3xl"
         }`}
       >
-        <div
-          className={`mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] ${
-            isUser ? "justify-end text-[#9f9283]" : "text-[#8f8172]"
-          }`}
-        >
-          {!isUser ? (
-            <span className="h-2 w-2 rounded-full bg-[#c96a2b]" />
-          ) : null}
-          <span>{roleLabel(message.role)}</span>
-          {isUser ? <span className="h-2 w-2 rounded-full bg-[#171717]" /> : null}
-        </div>
-
         <div className="space-y-3">
           {buildRenderBlocks(message.parts).map((block) => {
               if (block.kind === "text") {
