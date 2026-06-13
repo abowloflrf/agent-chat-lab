@@ -40,10 +40,23 @@ export type TodoRecord = {
   completedAt: string | null;
 };
 
+/**
+ * 会话级配置：该会话最后一次发送时使用的模型 / MCP / Skills 选择。
+ * model 两字段同时为空表示沿用全局默认模型；两个数组为 null 表示"未收窄"
+ * （默认全开），数组（含空数组）表示精确启用集合。
+ */
+export type ConversationSessionConfig = {
+  modelProviderId: string | null;
+  modelId: string | null;
+  enabledMcpServerIds: string[] | null;
+  enabledSkillNames: string[] | null;
+};
+
 type ChatSnapshot = {
   conversationId: string;
   title: string | null;
   messages: ChatUIMessage[];
+  sessionConfig: ConversationSessionConfig;
 };
 
 type ToolInvocation = {
@@ -713,7 +726,58 @@ export async function getConversation(conversationId: string): Promise<ChatSnaps
     conversationId: conversation.id,
     title: conversation.title,
     messages: rows.map(toStoredMessage),
+    sessionConfig: rowToSessionConfig(conversation),
   };
+}
+
+/** NULL 列 → null（未收窄），JSON 数组 → string[]（含空数组）。 */
+function parseNullableStringArray(value: string | null): string[] | null {
+  if (value === null) {
+    return null;
+  }
+
+  const parsed = parseJson<string[] | null>(value, null);
+  return Array.isArray(parsed) ? parsed : null;
+}
+
+function rowToSessionConfig(
+  row: typeof conversations.$inferSelect,
+): ConversationSessionConfig {
+  return {
+    modelProviderId: row.modelProviderId,
+    modelId: row.modelId,
+    enabledMcpServerIds: parseNullableStringArray(row.enabledMcpServerIds),
+    enabledSkillNames: parseNullableStringArray(row.enabledSkillNames),
+  };
+}
+
+/**
+ * 写回会话级配置。chat 路由每次发送后调用，覆盖式更新四列：
+ * 字段为 null 即写 NULL（表示"未收窄/默认"），数组写 JSON。会话行此时必然已由
+ * persistIncomingMessages upsert 出来，故直接 update。
+ */
+export async function saveConversationSessionConfig(
+  conversationId: string,
+  config: ConversationSessionConfig,
+): Promise<void> {
+  await ensureDatabase();
+
+  db.update(conversations)
+    .set({
+      modelProviderId: config.modelProviderId,
+      modelId: config.modelId,
+      enabledMcpServerIds:
+        config.enabledMcpServerIds === null
+          ? null
+          : JSON.stringify(config.enabledMcpServerIds),
+      enabledSkillNames:
+        config.enabledSkillNames === null
+          ? null
+          : JSON.stringify(config.enabledSkillNames),
+      updatedAt: Date.now(),
+    })
+    .where(eq(conversations.id, conversationId))
+    .run();
 }
 
 export async function createConversation(title?: string): Promise<ConversationSummary> {

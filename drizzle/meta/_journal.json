@@ -46,6 +46,13 @@
       "when": 1781332597117,
       "tag": "0006_clever_eternals",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1781337486573,
+      "tag": "0007_brief_raider",
+      "breakpoints": true
     }
   ]
 }

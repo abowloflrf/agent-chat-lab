@@ -60,14 +60,14 @@ export function ModelSelector({
   const displayLabel = selected?.modelId ?? "选择模型";
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="sm:relative">
       <button
         type="button"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[#6c6156] transition hover:bg-[rgba(23,23,23,0.05)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span className="max-w-[180px] truncate font-mono text-[11px]">
+        <span className="max-w-[88px] truncate font-mono text-[11px] sm:max-w-[180px]">
           {displayLabel}
         </span>
         <svg
@@ -87,8 +87,8 @@ export function ModelSelector({
       </button>
 
       {open ? (
-        <div className="menu-appear absolute bottom-full left-0 z-50 mb-2 min-w-[240px] max-w-[320px] overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white shadow-lg shadow-black/8">
-          <div className="max-h-[280px] overflow-y-auto py-1">
+        <div className="menu-appear absolute inset-x-3 bottom-full z-50 mb-2 overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white shadow-lg shadow-black/8 sm:inset-x-auto sm:left-0 sm:min-w-[240px] sm:max-w-[320px]">
+          <div className="max-h-[60vh] overflow-y-auto py-1 sm:max-h-[280px]">
             {groups.map((group) => (
               <div key={group.providerId}>
                 <div className="px-3 pb-1 pt-2 text-[10px] uppercase tracking-[0.18em] text-[#978b7e]">

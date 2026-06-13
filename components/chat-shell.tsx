@@ -27,6 +27,10 @@ import {
   type ModelSelection,
 } from "@/components/model-selector";
 import {
+  SessionToolSelector,
+  type SessionToolItem,
+} from "@/components/session-tool-selector";
+import {
   agentObservabilitySchema,
   finalizeInterruptedMessage,
   getMessageTimestamp,
@@ -35,6 +39,8 @@ import {
   type ChatUIMessage,
 } from "@/lib/observability";
 import type { ProviderSettings } from "@/lib/provider-config";
+// 仅取类型；`import type` 在编译期被擦除，不会把 server-only 的 persistence 真正引入客户端。
+import type { ConversationSessionConfig } from "@/lib/persistence";
 
 const starterPrompts = [
   "查看 Hacker News 当前最热门的 5 篇内容，分别总结主题、热度和网友讨论重点",
@@ -92,7 +98,80 @@ type ChatShellProps = {
   initialConversationId: string | null;
   initialConversationTitle: string | null;
   initialMessages: ChatUIMessage[];
+  initialSessionConfig: ConversationSessionConfig | null;
 };
+
+// 新会话 / 无已存配置时的默认：沿用全局默认模型，MCP / Skills 不收窄（全开）。
+const DEFAULT_SESSION_CONFIG: ConversationSessionConfig = {
+  modelProviderId: null,
+  modelId: null,
+  enabledMcpServerIds: null,
+  enabledSkillNames: null,
+};
+
+/**
+ * 按"已存配置 + 当前可用供应商"解析出要选中的模型：已存模型仍存在则用它，否则回退
+ * 到全局默认（默认供应商的默认模型）。供应商/模型可能已被删除，故必须校验存在性。
+ */
+function resolveModelSelection(
+  providers: ProviderSettings[],
+  config: ConversationSessionConfig,
+): ModelSelection | null {
+  if (config.modelProviderId && config.modelId) {
+    const provider = providers.find(
+      (p) => p.id === config.modelProviderId && p.isEnabled,
+    );
+    const model = provider?.models.find(
+      (m) => m.modelId === config.modelId && m.isEnabled,
+    );
+
+    if (provider && model) {
+      return {
+        providerId: provider.id,
+        providerName: provider.name,
+        modelId: model.modelId,
+      };
+    }
+  }
+
+  const defaultProvider =
+    providers.find((p) => p.isEnabled && p.isDefault) ??
+    providers.find((p) => p.isEnabled);
+
+  if (!defaultProvider) {
+    return null;
+  }
+
+  const defaultModel =
+    defaultProvider.models.find((m) => m.isEnabled && m.isDefault) ??
+    defaultProvider.models.find((m) => m.isEnabled);
+
+  if (!defaultModel) {
+    return null;
+  }
+
+  return {
+    providerId: defaultProvider.id,
+    providerName: defaultProvider.name,
+    modelId: defaultModel.modelId,
+  };
+}
+
+/**
+ * 把已存的启用清单对账成当前候选下的勾选 id：null（未收窄）→ 全选；数组 → 与现有
+ * 候选取交集（丢弃已被删除的项），保证结果始终是候选的子集。
+ */
+function reconcileToolSelection(
+  saved: string[] | null,
+  items: SessionToolItem[],
+): string[] {
+  if (saved === null) {
+    return items.map((item) => item.id);
+  }
+
+  const candidateIds = new Set(items.map((item) => item.id));
+  return saved.filter((id) => candidateIds.has(id));
+}
 
 class ModelOverrideStore {
   #value: ModelSelection | null = null;
@@ -104,6 +183,70 @@ class ModelOverrideStore {
   set(value: ModelSelection | null) {
     this.#value = value;
   }
+}
+
+/**
+ * 本次会话的 MCP / Skills 收窄选择，供 transport 的 prepareSendMessagesRequest 读取
+ * （transport 只创建一次，拿不到最新 React state，故用可变 store 桥接）。
+ * 每个字段为下发给服务端的"启用清单"：null 表示未收窄，请求里省略该字段、服务端走
+ * 默认全开；数组（含空数组）表示精确启用列表。
+ */
+class SessionToolsStore {
+  #mcpServerIds: string[] | null = null;
+  #skillNames: string[] | null = null;
+
+  getMcpServerIds() {
+    return this.#mcpServerIds;
+  }
+
+  setMcpServerIds(value: string[] | null) {
+    this.#mcpServerIds = value;
+  }
+
+  getSkillNames() {
+    return this.#skillNames;
+  }
+
+  setSkillNames(value: string[] | null) {
+    this.#skillNames = value;
+  }
+}
+
+function McpIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3.5 w-3.5"
+    >
+      <rect x="2" y="3" width="20" height="7" rx="2" />
+      <rect x="2" y="14" width="20" height="7" rx="2" />
+      <path d="M6 6.5h.01M6 17.5h.01" />
+    </svg>
+  );
+}
+
+function SkillsIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3.5 w-3.5"
+    >
+      <path d="M12 3l1.9 4.7L18.5 9.5l-4.6 1.8L12 16l-1.9-4.7L5.5 9.5l4.6-1.8z" />
+      <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z" />
+    </svg>
+  );
 }
 
 class ConversationIdStore {
@@ -164,6 +307,15 @@ function formatShortConversationId(conversationId: string) {
   return conversationId.slice(0, 8);
 }
 
+/** 取 MCP url 的 host 作为 chip 菜单里的次要说明，解析失败则回退原串。 */
+function hostFromUrl(url: string) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
 function extractMessageText(message: ChatUIMessage) {
   return message.parts
     .filter((part): part is Extract<ChatUIMessage["parts"][number], { type: "text" }> => {
@@ -190,6 +342,7 @@ export function ChatShell({
   initialConversationId,
   initialConversationTitle,
   initialMessages,
+  initialSessionConfig,
 }: ChatShellProps) {
   const initialRecoveredMessages = normalizeRecoveredMessages(initialMessages);
   const router = useRouter();
@@ -218,7 +371,17 @@ export function ChatShell({
   });
   const [providers, setProviders] = useState<ProviderSettings[]>([]);
   const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(null);
+  const [mcpServerItems, setMcpServerItems] = useState<SessionToolItem[]>([]);
+  const [skillItems, setSkillItems] = useState<SessionToolItem[]>([]);
+  // 当前会话的已存配置；与候选列表一起经对账 effect 还原成下面三项选择。
+  const [restoredConfig, setRestoredConfig] = useState<ConversationSessionConfig>(
+    () => initialSessionConfig ?? DEFAULT_SESSION_CONFIG,
+  );
+  // 勾选清单由对账 effect 写入：候选或 restoredConfig 变化时重算。
+  const [selectedMcpServerIds, setSelectedMcpServerIds] = useState<string[]>([]);
+  const [selectedSkillNames, setSelectedSkillNames] = useState<string[]>([]);
   const [modelOverrideStore] = useState(() => new ModelOverrideStore());
+  const [sessionToolsStore] = useState(() => new SessionToolsStore());
   const [conversationIdStore] = useState(
     () => new ConversationIdStore(initialConversationId),
   );
@@ -228,6 +391,8 @@ export function ChatShell({
         api: "/api/chat",
         prepareSendMessagesRequest: ({ body, id, messages }) => {
           const override = modelOverrideStore.get();
+          const mcpServerIds = sessionToolsStore.getMcpServerIds();
+          const skillNames = sessionToolsStore.getSkillNames();
           const requestConversationId = conversationIdStore.get() ?? id;
           return {
             body: {
@@ -242,6 +407,8 @@ export function ChatShell({
                     },
                   }
                 : {}),
+              ...(mcpServerIds ? { enabledMcpServerIds: mcpServerIds } : {}),
+              ...(skillNames ? { enabledSkillNames: skillNames } : {}),
             },
           };
         },
@@ -265,6 +432,49 @@ export function ChatShell({
   useEffect(() => {
     modelOverrideStore.set(selectedModel);
   }, [modelOverrideStore, selectedModel]);
+
+  // 全选（= 候选总数）视为"未收窄"，下发 null 让服务端走默认全开；否则下发精确清单。
+  useEffect(() => {
+    sessionToolsStore.setMcpServerIds(
+      selectedMcpServerIds.length < mcpServerItems.length
+        ? selectedMcpServerIds
+        : null,
+    );
+  }, [sessionToolsStore, selectedMcpServerIds, mcpServerItems.length]);
+
+  useEffect(() => {
+    sessionToolsStore.setSkillNames(
+      selectedSkillNames.length < skillItems.length ? selectedSkillNames : null,
+    );
+  }, [sessionToolsStore, selectedSkillNames, skillItems.length]);
+
+  // 对账：候选列表或已存配置变化时（应用启动加载完候选、或切换会话）重算三项选择。
+  // 用 React 官方的"渲染期按来源调整 state"模式（prev 守卫）而非 effect——避免 effect
+  // 内同步 setState 的级联渲染。仅当这三个来源的引用变化时重算，因此用户在会话内的手动
+  // 改动（只改 selected* 自身）不会触发重算、不会被覆盖。
+  const [reconcileSources, setReconcileSources] = useState<{
+    providers: ProviderSettings[];
+    mcpServerItems: SessionToolItem[];
+    skillItems: SessionToolItem[];
+    restoredConfig: ConversationSessionConfig;
+  } | null>(null);
+
+  if (
+    reconcileSources === null ||
+    reconcileSources.providers !== providers ||
+    reconcileSources.mcpServerItems !== mcpServerItems ||
+    reconcileSources.skillItems !== skillItems ||
+    reconcileSources.restoredConfig !== restoredConfig
+  ) {
+    setReconcileSources({ providers, mcpServerItems, skillItems, restoredConfig });
+    setSelectedModel(resolveModelSelection(providers, restoredConfig));
+    setSelectedMcpServerIds(
+      reconcileToolSelection(restoredConfig.enabledMcpServerIds, mcpServerItems),
+    );
+    setSelectedSkillNames(
+      reconcileToolSelection(restoredConfig.enabledSkillNames, skillItems),
+    );
+  }
 
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -312,32 +522,64 @@ export function ChatShell({
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     fetch("/api/settings")
       .then((res) => res.json())
       .then((data) => {
+        if (cancelled) return;
+
         const settingsProviders: ProviderSettings[] =
           data.settings?.providers ?? [];
         setProviders(settingsProviders);
 
-        const defaultProvider =
-          settingsProviders.find((p) => p.isEnabled && p.isDefault) ??
-          settingsProviders.find((p) => p.isEnabled);
+        // 本次会话的 MCP 候选 = 设置里全局已启用的服务；勾选交由对账 effect 还原。
+        const enabledMcpServers = (
+          (data.settings?.mcpServers ?? []) as Array<{
+            id: string;
+            name: string;
+            url: string;
+            isEnabled: boolean;
+          }>
+        ).filter((server) => server.isEnabled);
+        setMcpServerItems(
+          enabledMcpServers.map((server) => ({
+            id: server.id,
+            name: server.name,
+            secondary: hostFromUrl(server.url),
+          })),
+        );
 
-        if (!defaultProvider) return;
+        // Skills 候选 = 文件系统发现 - 全局禁用名单；勾选交由对账 effect 还原。
+        const disabledSkillNames = new Set<string>(
+          data.settings?.disabledSkills ?? [],
+        );
+        fetch("/api/skills")
+          .then((res) => res.json())
+          .then((skillData) => {
+            if (cancelled) return;
 
-        const defaultModel =
-          defaultProvider.models.find((m) => m.isEnabled && m.isDefault) ??
-          defaultProvider.models.find((m) => m.isEnabled);
-
-        if (!defaultModel) return;
-
-        setSelectedModel({
-          providerId: defaultProvider.id,
-          providerName: defaultProvider.name,
-          modelId: defaultModel.modelId,
-        });
+            const candidates = (
+              (skillData.skills ?? []) as Array<{
+                name: string;
+                description: string;
+              }>
+            ).filter((skill) => !disabledSkillNames.has(skill.name));
+            setSkillItems(
+              candidates.map((skill) => ({
+                id: skill.name,
+                name: skill.name,
+                secondary: skill.description,
+              })),
+            );
+          })
+          .catch((err) => console.error("Failed to load skills:", err));
       })
       .catch((err) => console.error("Failed to load model settings:", err));
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const {
@@ -377,6 +619,7 @@ export function ChatShell({
         setCurrentMessages([]);
         setMessages([]);
         setInterruptedRunDetected(false);
+        setRestoredConfig(DEFAULT_SESSION_CONFIG);
       }
       return;
     }
@@ -405,12 +648,16 @@ export function ChatShell({
             setInterruptedRunDetected(
               recoveredMessages.some((message) => isInterruptedMessage(message.metadata)),
             );
+            setRestoredConfig(
+              data.conversation.sessionConfig ?? DEFAULT_SESSION_CONFIG,
+            );
           } else {
             setConversationTitle(null);
             setPendingTitle(null);
             setCurrentMessages([]);
             setMessages([]);
             setInterruptedRunDetected(false);
+            setRestoredConfig(DEFAULT_SESSION_CONFIG);
           }
         })
         .catch((fetchError) => {
@@ -425,6 +672,7 @@ export function ChatShell({
           setCurrentMessages([]);
           setMessages([]);
           setInterruptedRunDetected(false);
+          setRestoredConfig(DEFAULT_SESSION_CONFIG);
         });
 
       return () => {
@@ -904,6 +1152,7 @@ export function ChatShell({
     setCurrentMessages([]);
     setMessages([]);
     setInterruptedRunDetected(false);
+    setRestoredConfig(DEFAULT_SESSION_CONFIG);
     clearError();
     setDraft("");
     setLocalConversationId(null);
@@ -1174,14 +1423,32 @@ export function ChatShell({
                 </label>
 
                 <div className="flex items-center justify-between gap-2 px-2 pb-2 lg:px-2.5 lg:pb-2.5">
-                  <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-1">
                     <ModelSelector
                       providers={providers}
                       selected={selectedModel}
                       onSelect={setSelectedModel}
                       disabled={isBusy}
                     />
-                    <span className="hidden truncate text-[11px] text-[#b0a496] sm:inline">
+                    <SessionToolSelector
+                      label="MCP"
+                      icon={<McpIcon />}
+                      items={mcpServerItems}
+                      selectedIds={selectedMcpServerIds}
+                      onChange={setSelectedMcpServerIds}
+                      disabled={isBusy}
+                      emptyHint="本次对话不会连接任何 MCP 服务"
+                    />
+                    <SessionToolSelector
+                      label="Skills"
+                      icon={<SkillsIcon />}
+                      items={skillItems}
+                      selectedIds={selectedSkillNames}
+                      onChange={setSelectedSkillNames}
+                      disabled={isBusy}
+                      emptyHint="本次对话不会加载任何 Skill"
+                    />
+                    <span className="ml-1 hidden truncate text-[11px] text-[#b0a496] lg:inline">
                       Enter 发送 · Shift+Enter 换行
                     </span>
                   </div>

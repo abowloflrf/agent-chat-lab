@@ -4,6 +4,9 @@
 
 ## 2026-06-13
 
+### 底部栏新增会话级 MCP / Skills 选择
+- 输入栏新增 MCP、Skills 多选，且模型/MCP/Skills 选择按会话持久化
+
 ### 新增 Skill 支持
 
 ### 新增文件工具 read / write / edit

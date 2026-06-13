@@ -22,7 +22,12 @@ import {
 import { createAgentTools } from "@/lib/ai/tools";
 import { connectMcpServers, type McpServerToolInfo } from "@/lib/ai/mcp";
 import { discoverSkills, type SkillInfo } from "@/lib/ai/skills";
-import { persistFinishedConversation, persistIncomingMessages, generateConversationTitle } from "@/lib/persistence";
+import {
+  persistFinishedConversation,
+  persistIncomingMessages,
+  generateConversationTitle,
+  saveConversationSessionConfig,
+} from "@/lib/persistence";
 import type {
   AgentTimelineStep,
   ChatMessageMetadata,
@@ -48,6 +53,10 @@ const requestSchema = z.object({
   conversationId: z.string().trim().min(1),
   messages: z.array(z.custom<ChatUIMessage>()),
   modelOverride: modelOverrideSchema.optional(),
+  // 本次会话收窄的启用清单：缺省（undefined）表示不收窄，沿用服务端默认全开；
+  // 数组（含空数组）表示精确启用集合，与全局设置取交集后生效。
+  enabledMcpServerIds: z.array(z.string().trim().min(1)).optional(),
+  enabledSkillNames: z.array(z.string().trim().min(1)).optional(),
 });
 
 function stripMessageId(message: ChatUIMessage): Omit<ChatUIMessage, "id"> {
@@ -346,13 +355,24 @@ export async function POST(request: Request) {
         parsed.data.modelOverride.modelId,
       )
     : getRuntimeProviderConfigFromSettings(settings);
-  const mcpServers = getEnabledMcpServersFromSettings(settings);
+  // 全局已启用的 MCP 服务，再与本次会话的收窄清单取交集（缺省则不收窄）。
+  const sessionMcpServerIds = parsed.data.enabledMcpServerIds
+    ? new Set(parsed.data.enabledMcpServerIds)
+    : null;
+  const mcpServers = getEnabledMcpServersFromSettings(settings).filter(
+    (server) => !sessionMcpServerIds || sessionMcpServerIds.has(server.id),
+  );
 
   // Skills 来自文件系统，用设置里的禁用名单过滤后才对模型可见。读盘很快，串行
   // await 即可；放在 createAgentTools 之前，让历史里的 Skill 工具调用也能被解析。
   const disabledSkillNames = new Set(settings.disabledSkills);
+  const sessionSkillNames = parsed.data.enabledSkillNames
+    ? new Set(parsed.data.enabledSkillNames)
+    : null;
   const enabledSkills = (await discoverSkills()).filter(
-    (skill) => !disabledSkillNames.has(skill.name),
+    (skill) =>
+      !disabledSkillNames.has(skill.name) &&
+      (!sessionSkillNames || sessionSkillNames.has(skill.name)),
   );
   const enabledSkillNames = new Set(enabledSkills.map((skill) => skill.name));
   const agentTools = createAgentTools(providerConfig, enabledSkillNames);
@@ -388,6 +408,14 @@ export async function POST(request: Request) {
 
   try {
     await persistIncomingMessages(parsed.data.conversationId, sanitizedMessages);
+    // 把本轮实际使用的模型 / MCP / Skills 选择写回会话，使其在下次打开时恢复。
+    // 缺省字段写 null：模型缺省=沿用全局默认，数组缺省=未收窄（默认全开）。
+    await saveConversationSessionConfig(parsed.data.conversationId, {
+      modelProviderId: parsed.data.modelOverride?.providerId ?? null,
+      modelId: parsed.data.modelOverride?.modelId ?? null,
+      enabledMcpServerIds: parsed.data.enabledMcpServerIds ?? null,
+      enabledSkillNames: parsed.data.enabledSkillNames ?? null,
+    });
   } catch (error) {
     void mcpBundlePromise.then((bundle) => bundle.close());
     throw error;

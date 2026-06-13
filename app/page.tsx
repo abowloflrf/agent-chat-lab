@@ -20,6 +20,7 @@ export default async function Home({
       initialConversationId={conversation?.conversationId ?? null}
       initialConversationTitle={conversation?.title ?? null}
       initialMessages={conversation?.messages ?? []}
+      initialSessionConfig={conversation?.sessionConfig ?? null}
     />
   );
 }

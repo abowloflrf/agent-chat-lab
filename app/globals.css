@@ -100,9 +100,14 @@ a,
   background: #a3a3a3;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+/* 放进 @layer base：未分层的规则会盖过 Tailwind 工具类（@layer utilities），
+   会让直接写在 <a> 上的 text-* 失效（例如设置页激活 tab 出现黑底黑字）。入 base 层后
+   仍保留"链接不要默认色/下划线"的意图，但 text-* 工具类能正常覆盖。 */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
 body::before {

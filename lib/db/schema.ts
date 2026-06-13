@@ -8,6 +8,13 @@ export const conversations = sqliteTable(
     createdAt: integer("created_at", { mode: "number" }).notNull(),
     updatedAt: integer("updated_at", { mode: "number" }).notNull(),
     lastMessageAt: integer("last_message_at", { mode: "number" }).notNull(),
+    // 会话级配置：记住该会话最后一次发送时使用的模型 / MCP / Skills 选择。
+    // model_* 为空表示沿用全局默认模型；两个 JSON 数组列为空（NULL）表示"未收窄"
+    // （默认全开），存数组（含空数组）表示精确启用集合。
+    modelProviderId: text("model_provider_id"),
+    modelId: text("model_id"),
+    enabledMcpServerIds: text("enabled_mcp_server_ids"),
+    enabledSkillNames: text("enabled_skill_names"),
   },
   (table) => [index("conversations_last_message_idx").on(table.lastMessageAt)],
 );
