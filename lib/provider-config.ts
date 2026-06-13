@@ -84,12 +84,15 @@ export const systemSettingsSchema = z.object({
   tavilyApiKey: z.string().trim().default(""),
   providers: z.array(providerSettingsSchema).default([]),
   mcpServers: z.array(mcpServerSchema).default([]),
+  // 被用户在设置页关闭的 skill 名单（skill 本体在文件系统，这里只存开关状态）。
+  disabledSkills: z.array(z.string().trim().min(1)).default([]),
 });
 
 export const systemSettingsInputSchema = z.object({
   tavilyApiKey: z.string().trim().optional(),
   providers: z.array(providerSettingsInputSchema).optional(),
   mcpServers: z.array(mcpServerInputSchema).optional(),
+  disabledSkills: z.array(z.string()).optional(),
 });
 
 export const providerConfigSchema = z.object({
@@ -140,6 +143,7 @@ export const defaultSystemSettings: SystemSettings = {
   tavilyApiKey: "",
   providers: [defaultProviderSettings],
   mcpServers: [],
+  disabledSkills: [],
 };
 
 export function normalizeMcpServer(input: McpServer): McpServer {
@@ -220,5 +224,8 @@ export function normalizeSystemSettings(input: SystemSettings): SystemSettings {
     mcpServers: input.mcpServers
       .map(normalizeMcpServer)
       .filter((server) => server.id && server.url),
+    disabledSkills: Array.from(
+      new Set(input.disabledSkills.map((name) => name.trim()).filter(Boolean)),
+    ),
   };
 }

@@ -72,6 +72,29 @@ ${lines.join("\n")}
 工具结果存疑时说明局限，不编造内容。`.trim();
 }
 
+export function buildSkillContextPrompt(
+  skills: { name: string; description: string }[],
+) {
+  if (skills.length === 0) {
+    return "";
+  }
+
+  const entries = skills.flatMap((skill) => [
+    "  <skill>",
+    `    <name>${skill.name}</name>`,
+    `    <description>${skill.description}</description>`,
+    "  </skill>",
+  ]);
+
+  return [
+    "Skills provide specialized instructions and workflows for specific tasks.",
+    "When the user's task matches a skill's description, call the Skill tool with that skill's name to load its full instructions, then follow them. If nothing matches, proceed normally — do not invoke a skill just to use one.",
+    "<available_skills>",
+    ...entries,
+    "</available_skills>",
+  ].join("\n");
+}
+
 export function buildTimeContextPrompt(currentDateTime: string, currentIsoTime: string) {
   return `
 时间补充：

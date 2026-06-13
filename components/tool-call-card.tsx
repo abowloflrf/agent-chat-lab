@@ -149,6 +149,10 @@ function extractInputSummary(toolName: string, input: unknown): string | null {
     return record.path;
   }
 
+  if (toolName === "Skill" && typeof record.name === "string") {
+    return record.name;
+  }
+
   if (toolName === "WebFetch") {
     if (Array.isArray(record.urls)) {
       const urls = record.urls.filter(

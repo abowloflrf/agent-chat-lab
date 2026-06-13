@@ -16,6 +16,7 @@ import {
   readFileForTool,
   writeFileForTool,
 } from "@/lib/ai/file-tools";
+import { loadSkill } from "@/lib/ai/skills";
 import type { ProviderConfig } from "@/lib/provider-config";
 import { createNote, readTodos, searchNotes, writeTodo } from "@/lib/persistence";
 
@@ -248,8 +249,11 @@ function evaluateExpression(expression: string) {
   }
 }
 
-export function createAgentTools(config: ProviderConfig) {
-  return {
+export function createAgentTools(
+  config: ProviderConfig,
+  enabledSkillNames: Set<string> = new Set(),
+) {
+  const tools = {
     // 客户端工具：无 execute，模型调用后流结束，由前端收集用户答案
     // 通过 addToolOutput 回填，再自动发起下一轮请求。
     AskUserQuestion: tool({
@@ -546,6 +550,59 @@ export function createAgentTools(config: ProviderConfig) {
                 : "Tavily 网页抓取失败，原因未知。",
           };
         }
+      },
+    }),
+  };
+
+  // 没有任何启用的 skill 时不暴露 Skill 工具，避免给模型一个永远报“未找到”的入口。
+  if (enabledSkillNames.size === 0) {
+    return tools;
+  }
+
+  return {
+    ...tools,
+    Skill: tool({
+      description:
+        'Load a specialized skill when the user\'s task matches one of the skills listed under "Available skills" in the system prompt. This injects the skill\'s full instructions into the conversation; those instructions may describe a detailed workflow and reference scripts or files in the skill\'s directory — read them with the read tool or Bash (commands that modify state still require user approval). The name must exactly match one of the skills listed in the system prompt.',
+      inputSchema: z.object({
+        name: z
+          .string()
+          .trim()
+          .min(1)
+          .max(64)
+          .describe(
+            'The name of the skill to load. Must exactly match one of the skills listed under "Available skills" in the system prompt.',
+          ),
+      }),
+      execute: async ({ name }) => {
+        if (!enabledSkillNames.has(name)) {
+          return {
+            ok: false,
+            error: `Skill "${name}" is not available or has been disabled. Only load skills listed under "Available skills" in the system prompt.`,
+          };
+        }
+
+        const skill = await loadSkill(name);
+
+        if (!skill) {
+          return {
+            ok: false,
+            error: `Failed to load skill "${name}"; its files may have been removed.`,
+          };
+        }
+
+        return {
+          ok: true,
+          name: skill.name,
+          instructions: skill.content,
+          files: skill.files,
+          ...(skill.files.length > 0
+            ? {
+                suggestedNextAction:
+                  "To use the scripts or resources in the files list, read them with the read tool or run them with Bash (commands that modify state still require user approval).",
+              }
+            : {}),
+        };
       },
     }),
   };

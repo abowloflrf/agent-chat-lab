@@ -48,4 +48,9 @@ export const builtInTools = [
     name: "WebFetch",
     description: "使用 Tavily 抓取一个或多个 URL 的网页正文，适合在搜索后继续读取原文内容。",
   },
+  {
+    name: "Skill",
+    description:
+      "按名字加载某个 Skill 的完整指令并据此执行；任务匹配某个已启用 Skill 的用途时自动调用。仅在检测到至少一个已启用 Skill 时提供。",
+  },
 ] as const;

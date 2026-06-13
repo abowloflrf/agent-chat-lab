@@ -16,6 +16,7 @@ import {
   type ProviderSettings,
   type SystemSettings,
 } from "@/lib/provider-config";
+import { getExistingSkillNames } from "@/lib/ai/skills";
 
 const SETTINGS_ROW_ID = 1;
 
@@ -55,6 +56,24 @@ function parseMcpServersColumn(raw: string | null | undefined): McpServer[] {
   }
 }
 
+function parseDisabledSkillsColumn(raw: string | null | undefined): string[] {
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const json: unknown = JSON.parse(raw);
+
+    if (!Array.isArray(json)) {
+      return [];
+    }
+
+    return json.filter((item): item is string => typeof item === "string");
+  } catch {
+    return [];
+  }
+}
+
 function toInt(value: boolean) {
   return value ? 1 : 0;
 }
@@ -81,6 +100,7 @@ function buildDefaultSettingsFromEnv(): SystemSettings {
       },
     ],
     mcpServers: [],
+    disabledSkills: [],
   });
 }
 
@@ -197,6 +217,7 @@ function parseSettingsInput(input: unknown) {
       })),
       isEnabled: server.isEnabled ?? true,
     })),
+    disabledSkills: parsed.data.disabledSkills ?? [],
   });
 
   assertValidMcpServerUrls(normalized.mcpServers);
@@ -253,6 +274,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
       })),
     })),
     mcpServers: parseMcpServersColumn(settingsRow?.mcpServers),
+    disabledSkills: parseDisabledSkillsColumn(settingsRow?.disabledSkills),
   });
 }
 
@@ -260,16 +282,27 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
   await ensureDatabase();
 
   const normalized = parseSettingsInput(input);
+
+  // 顺带清理 disabled 名单里已不存在的 skill，避免删除 skill 后死数据永久累积。
+  // 仅在能成功读到 skill 目录时清理；目录缺失或读取失败时原样保留，避免目录临时
+  // 不可见（如部署中 volume 尚未就绪）时误删用户的禁用选择。
+  const existingSkillNames = await getExistingSkillNames();
+  const disabledSkills = existingSkillNames
+    ? normalized.disabledSkills.filter((name) => existingSkillNames.has(name))
+    : normalized.disabledSkills;
+
   const now = Date.now();
 
   db.transaction((tx) => {
     const mcpServersJson = JSON.stringify(normalized.mcpServers);
+    const disabledSkillsJson = JSON.stringify(disabledSkills);
 
     tx.insert(systemSettings)
       .values({
         id: SETTINGS_ROW_ID,
         tavilyApiKey: normalized.tavilyApiKey,
         mcpServers: mcpServersJson,
+        disabledSkills: disabledSkillsJson,
         createdAt: now,
         updatedAt: now,
       })
@@ -278,6 +311,7 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
         set: {
           tavilyApiKey: normalized.tavilyApiKey,
           mcpServers: mcpServersJson,
+          disabledSkills: disabledSkillsJson,
           updatedAt: now,
         },
       })

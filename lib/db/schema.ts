@@ -127,6 +127,7 @@ export const systemSettings = sqliteTable("system_settings", {
   id: integer("id", { mode: "number" }).primaryKey(),
   tavilyApiKey: text("tavily_api_key").notNull(),
   mcpServers: text("mcp_servers").notNull().default("[]"),
+  disabledSkills: text("disabled_skills").notNull().default("[]"),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
 });

@@ -15,11 +15,13 @@ import {
 import { getChatModel } from "@/lib/ai/model";
 import {
   buildMcpContextPrompt,
+  buildSkillContextPrompt,
   buildTimeContextPrompt,
   systemPrompt,
 } from "@/lib/ai/system-prompt";
 import { createAgentTools } from "@/lib/ai/tools";
 import { connectMcpServers, type McpServerToolInfo } from "@/lib/ai/mcp";
+import { discoverSkills, type SkillInfo } from "@/lib/ai/skills";
 import { persistFinishedConversation, persistIncomingMessages, generateConversationTitle } from "@/lib/persistence";
 import type {
   AgentTimelineStep,
@@ -231,6 +233,7 @@ function toNonNegativeInt(value: number | undefined) {
 function buildRuntimeSystemPrompt(
   messages: ChatUIMessage[],
   mcpServers: McpServerToolInfo[],
+  skills: SkillInfo[],
 ) {
   // Pin time to the conversation's first message so the entire system
   // prompt stays identical for every request in the same session,
@@ -248,6 +251,11 @@ function buildRuntimeSystemPrompt(
     timeZone: "Asia/Shanghai",
   }).format(pinnedNow);
   const promptSections = [systemPrompt];
+
+  const skillSection = buildSkillContextPrompt(skills);
+  if (skillSection) {
+    promptSections.push(skillSection);
+  }
 
   const mcpSection = buildMcpContextPrompt(mcpServers);
   if (mcpSection) {
@@ -339,7 +347,15 @@ export async function POST(request: Request) {
       )
     : getRuntimeProviderConfigFromSettings(settings);
   const mcpServers = getEnabledMcpServersFromSettings(settings);
-  const agentTools = createAgentTools(providerConfig);
+
+  // Skills 来自文件系统，用设置里的禁用名单过滤后才对模型可见。读盘很快，串行
+  // await 即可；放在 createAgentTools 之前，让历史里的 Skill 工具调用也能被解析。
+  const disabledSkillNames = new Set(settings.disabledSkills);
+  const enabledSkills = (await discoverSkills()).filter(
+    (skill) => !disabledSkillNames.has(skill.name),
+  );
+  const enabledSkillNames = new Set(enabledSkills.map((skill) => skill.name));
+  const agentTools = createAgentTools(providerConfig, enabledSkillNames);
 
   const sanitizedMessages = settleInterruptedToolCalls(
     resolveUnansweredQuestions(autoRejectPendingApprovals(parsed.data.messages)),
@@ -398,6 +414,7 @@ export async function POST(request: Request) {
   const runtimeSystemPrompt = buildRuntimeSystemPrompt(
     parsed.data.messages,
     advertisedMcpServers,
+    enabledSkills,
   );
 
   const requestStartedAt = Date.now();

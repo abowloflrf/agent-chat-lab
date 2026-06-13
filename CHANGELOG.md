@@ -4,6 +4,8 @@
 
 ## 2026-06-13
 
+### 新增 Skill 支持
+
 ### 新增文件工具 read / write / edit
 - 新增 read / write / edit 文件工具，与 Bash 共用工作目录，可先写代码文件再用 Bash 执行，避免长代码塞进 Bash 命令参数
 

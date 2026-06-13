@@ -1,0 +1,1 @@
+ALTER TABLE `system_settings` ADD `disabled_skills` text DEFAULT '[]' NOT NULL;

@@ -39,6 +39,13 @@
       "when": 1781271412607,
       "tag": "0005_uneven_plazm",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1781332597117,
+      "tag": "0006_clever_eternals",
+      "breakpoints": true
     }
   ]
 }

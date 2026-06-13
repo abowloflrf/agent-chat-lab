@@ -38,6 +38,8 @@ type McpTestState =
   | { status: "success"; tools: Array<{ name: string; description: string }> }
   | { status: "error"; error: string };
 
+type DiscoveredSkill = { name: string; description: string };
+
 function generateId() {
   return crypto.randomUUID
     ? crypto.randomUUID()
@@ -182,6 +184,9 @@ export function ProviderSettingsForm() {
   } | null>(null);
   const [tavilyUsageLoading, setTavilyUsageLoading] = useState(false);
   const [tavilyUsageError, setTavilyUsageError] = useState<string | null>(null);
+  const [skills, setSkills] = useState<DiscoveredSkill[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillsError, setSkillsError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -303,6 +308,54 @@ export function ProviderSettingsForm() {
       cancelled = true;
     };
   }, [section, settings.tavilyApiKey]);
+
+  // Discover skills from the server when viewing the tools section. The skill
+  // list lives on the filesystem (not in settings); only the on/off state does.
+  useEffect(() => {
+    if (section !== "tools") {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadSkills() {
+      setSkillsLoading(true);
+      setSkillsError(null);
+
+      try {
+        const response = await fetch("/api/skills");
+        const payload = (await response.json()) as {
+          skills?: DiscoveredSkill[];
+          error?: string;
+        };
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok) {
+          setSkillsError(payload.error ?? "加载 Skills 失败");
+          return;
+        }
+
+        setSkills(payload.skills ?? []);
+      } catch {
+        if (!cancelled) {
+          setSkillsError("无法加载 Skills");
+        }
+      } finally {
+        if (!cancelled) {
+          setSkillsLoading(false);
+        }
+      }
+    }
+
+    void loadSkills();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [section]);
 
   function updateProvider(providerId: string, updates: Partial<ProviderSettings>) {
     setSettings((current) => ({
@@ -568,6 +621,15 @@ export function ProviderSettingsForm() {
           },
         }));
       });
+  }
+
+  function toggleSkillDisabled(name: string) {
+    setSettings((current) => ({
+      ...current,
+      disabledSkills: current.disabledSkills.includes(name)
+        ? current.disabledSkills.filter((item) => item !== name)
+        : [...current.disabledSkills, name],
+    }));
   }
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
@@ -1407,6 +1469,71 @@ export function ProviderSettingsForm() {
                     >
                       + 添加 MCP Server
                     </button>
+                  </div>
+
+                  {/* Skills */}
+                  <div className="mt-8">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                        Skills
+                      </p>
+                      <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-[rgba(23,23,23,0.1)] px-3 py-1 text-[11px] leading-none text-[#6e665d]">
+                        {skills.length} 个
+                      </span>
+                    </div>
+                    <p className="mb-4 text-xs leading-5 text-[#8a8176]">
+                      Skills 是预先写好的可复用操作指南，放在服务器的 skill 目录（默认{" "}
+                      <code>workspace/skills/</code>，可用环境变量 <code>SKILLS_DIR</code> 指定）
+                      下，每个子目录一个 <code>SKILL.md</code>。检测到的 Skill 会按用途自动提供
+                      给 AI，可在此逐个停用。在服务器增删或修改 Skill 文件后，刷新本页即可重新检测。
+                    </p>
+
+                    {skillsLoading ? (
+                      <p className="text-xs text-[#a39a90]">检测中…</p>
+                    ) : skillsError ? (
+                      <p className="text-xs text-red-500">{skillsError}</p>
+                    ) : skills.length === 0 ? (
+                      <p className="rounded-lg border border-dashed border-[rgba(23,23,23,0.16)] px-4 py-3 text-xs leading-5 text-[#8a8176]">
+                        未检测到 Skill。在服务器的 skill 目录下创建一个子目录并放入 SKILL.md
+                        （开头用 frontmatter 标注 name 与 description），刷新本页后即可在此看到。
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {skills.map((skill) => {
+                          const enabled = !settings.disabledSkills.includes(skill.name);
+                          return (
+                            <div
+                              key={skill.name}
+                              className={`rounded-lg border px-4 py-3 ${
+                                enabled
+                                  ? "border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.64)]"
+                                  : "border-[rgba(23,23,23,0.06)] bg-[rgba(255,255,255,0.4)] opacity-70"
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-mono text-[12px] text-[#9c5626]">
+                                    {skill.name}
+                                  </p>
+                                  <p className="mt-1 text-sm leading-6 text-[#4d4339]">
+                                    {skill.description}
+                                  </p>
+                                </div>
+                                <label className="flex shrink-0 items-center gap-1.5 text-xs text-[#6e665d]">
+                                  <input
+                                    type="checkbox"
+                                    checked={enabled}
+                                    onChange={() => toggleSkillDisabled(skill.name)}
+                                    className="accent-[#9c5626]"
+                                  />
+                                  启用
+                                </label>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-6 flex items-center justify-end gap-3 border-t border-[rgba(23,23,23,0.08)] pt-5">
