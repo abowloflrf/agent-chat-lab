@@ -13,13 +13,35 @@ const dataDirectoryPath = path.join(process.cwd(), "data");
 const databaseFilePath = path.join(dataDirectoryPath, "agent-chat-lab.sqlite");
 const migrationsFolderPath = path.join(process.cwd(), "drizzle");
 
-fs.mkdirSync(dataDirectoryPath, { recursive: true });
+type DrizzleDatabase = ReturnType<typeof drizzle<typeof schema>>;
 
-const sqlite = new Database(databaseFilePath);
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+let drizzleInstance: DrizzleDatabase | undefined;
 
-export const db = drizzle(sqlite, { schema });
+// 惰性打开连接：模块求值时不碰数据库，避免 `next build` 收集 page data
+// 时多个 worker 进程并发打开同一文件、争抢 WAL 切换锁而报 SQLITE_BUSY。
+function getDb(): DrizzleDatabase {
+  if (!drizzleInstance) {
+    fs.mkdirSync(dataDirectoryPath, { recursive: true });
+
+    const sqlite = new Database(databaseFilePath);
+    sqlite.pragma("busy_timeout = 5000");
+    sqlite.pragma("journal_mode = WAL");
+    sqlite.pragma("foreign_keys = ON");
+
+    drizzleInstance = drizzle(sqlite, { schema });
+  }
+
+  return drizzleInstance;
+}
+
+export const db = new Proxy({} as DrizzleDatabase, {
+  get(_target, prop) {
+    const instance = getDb();
+    const value = Reflect.get(instance, prop, instance);
+    return typeof value === "function" ? value.bind(instance) : value;
+  },
+}) as DrizzleDatabase;
+
 export { databaseFilePath };
 
 let initializationPromise: Promise<void> | undefined;
