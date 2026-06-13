@@ -13,7 +13,7 @@ import {
   ASK_USER_QUESTION_TOOL_NAME,
   type AskUserQuestionOutput,
 } from "@/lib/ai/ask-user-question";
-import { ArtifactDrawer } from "@/components/artifact-drawer";
+import { ArtifactPopover } from "@/components/artifact-popover";
 import { ChatMessage } from "@/components/chat-message";
 import { ConversationList } from "@/components/conversation-list";
 import { ModuleSwitcher } from "@/components/module-switcher";
@@ -371,7 +371,7 @@ export function ChatShell({
   const [artifacts, setArtifacts] = useState<ConversationArtifact[]>(
     initialArtifacts,
   );
-  const [artifactDrawerOpen, setArtifactDrawerOpen] = useState(false);
+  const [artifactPopoverOpen, setArtifactPopoverOpen] = useState(false);
   const [interruptedRunDetected, setInterruptedRunDetected] = useState(() => {
     return initialRecoveredMessages.some((message) =>
       isInterruptedMessage(message.metadata),
@@ -629,7 +629,7 @@ export function ChatShell({
         setInterruptedRunDetected(false);
         setRestoredConfig(DEFAULT_SESSION_CONFIG);
         setArtifacts([]);
-        setArtifactDrawerOpen(false);
+        setArtifactPopoverOpen(false);
       }
       return;
     }
@@ -670,7 +670,7 @@ export function ChatShell({
             setInterruptedRunDetected(false);
             setRestoredConfig(DEFAULT_SESSION_CONFIG);
             setArtifacts([]);
-            setArtifactDrawerOpen(false);
+            setArtifactPopoverOpen(false);
           }
         })
         .catch((fetchError) => {
@@ -687,7 +687,7 @@ export function ChatShell({
           setInterruptedRunDetected(false);
           setRestoredConfig(DEFAULT_SESSION_CONFIG);
           setArtifacts([]);
-          setArtifactDrawerOpen(false);
+          setArtifactPopoverOpen(false);
         });
 
       return () => {
@@ -1186,7 +1186,7 @@ export function ChatShell({
     setInterruptedRunDetected(false);
     setRestoredConfig(DEFAULT_SESSION_CONFIG);
     setArtifacts([]);
-    setArtifactDrawerOpen(false);
+    setArtifactPopoverOpen(false);
     clearError();
     setDraft("");
     setLocalConversationId(null);
@@ -1244,12 +1244,6 @@ export function ChatShell({
         </aside>
 
         <section className="glass-panel rise-in relative flex h-full min-h-0 flex-col overflow-hidden">
-          <ArtifactDrawer
-            conversationId={conversationId}
-            artifacts={artifacts}
-            open={artifactDrawerOpen}
-            onClose={() => setArtifactDrawerOpen(false)}
-          />
           <header
             ref={headerRef}
             className={`absolute inset-x-0 top-0 z-20 border-b border-[rgba(23,23,23,0.06)] bg-[rgba(255,252,247,0.62)] backdrop-blur-xl backdrop-saturate-150 transition-transform duration-200 ease-out will-change-transform lg:translate-y-0 ${
@@ -1280,38 +1274,12 @@ export function ChatShell({
                     </span>
                   ) : null}
                   {conversationId ? (
-                    <button
-                      type="button"
-                      onClick={() => setArtifactDrawerOpen(true)}
-                      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition sm:px-2.5 ${
-                        artifacts.length > 0
-                          ? "border-[rgba(201,106,43,0.28)] bg-[rgba(201,106,43,0.08)] text-[#8b4317] hover:border-[rgba(201,106,43,0.45)] hover:text-[#6f320f]"
-                          : "border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.48)] text-[#776b60] hover:border-[rgba(23,23,23,0.16)] hover:text-[#3f352c]"
-                      }`}
-                      title="查看会话 artifacts"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        className="h-3.5 w-3.5"
-                      >
-                        <path
-                          d="M4 5.6A2.1 2.1 0 0 1 6.1 3.5h4.8L16 8.6v5.8a2.1 2.1 0 0 1-2.1 2.1H6.1A2.1 2.1 0 0 1 4 14.4V5.6Z"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M10.8 3.7v3.2A1.2 1.2 0 0 0 12 8.1h3.6"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <span className="hidden sm:inline">Artifacts</span>
-                      <span className="font-mono">{artifacts.length}</span>
-                    </button>
+                    <ArtifactPopover
+                      conversationId={conversationId}
+                      artifacts={artifacts}
+                      open={artifactPopoverOpen}
+                      onOpenChange={setArtifactPopoverOpen}
+                    />
                   ) : null}
                 </div>
               </div>

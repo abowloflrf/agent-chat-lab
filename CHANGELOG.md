@@ -5,7 +5,7 @@
 ## 2026-06-13
 
 ### 会话 Artifact 模式
-- 会话新增自动 artifact 发现与右侧抽屉：AI 在 workspace 生成的图片、SVG、HTML、文本/数据/PDF 等文件会按会话记录，支持沙箱预览、源码查看与下载；新增 `artifacts` 表和会话级 artifact API
+- 新增会话 Artifacts：自动记录 workspace 产物并提供会话级 API，顶部入口以紧凑弹出列表展示文件并支持当前页预览和下载
 
 ### 底部栏新增会话级 MCP / Skills 选择
 - 输入栏新增 MCP、Skills 多选，且模型/MCP/Skills 选择按会话持久化
