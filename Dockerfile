@@ -6,7 +6,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# 安装编译工具
+# 编译工具
 RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     make \
@@ -19,13 +19,7 @@ RUN corepack enable pnpm && pnpm install --frozen-lockfile
 
 COPY . .
 
-# 编译 better-sqlite3 并构建
-RUN pnpm rebuild better-sqlite3 && pnpm build
-
-# 准备 standalone 输出
-RUN mkdir -p /app/.next/standalone/.next && \
-    cp -r /app/.next/static /app/.next/standalone/.next/static && \
-    cp -r /app/public /app/.next/standalone/public
+RUN pnpm build
 
 # --- 运行阶段 ---
 FROM node:24-slim AS runner
@@ -58,13 +52,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制 standalone 产物
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/standalone/.next/static ./app/.next/static
-COPY --from=builder /app/.next/standalone/public ./app/public
+# Python 运行时（agent 执行代码用）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-venv \
+    && rm -rf /var/lib/apt/lists/*
 
-# 创建数据目录
-RUN mkdir -p /app/workspace /app/data && chown -R node:node /app
+# node 拥有的 venv（含 pip）；PATH 前置让 python/pip 默认走它，绕过 PEP 668
+ENV PATH="/opt/venv/bin:$PATH"
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
+    && chown -R node:node /opt/venv
+
+# 复制 standalone 产物
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/public ./public
+
+RUN mkdir -p /app/workspace /app/data && chown node:node /app/workspace /app/data
 
 USER node
 

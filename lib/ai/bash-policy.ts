@@ -24,8 +24,6 @@ export type BashAssessment = {
   usesShell: boolean;
 };
 
-const CONTROL_CHARACTER_PATTERN = /[\r\n\t\0]/;
-
 // 确定高危：即使用户批准也不执行。
 const BLOCKED_COMMANDS = new Map<string, string>([
   ["rm", "禁止执行删除文件命令。"],
@@ -332,15 +330,12 @@ export function assessBashCommand(command: string): BashAssessment {
     return buildDeniedAssessment(command, "命令过长，已超过长度限制。");
   }
 
-  if (CONTROL_CHARACTER_PATTERN.test(command)) {
-    return buildDeniedAssessment(command, "不支持换行、制表符或其他控制字符。");
-  }
-
   const usesShell = hasShellFeatures(command);
 
+  // 用原始命令分词，保留引号内的换行与缩进（normalizedCommand 会折叠成空格，会破坏多行代码）。
   let argv: string[];
   try {
-    argv = tokenizeBashCommand(normalizedCommand);
+    argv = tokenizeBashCommand(command);
   } catch (error) {
     return buildDeniedAssessment(
       command,
