@@ -24,6 +24,18 @@ export const builtInTools = [
     description: "执行受审批与风险判定约束的单条非交互命令。每次调用都必须先由用户明确允许。",
   },
   {
+    name: "read",
+    description: "读取文本文件内容，支持 offset/limit 分段读取大文件，返回不含行号的原始文本。",
+  },
+  {
+    name: "write",
+    description: "写入文件，不存在则新建、存在则覆盖，并自动创建父级目录。适合先写代码再用 Bash 执行。",
+  },
+  {
+    name: "edit",
+    description: "对单个文件做精确文本替换，每处 oldText 须在原文中唯一且互不重叠，可一次提交多处改动。",
+  },
+  {
     name: "AskUserQuestion",
     description:
       "在缺少关键信息时向用户弹出提问卡片，支持选项快选、自由输入或跳过，作答后 Agent 自动继续。",

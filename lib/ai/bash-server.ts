@@ -1,15 +1,29 @@
 import "server-only";
 
-import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   assessBashCommand,
   type BashAssessment,
 } from "@/lib/ai/bash-policy";
 
-type LimitedOutput = {
-  text: string;
-  truncated: boolean;
+// Hard ceiling on how much output we keep in memory to write to the temp file.
+// The tail window (assessment.outputLimit) is what the model sees; this larger
+// cap is the full transcript saved for follow-up `read` calls.
+const FULL_CAPTURE_MAX_CHARS = 2 * 1024 * 1024;
+
+type OutputCapture = {
+  push: (chunk: string) => void;
+  result: () => {
+    tail: string;
+    full: string;
+    truncated: boolean;
+    fullCapped: boolean;
+  };
 };
 
 export type BashExecutionResult = {
@@ -21,19 +35,46 @@ export type BashExecutionResult = {
   riskLevel: BashAssessment["riskLevel"];
   reasons: string[];
   workdir: string;
+  // Set when stdout/stderr was truncated: path to the temp file holding the
+  // full transcript, which the model can open with the `read` tool.
+  fullOutputPath?: string;
 };
 
-function truncateOutput(value: string, limit: number): LimitedOutput {
-  if (value.length <= limit) {
-    return {
-      text: value,
-      truncated: false,
-    };
-  }
+// Keeps the most recent `tailLimit` chars for the model, plus the leading
+// `fullCap` chars for the persisted transcript. Errors usually surface at the
+// end of output, so the tail is what the model needs most.
+function createOutputCapture(tailLimit: number, fullCap: number): OutputCapture {
+  let tail = "";
+  let full = "";
+  let total = 0;
+  let fullCapped = false;
 
   return {
-    text: `${value.slice(0, limit)}\n…[输出已截断]`,
-    truncated: true,
+    push(chunk: string) {
+      total += chunk.length;
+
+      tail += chunk;
+      if (tail.length > tailLimit) {
+        tail = tail.slice(tail.length - tailLimit);
+      }
+
+      if (!fullCapped) {
+        if (full.length + chunk.length > fullCap) {
+          full += chunk.slice(0, fullCap - full.length);
+          fullCapped = true;
+        } else {
+          full += chunk;
+        }
+      }
+    },
+    result() {
+      return {
+        tail,
+        full,
+        truncated: total > tailLimit,
+        fullCapped,
+      };
+    },
   };
 }
 
@@ -50,6 +91,43 @@ function resolveBashToolWorkdir() {
   }
 
   return "/";
+}
+
+// Re-export under the original name so the file tools keep a single source of
+// truth for the working directory.
+export { resolveBashToolWorkdir };
+
+async function persistFullOutput(
+  command: string,
+  stdout: string,
+  stderr: string,
+  capped: boolean,
+): Promise<string | undefined> {
+  const file = join(tmpdir(), `bash-tool-${randomUUID()}.log`);
+  const header = [
+    `# full output of: ${command}`,
+    capped
+      ? `# note: transcript itself capped at ${FULL_CAPTURE_MAX_CHARS} chars`
+      : null,
+    "",
+    "## stdout",
+    stdout,
+    "",
+    "## stderr",
+    stderr,
+    "",
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
+
+  try {
+    await writeFile(file, header, "utf8");
+    return file;
+  } catch {
+    // Persisting the full transcript is best-effort; a failure here must not
+    // sink the command result the model is waiting on.
+    return undefined;
+  }
 }
 
 function toExecutionError(error: NodeJS.ErrnoException, workdir: string) {
@@ -87,10 +165,8 @@ export async function executeBashCommand(command: string): Promise<BashExecution
           env: process.env,
         });
 
-    let stdout = "";
-    let stderr = "";
-    let stdoutTruncated = false;
-    let stderrTruncated = false;
+    const stdoutCapture = createOutputCapture(assessment.outputLimit, FULL_CAPTURE_MAX_CHARS);
+    const stderrCapture = createOutputCapture(assessment.outputLimit, FULL_CAPTURE_MAX_CHARS);
     let settled = false;
     let timedOut = false;
 
@@ -114,23 +190,11 @@ export async function executeBashCommand(command: string): Promise<BashExecution
     child.stderr.setEncoding("utf8");
 
     child.stdout.on("data", (chunk: string) => {
-      if (stdoutTruncated) {
-        return;
-      }
-
-      const next = truncateOutput(stdout + chunk, assessment.outputLimit);
-      stdout = next.text;
-      stdoutTruncated = next.truncated;
+      stdoutCapture.push(chunk);
     });
 
     child.stderr.on("data", (chunk: string) => {
-      if (stderrTruncated) {
-        return;
-      }
-
-      const next = truncateOutput(stderr + chunk, assessment.outputLimit);
-      stderr = next.text;
-      stderrTruncated = next.truncated;
+      stderrCapture.push(chunk);
     });
 
     child.on("error", (error) => {
@@ -139,21 +203,46 @@ export async function executeBashCommand(command: string): Promise<BashExecution
 
     child.on("close", (exitCode) => {
       finalize(() => {
-        const durationMs = Math.max(0, Date.now() - startedAt);
-        const stderrWithTimeout = timedOut
-          ? `${stderr}${stderr ? "\n" : ""}命令执行超时，已被终止。`
-          : stderr;
+        void (async () => {
+          const durationMs = Math.max(0, Date.now() - startedAt);
+          const so = stdoutCapture.result();
+          const se = stderrCapture.result();
 
-        resolve({
-          command: assessment.normalizedCommand,
-          exitCode,
-          stdout,
-          stderr: stderrWithTimeout,
-          durationMs,
-          riskLevel: assessment.riskLevel,
-          reasons: assessment.reasons,
-          workdir,
-        });
+          let fullOutputPath: string | undefined;
+          if (so.truncated || se.truncated) {
+            fullOutputPath = await persistFullOutput(
+              assessment.normalizedCommand,
+              so.full,
+              se.full,
+              so.fullCapped || se.fullCapped,
+            );
+          }
+
+          const truncationNote = (truncated: boolean) =>
+            truncated
+              ? `…[较早的输出已截断，仅保留最新 ${assessment.outputLimit} 字符${
+                  fullOutputPath ? `；完整输出见 ${fullOutputPath}，可用 read 工具查看` : ""
+                }]\n`
+              : "";
+
+          const stdout = `${truncationNote(so.truncated)}${so.tail}`;
+          const stderrBase = `${truncationNote(se.truncated)}${se.tail}`;
+          const stderr = timedOut
+            ? `${stderrBase}${stderrBase ? "\n" : ""}命令执行超时，已被终止。`
+            : stderrBase;
+
+          resolve({
+            command: assessment.normalizedCommand,
+            exitCode,
+            stdout,
+            stderr,
+            durationMs,
+            riskLevel: assessment.riskLevel,
+            reasons: assessment.reasons,
+            workdir,
+            ...(fullOutputPath ? { fullOutputPath } : {}),
+          });
+        })();
       });
     });
   });

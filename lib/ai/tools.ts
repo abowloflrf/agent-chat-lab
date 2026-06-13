@@ -9,6 +9,13 @@ import {
   BASH_TOOL_MAX_COMMAND_LENGTH,
 } from "@/lib/ai/bash-policy";
 import { executeBashCommand } from "@/lib/ai/bash-server";
+import {
+  editFileForTool,
+  FILE_READ_MAX_BYTES,
+  FILE_READ_MAX_LINES,
+  readFileForTool,
+  writeFileForTool,
+} from "@/lib/ai/file-tools";
 import type { ProviderConfig } from "@/lib/provider-config";
 import { createNote, readTodos, searchNotes, writeTodo } from "@/lib/persistence";
 
@@ -382,23 +389,94 @@ export function createAgentTools(config: ProviderConfig) {
 
     Bash: tool({
       description:
-        "执行一条单段、非交互式 shell 命令。低风险只读命令会自动执行；可能修改状态的命令需用户批准；确定高危的命令会被直接拒绝。",
+        "Execute a non-interactive shell command and return its stdout and stderr. Pipes, redirection, and command chaining (`|`, `>`, `&&`, …) are supported. Low-risk read-only commands run automatically; commands that may modify state or use shell features require user approval; commands deemed high-risk are rejected outright. When output exceeds the limit it is truncated to keep the most recent output, and the full transcript is saved to a temp file whose path is returned (open it with the read tool).",
       inputSchema: z.object({
         command: z
           .string()
           .trim()
           .min(1)
           .max(BASH_TOOL_MAX_COMMAND_LENGTH)
-          .describe("要执行的单条 shell 命令。只能是非交互、无管道和无重定向的单段命令。"),
+          .describe(
+            "The shell command to run. May use pipes, redirection, and chaining; it must be non-interactive (no commands that wait for input or open a full-screen TUI).",
+          ),
         reason: z
           .string()
           .trim()
           .max(200)
           .optional()
-          .describe("可选，说明为什么必须执行这条命令。"),
+          .describe("Optional. Explain why this command needs to run."),
       }),
       needsApproval: (input) => assessBashCommand(input.command).decision === "approval",
       execute: async ({ command }) => executeBashCommand(command),
+    }),
+
+    read: tool({
+      description: `Read the contents of a text file. Output is truncated to ${FILE_READ_MAX_LINES} lines or ${FILE_READ_MAX_BYTES / 1024}KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.`,
+      inputSchema: z.object({
+        path: z
+          .string()
+          .trim()
+          .min(1)
+          .describe("Path to the file to read (relative or absolute)"),
+        offset: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Line number to start reading from (1-indexed)"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Maximum number of lines to read"),
+      }),
+      execute: async (input) => readFileForTool(input),
+    }),
+
+    write: tool({
+      description:
+        "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+      inputSchema: z.object({
+        path: z
+          .string()
+          .trim()
+          .min(1)
+          .describe("Path to the file to write (relative or absolute)"),
+        content: z.string().describe("Content to write to the file"),
+      }),
+      execute: async (input) => writeFileForTool(input),
+    }),
+
+    edit: tool({
+      description:
+        "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+      inputSchema: z.object({
+        path: z
+          .string()
+          .trim()
+          .min(1)
+          .describe("Path to the file to edit (relative or absolute)"),
+        edits: z
+          .array(
+            z.object({
+              oldText: z
+                .string()
+                .min(1)
+                .describe(
+                  "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call.",
+                ),
+              newText: z
+                .string()
+                .describe("Replacement text for this targeted edit."),
+            }),
+          )
+          .min(1)
+          .describe(
+            "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
+          ),
+      }),
+      execute: async (input) => editFileForTool(input),
     }),
 
     WebSearch: tool({

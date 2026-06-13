@@ -142,6 +142,13 @@ function extractInputSummary(toolName: string, input: unknown): string | null {
     return record.query;
   }
 
+  if (
+    (toolName === "read" || toolName === "write" || toolName === "edit") &&
+    typeof record.path === "string"
+  ) {
+    return record.path;
+  }
+
   if (toolName === "WebFetch") {
     if (Array.isArray(record.urls)) {
       const urls = record.urls.filter(
