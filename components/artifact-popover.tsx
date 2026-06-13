@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import {
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -376,8 +377,32 @@ export function ArtifactPopover({
   onOpenChange,
 }: ArtifactPopoverProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const popoverId = useId();
   const [previewArtifactId, setPreviewArtifactId] = useState<string | null>(null);
+  const [position, setPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+
+  const measurePosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) {
+      return;
+    }
+
+    const rect = trigger.getBoundingClientRect();
+    const margin = 12;
+    const width = Math.min(384, window.innerWidth - margin * 2);
+    const left = Math.max(
+      margin,
+      Math.min(rect.right - width, window.innerWidth - width - margin),
+    );
+    const top = rect.bottom + 8;
+    setPosition({ top, left, width });
+  }, []);
   const previewArtifact = useMemo(() => {
     return (
       artifacts.find((artifact) => artifact.id === previewArtifactId) ?? null
@@ -390,9 +415,14 @@ export function ArtifactPopover({
     }
 
     function handlePointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        onOpenChange(false);
+      const target = event.target as Node;
+      if (
+        rootRef.current?.contains(target) ||
+        popoverRef.current?.contains(target)
+      ) {
+        return;
       }
+      onOpenChange(false);
     }
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -401,19 +431,36 @@ export function ArtifactPopover({
       }
     }
 
+    function handleReposition() {
+      measurePosition();
+    }
+
+    measurePosition();
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleReposition);
+    window.addEventListener("scroll", handleReposition, true);
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleReposition);
+      window.removeEventListener("scroll", handleReposition, true);
     };
-  }, [onOpenChange, open]);
+  }, [measurePosition, onOpenChange, open]);
 
   return (
     <div ref={rootRef} className="relative inline-flex">
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => onOpenChange(!open)}
+        onClick={() => {
+          if (open) {
+            onOpenChange(false);
+          } else {
+            measurePosition();
+            onOpenChange(true);
+          }
+        }}
         aria-expanded={open}
         aria-controls={popoverId}
         className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition sm:px-2.5 ${
@@ -428,10 +475,17 @@ export function ArtifactPopover({
         <span className="font-mono">{artifacts.length}</span>
       </button>
 
-      {open ? (
+      {open && position ? (
+        <BodyPortal>
         <div
+          ref={popoverRef}
           id={popoverId}
-          className="menu-appear fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+4.25rem)] z-50 overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white text-[#3b3027] shadow-lg shadow-black/8 md:absolute md:left-auto md:right-0 md:top-[calc(100%+0.5rem)] md:w-[24rem]"
+          style={{
+            top: position.top,
+            left: position.left,
+            width: position.width,
+          }}
+          className="menu-appear fixed z-[60] overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white text-[#3b3027] shadow-lg shadow-black/8"
         >
           <div className="flex items-center justify-between gap-2 border-b border-[rgba(23,23,23,0.06)] px-3 py-2">
             <span className="text-[10px] uppercase tracking-[0.18em] text-[#978b7e]">
@@ -511,6 +565,7 @@ export function ArtifactPopover({
             </div>
           ) : null}
         </div>
+        </BodyPortal>
       ) : null}
 
       {previewArtifact ? (
