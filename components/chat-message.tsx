@@ -578,7 +578,7 @@ export const ChatMessage = memo(function ChatMessage({
         className={`${
           isUser
             ? "ml-auto flex w-full max-w-2xl flex-col items-end"
-            : "w-full max-w-3xl"
+            : "w-full"
         }`}
       >
         <div className="space-y-3">

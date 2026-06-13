@@ -6,7 +6,13 @@ import {
 } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { flushSync } from "react-dom";
 import {
   ASK_USER_QUESTION_PART_TYPE,
@@ -55,6 +61,36 @@ const MIN_TEXTAREA_ROWS = 1;
 const MAX_TEXTAREA_ROWS = 6;
 const STREAM_RECOVERY_IDLE_MS = 120000;
 const CHAT_INSTANCE_ID = "chat-shell";
+const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
+const SIDEBAR_COLLAPSED_EVENT = "sidebar-collapsed-change";
+
+/**
+ * 桌面端侧边栏折叠状态存于 localStorage，用 useSyncExternalStore 读取：SSR 与首帧
+ * hydration 都取 server snapshot（false），hydration 完成后再同步到真实值，避免在
+ * effect 里直接 setState（lint 禁止）或读 localStorage 造成的 hydration mismatch。
+ * 同页写入不触发原生 storage 事件，故用自定义事件广播给所有订阅者。
+ */
+function subscribeSidebarCollapsed(callback: () => void) {
+  window.addEventListener(SIDEBAR_COLLAPSED_EVENT, callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener(SIDEBAR_COLLAPSED_EVENT, callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+function getSidebarCollapsedSnapshot() {
+  return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+}
+
+function getSidebarCollapsedServerSnapshot() {
+  return false;
+}
+
+function setSidebarCollapsedStorage(value: boolean) {
+  window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, value ? "1" : "0");
+  window.dispatchEvent(new Event(SIDEBAR_COLLAPSED_EVENT));
+}
 
 /**
  * Auto-resend only when the last step contains an answered AskUserQuestion.
@@ -372,6 +408,13 @@ export function ChatShell({
     useState<ChatUIMessage[]>(() => initialRecoveredMessages);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // 桌面端是否收起会话列表侧边栏（持久化在 localStorage）；移动端走 sidebarOpen
+  // 抽屉，二者互不影响。
+  const sidebarCollapsed = useSyncExternalStore(
+    subscribeSidebarCollapsed,
+    getSidebarCollapsedSnapshot,
+    getSidebarCollapsedServerSnapshot,
+  );
   const [sidebarRefreshCounter, setSidebarRefreshCounter] = useState(0);
   const [pendingTitle, setPendingTitle] = useState<{
     conversationId: string;
@@ -449,6 +492,10 @@ export function ChatShell({
   useEffect(() => {
     modelOverrideStore.set(selectedModel);
   }, [modelOverrideStore, selectedModel]);
+
+  const toggleSidebarCollapsed = useCallback(() => {
+    setSidebarCollapsedStorage(!getSidebarCollapsedSnapshot());
+  }, []);
 
   // 全选（= 候选总数）视为"未收窄"，下发 null 让服务端走默认全开；否则下发精确清单。
   useEffect(() => {
@@ -1232,25 +1279,47 @@ export function ChatShell({
           onClick={() => setSidebarOpen(false)}
         />
       )}
-      <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
+      <div
+        className={`grid h-full grid-cols-1 lg:transition-[grid-template-columns] lg:duration-200 lg:ease-out ${
+          sidebarCollapsed
+            ? "lg:grid-cols-[0px_minmax(0,1fr)]"
+            : "lg:grid-cols-[300px_minmax(0,1fr)]"
+        }`}
+      >
         <aside
-          className={`dark-panel rise-in fixed inset-y-0 left-0 z-50 w-[280px] overflow-hidden border-r border-white/10 p-4 pt-[max(1rem,env(safe-area-inset-top))] transition-transform duration-200 lg:relative lg:z-auto lg:w-auto lg:translate-x-0 ${
+          className={`dark-panel rise-in fixed inset-y-0 left-0 z-50 overflow-hidden transition-transform duration-200 lg:relative lg:z-auto lg:translate-x-0 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="relative flex h-full flex-col">
+          <div className="relative flex h-full w-[280px] flex-col border-r border-white/10 p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:w-[300px]">
             <div className="border-b border-white/8 pb-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0 flex-1">
                   <ModuleSwitcher />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSidebarOpen(false)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-[#cabfb2] transition hover:bg-white/10 hover:text-white lg:hidden"
-                >
-                  ✕
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={toggleSidebarCollapsed}
+                    title="收起侧边栏"
+                    aria-label="收起侧边栏"
+                    className="hidden h-8 w-8 items-center justify-center rounded-md text-[#cabfb2] transition hover:bg-white/10 hover:text-white lg:flex"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <line x1="9" y1="3" x2="9" y2="21" />
+                      <path d="m16 15-3-3 3-3" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSidebarOpen(false)}
+                    aria-label="关闭侧边栏"
+                    className="flex h-8 w-8 items-center justify-center rounded-md text-[#cabfb2] transition hover:bg-white/10 hover:text-white lg:hidden"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1282,6 +1351,21 @@ export function ChatShell({
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  {sidebarCollapsed ? (
+                    <button
+                      type="button"
+                      onClick={toggleSidebarCollapsed}
+                      title="展开侧边栏"
+                      aria-label="展开侧边栏"
+                      className="hidden h-8 w-8 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)] lg:flex"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <line x1="9" y1="3" x2="9" y2="21" />
+                        <path d="m14 9 3 3-3 3" />
+                      </svg>
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => setSidebarOpen(true)}
