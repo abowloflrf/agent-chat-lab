@@ -4,6 +4,9 @@
 
 ## 2026-06-13
 
+- 基础镜像预装常用 Python 库（requests、pandas、openpyxl、matplotlib、Pillow、pyyaml、pypdf）
+- 修复 Bash 子进程残留僵尸
+
 ### 会话 Artifact 模式
 - 新增会话 Artifacts：自动记录 workspace 产物并提供会话级 API，顶部入口以紧凑弹出列表展示文件并支持当前页预览和下载
 

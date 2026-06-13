@@ -48,6 +48,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     net-tools \
     procps \
     psmisc \
+    tini \
     util-linux \
     wget \
     && rm -rf /var/lib/apt/lists/*
@@ -61,6 +62,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV PATH="/opt/venv/bin:$PATH"
 RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/venv/bin/pip install --no-cache-dir \
+       requests pandas openpyxl matplotlib Pillow pyyaml pypdf \
     && chown -R node:node /opt/venv
 
 # 复制 standalone 产物
@@ -74,4 +77,7 @@ USER node
 
 EXPOSE 3000
 
+# tini 作为 PID 1：回收 Bash 工具产生的孤儿/僵尸进程，并正确转发信号。
+# 放在镜像里而非 compose，确保 docker run / k8s 等任意部署方式都生效。
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "server.js"]

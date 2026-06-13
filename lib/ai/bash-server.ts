@@ -151,18 +151,23 @@ export async function executeBashCommand(command: string): Promise<BashExecution
   const startedAt = Date.now();
 
   return new Promise<BashExecutionResult>((resolve, reject) => {
+    // detached:true 让子进程成为新进程组的组长（pgid === child.pid），这样超时
+    // 时可以用 process.kill(-pid) 杀掉整个管道（shell 及其全部子孙），而不是只杀
+    // shell 本身——否则 `python3 | tail` 里的子进程会被过继给 PID 1 残留为僵尸。
     const child = assessment.usesShell
       ? spawn(command, [], {
           cwd: workdir,
           shell: true,
           stdio: ["ignore", "pipe", "pipe"],
           env: process.env,
+          detached: true,
         })
       : spawn(assessment.argv[0], assessment.argv.slice(1), {
           cwd: workdir,
           shell: false,
           stdio: ["ignore", "pipe", "pipe"],
           env: process.env,
+          detached: true,
         });
 
     const stdoutCapture = createOutputCapture(assessment.outputLimit, FULL_CAPTURE_MAX_CHARS);
@@ -170,10 +175,22 @@ export async function executeBashCommand(command: string): Promise<BashExecution
     let settled = false;
     let timedOut = false;
 
+    // 杀掉整个进程组（前缀负号 = pgid），覆盖管道里的所有子孙进程。
+    const killGroup = (signal: NodeJS.Signals) => {
+      if (child.pid === undefined) {
+        return;
+      }
+      try {
+        process.kill(-child.pid, signal);
+      } catch {
+        // 进程组已退出（ESRCH）等，忽略即可。
+      }
+    };
+
     const timeoutId = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGTERM");
-      setTimeout(() => child.kill("SIGKILL"), 500).unref();
+      killGroup("SIGTERM");
+      setTimeout(() => killGroup("SIGKILL"), 500).unref();
     }, assessment.timeoutMs);
 
     const finalize = (handler: () => void) => {
