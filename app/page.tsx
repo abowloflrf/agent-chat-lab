@@ -21,6 +21,7 @@ export default async function Home({
       initialConversationTitle={conversation?.title ?? null}
       initialMessages={conversation?.messages ?? []}
       initialSessionConfig={conversation?.sessionConfig ?? null}
+      initialArtifacts={conversation?.artifacts ?? []}
     />
   );
 }

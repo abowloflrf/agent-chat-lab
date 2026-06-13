@@ -99,6 +99,35 @@ export const usageRecords = sqliteTable(
   ],
 );
 
+export const artifacts = sqliteTable(
+  "artifacts",
+  {
+    id: text("id").primaryKey(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    messageId: text("message_id"),
+    toolCallId: text("tool_call_id"),
+    path: text("path").notNull(),
+    name: text("name").notNull(),
+    kind: text("kind").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes", { mode: "number" }).notNull(),
+    mtimeMs: integer("mtime_ms", { mode: "number" }).notNull(),
+    sha256: text("sha256").notNull(),
+    source: text("source").notNull(),
+    createdAt: integer("created_at", { mode: "number" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    index("artifacts_conversation_idx").on(table.conversationId, table.updatedAt),
+    uniqueIndex("artifacts_conversation_path_idx").on(
+      table.conversationId,
+      table.path,
+    ),
+  ],
+);
+
 export const notes = sqliteTable(
   "notes",
   {

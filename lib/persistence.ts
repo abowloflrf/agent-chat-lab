@@ -4,6 +4,7 @@ import { and, asc, desc, eq, gte, inArray, notInArray, sql } from "drizzle-orm";
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
 import { db, ensureDatabase } from "@/lib/db/client";
 import {
+  artifacts,
   conversations,
   messages,
   notes,
@@ -17,6 +18,11 @@ import { toDayKey } from "@/lib/datetime";
 import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import type { ProviderConfig } from "@/lib/provider-config";
+import {
+  discoverConversationArtifacts,
+  listConversationArtifacts,
+} from "@/lib/artifacts";
+import type { ConversationArtifact } from "@/lib/artifact-types";
 
 type NoteRecord = {
   id: string;
@@ -57,6 +63,7 @@ type ChatSnapshot = {
   title: string | null;
   messages: ChatUIMessage[];
   sessionConfig: ConversationSessionConfig;
+  artifacts: ConversationArtifact[];
 };
 
 type ToolInvocation = {
@@ -697,6 +704,7 @@ export async function batchDeleteConversations(ids: string[]): Promise<number> {
   let deleted = 0;
 
   db.transaction((tx) => {
+    tx.delete(artifacts).where(inArray(artifacts.conversationId, ids)).run();
     tx.delete(usageRecords).where(inArray(usageRecords.conversationId, ids)).run();
     tx.delete(toolCalls).where(inArray(toolCalls.conversationId, ids)).run();
     tx.delete(messages).where(inArray(messages.conversationId, ids)).run();
@@ -727,6 +735,7 @@ export async function getConversation(conversationId: string): Promise<ChatSnaps
     title: conversation.title,
     messages: rows.map(toStoredMessage),
     sessionConfig: rowToSessionConfig(conversation),
+    artifacts: await listConversationArtifacts(conversation.id),
   };
 }
 
@@ -809,6 +818,7 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   await ensureDatabase();
 
   db.transaction((tx) => {
+    tx.delete(artifacts).where(eq(artifacts.conversationId, conversationId)).run();
     tx.delete(toolCalls).where(eq(toolCalls.conversationId, conversationId)).run();
     tx.delete(messages).where(eq(messages.conversationId, conversationId)).run();
     tx.delete(conversations).where(eq(conversations.id, conversationId)).run();
@@ -939,6 +949,7 @@ export async function persistFinishedConversation(
 ) {
   await ensureDatabase();
   saveConversationSnapshot(conversationId, chatMessages, { syncToolCalls: true });
+  await discoverConversationArtifacts(conversationId, chatMessages);
 }
 
 export async function createNote(input: {
