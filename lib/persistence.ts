@@ -789,6 +789,45 @@ export async function saveConversationSessionConfig(
     .run();
 }
 
+/**
+ * 把该会话里被中断的消息收尾成正常完成态，用于用户主动「忽略」中断横幅。
+ * 仅删除 `interrupted` 标记不够：客户端 `finalizeInterruptedMessage` 每次加载
+ * 时只要看到 `status:"streaming"` 就会重新打上 `interrupted`，导致横幅复活。
+ * 所以这里把卡在 streaming 的状态一并收成 finished（并兜底补上
+ * finishedAt / totalDurationMs），这样下次加载不再被重新标记。返回更新行数。
+ */
+export async function clearConversationInterruption(
+  conversationId: string,
+): Promise<number> {
+  await ensureDatabase();
+
+  const result = db.run(sql`
+    UPDATE ${messages}
+    SET
+      metadata_json = json_set(
+        json_remove(metadata_json, '$.interrupted'),
+        '$.status', 'finished',
+        '$.finishedAt', COALESCE(
+          json_extract(metadata_json, '$.finishedAt'),
+          json_extract(metadata_json, '$.startedAt')
+        ),
+        '$.totalDurationMs', COALESCE(
+          json_extract(metadata_json, '$.totalDurationMs'),
+          0
+        )
+      ),
+      updated_at = ${Date.now()}
+    WHERE
+      conversation_id = ${conversationId}
+      AND (
+        json_extract(metadata_json, '$.interrupted') = 1
+        OR json_extract(metadata_json, '$.status') = 'streaming'
+      )
+  `);
+
+  return result.changes;
+}
+
 export async function createConversation(title?: string): Promise<ConversationSummary> {
   await ensureDatabase();
 

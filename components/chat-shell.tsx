@@ -333,6 +333,17 @@ function normalizeRecoveredMessages(chatMessages: ChatUIMessage[]) {
   return chatMessages.map((message) => finalizeInterruptedMessage(message));
 }
 
+/**
+ * 仅当会话末尾那一轮被中断时才算"待恢复"。中断标记会被持久化进对应
+ * assistant 消息，一旦用户继续对话、产生了更新的成功轮次，旧的中断标记
+ * 就只是历史，不该再触发"上一次执行被中断"横幅——所以这里只看最后一条
+ * 消息，而不是 .some() 扫描整段历史。
+ */
+function hasUnresolvedInterruption(chatMessages: ChatUIMessage[]) {
+  const lastMessage = chatMessages[chatMessages.length - 1];
+  return lastMessage ? isInterruptedMessage(lastMessage.metadata) : false;
+}
+
 function findLastUserMessageText(chatMessages: ChatUIMessage[]) {
   const latestUserMessage = [...chatMessages]
     .reverse()
@@ -372,11 +383,9 @@ export function ChatShell({
     initialArtifacts,
   );
   const [artifactPopoverOpen, setArtifactPopoverOpen] = useState(false);
-  const [interruptedRunDetected, setInterruptedRunDetected] = useState(() => {
-    return initialRecoveredMessages.some((message) =>
-      isInterruptedMessage(message.metadata),
-    );
-  });
+  const [interruptedRunDetected, setInterruptedRunDetected] = useState(() =>
+    hasUnresolvedInterruption(initialRecoveredMessages),
+  );
   const [providers, setProviders] = useState<ProviderSettings[]>([]);
   const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(null);
   const [mcpServerItems, setMcpServerItems] = useState<SessionToolItem[]>([]);
@@ -656,7 +665,7 @@ export function ChatShell({
             setCurrentMessages(recoveredMessages);
             setMessages(recoveredMessages);
             setInterruptedRunDetected(
-              recoveredMessages.some((message) => isInterruptedMessage(message.metadata)),
+              hasUnresolvedInterruption(recoveredMessages),
             );
             setRestoredConfig(
               data.conversation.sessionConfig ?? DEFAULT_SESSION_CONFIG,
@@ -896,8 +905,7 @@ export function ChatShell({
     setCurrentMessages(recovered);
     setMessages(recovered);
     setInterruptedRunDetected(
-      (prev) =>
-        prev || recovered.some((message) => isInterruptedMessage(message.metadata)),
+      (prev) => prev || hasUnresolvedInterruption(recovered),
     );
   }, [setMessages]);
 
@@ -1133,6 +1141,26 @@ export function ChatShell({
     setConversationCreationError(null);
     setInterruptedRunDetected(false);
     await sendMessage({ text: latestUserMessageText });
+  }
+
+  // 用户主动忽略中断横幅：先乐观隐藏，再把末轮的 interrupted 标记从持久化里
+  // 清掉，使其刷新后也不再出现。无会话 id（极少见）时只做本地隐藏。
+  async function handleDismissInterruption() {
+    setInterruptedRunDetected(false);
+
+    const targetConversationId = conversationId;
+    if (!targetConversationId) {
+      return;
+    }
+
+    try {
+      await fetch(
+        `/api/conversations/${targetConversationId}/dismiss-interruption`,
+        { method: "POST" },
+      );
+    } catch (dismissError) {
+      console.error("Failed to dismiss interruption:", dismissError);
+    }
   }
 
   const handleToolApprovalResponse = useCallback(
@@ -1413,14 +1441,36 @@ export function ChatShell({
             {interruptedRunDetected && !isBusy ? (
               <div className="mb-2 flex items-center justify-between gap-2 rounded-[18px] border border-[#ead4ba] bg-[#fff6ea] px-3 py-2 text-sm text-[#805126] lg:mb-3 lg:gap-3 lg:px-4 lg:py-3">
                 <span>检测到上一次 Agent 执行被中断，当前已恢复为可继续操作状态。</span>
-                <button
-                  type="button"
-                  onClick={() => void handleReplayLatestTurn()}
-                  disabled={!canReplayLatestTurn}
-                  className="shrink-0 rounded-full border border-[#d7b38e] px-3 py-1.5 text-xs font-medium text-[#7f4218] transition hover:border-[#b86b36] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  重新生成上一条回复
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleReplayLatestTurn()}
+                    disabled={!canReplayLatestTurn}
+                    className="rounded-full border border-[#d7b38e] px-3 py-1.5 text-xs font-medium text-[#7f4218] transition hover:border-[#b86b36] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    重新生成上一条回复
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDismissInterruption()}
+                    aria-label="忽略此提示"
+                    title="忽略此提示"
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-[#a07a4f] transition hover:bg-[#f1dcc1] hover:text-[#7f4218]"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             ) : null}
 
