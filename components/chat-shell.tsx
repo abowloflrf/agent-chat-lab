@@ -21,9 +21,11 @@ import {
   type AskUserQuestionOutput,
 } from "@/lib/ai/ask-user-question";
 import { ArtifactPopover } from "@/components/artifact-popover";
-import { ChatMessage } from "@/components/chat-message";
+import { ChatMessageList } from "@/components/chat-message-list";
 import { ConversationList } from "@/components/conversation-list";
+import { InterruptionBanner } from "@/components/interruption-banner";
 import { ModuleSwitcher } from "@/components/module-switcher";
+import { StatusMetrics } from "@/components/status-metrics";
 import {
   DEFAULT_CONVERSATION_TITLE,
   MAX_TEXTAREA_ROWS,
@@ -39,11 +41,6 @@ import {
   reconcileToolSelection,
   resolveModelSelection,
 } from "@/lib/chat-utils";
-import {
-  formatCacheHitRate,
-  formatCompactTokens,
-  formatContextLength,
-} from "@/lib/format";
 import {
   ModelSelector,
   type ModelSelection,
@@ -62,13 +59,6 @@ import type { ConversationArtifact } from "@/lib/artifact-types";
 import type { ProviderSettings } from "@/lib/provider-config";
 // 仅取类型；`import type` 在编译期被擦除，不会把 server-only 的 persistence 真正引入客户端。
 import type { ConversationSessionConfig } from "@/lib/persistence";
-
-const starterPrompts = [
-  "查看 Hacker News 当前最热门的 5 篇内容，分别总结主题、热度和网友讨论重点",
-  "查一下当前国内外大模型 AI 公司有没有什么最新新闻，挑 3 条重要的总结",
-  "帮我规划一个周末两天的杭州轻旅行行程，要求少走路、预算适中",
-  "帮我创建 3 个待办：交水电费、预约体检、周五前整理报销材料",
-];
 
 const STREAM_RECOVERY_IDLE_MS = 120000;
 const AUTO_SCROLL_THRESHOLD_PX = 80;
@@ -268,44 +258,6 @@ class ConversationIdStore {
   set(value: string | null) {
     this.#value = value;
   }
-}
-
-function StatusMetric({
-  label,
-  value,
-  title,
-  icon,
-  iconClassName,
-  suffix,
-  muted = false,
-}: {
-  label?: string;
-  value: string;
-  title: string;
-  icon?: string;
-  iconClassName?: string;
-  suffix?: string;
-  muted?: boolean;
-}) {
-  return (
-    <span
-      className="flex items-baseline gap-1 whitespace-nowrap"
-      title={title}
-    >
-      <span className={muted ? "text-[#8a8175]" : "text-[#352d25]"}>
-        {icon ? (
-          <span className={`mr-0.5 ${iconClassName ?? ""}`}>{icon}</span>
-        ) : null}
-        {value}
-      </span>
-      {suffix ? <span className="text-[#b0a496]">{suffix}</span> : null}
-      {label ? (
-        <span className="text-[9px] tracking-[0.12em] text-[#b0a496]">
-          {label}
-        </span>
-      ) : null}
-    </span>
-  );
 }
 
 export function ChatShell({
@@ -1331,35 +1283,13 @@ export function ChatShell({
                 </div>
               </div>
 
-              <div className="hidden flex-wrap items-center gap-x-3 gap-y-1 border-t border-[rgba(23,23,23,0.08)] pt-2.5 font-mono text-[11px] leading-none text-[#5c544a] sm:flex lg:w-auto lg:justify-end lg:border-t-0 lg:pt-0">
-                <StatusMetric
-                  label="CTX"
-                  value={formatCompactTokens(currentContextLength)}
-                  title={`当前上下文长度：${formatContextLength(currentContextLength)} tokens`}
-                />
-                <StatusMetric
-                  icon="↑"
-                  iconClassName="text-[#7f9b5a]"
-                  value={formatCompactTokens(tokenTotals.inputTokens)}
-                  title={`累计输入：${formatContextLength(tokenTotals.inputTokens)} tokens`}
-                />
-                <StatusMetric
-                  icon="↓"
-                  iconClassName="text-[#c96a2b]"
-                  value={formatCompactTokens(tokenTotals.outputTokens)}
-                  title={`累计输出：${formatContextLength(tokenTotals.outputTokens)} tokens`}
-                />
-                <StatusMetric
-                  label="CACHE"
-                  value={`${formatCacheHitRate(cacheHitRate)}${cacheHitRate === null ? "" : "%"}`}
-                  suffix={
-                    tokenTotals.cachedInputTokens > 0
-                      ? formatCompactTokens(tokenTotals.cachedInputTokens)
-                      : undefined
-                  }
-                  title={`缓存命中率 ${formatCacheHitRate(cacheHitRate)}${cacheHitRate === null ? "" : "%"} · 命中 ${formatContextLength(tokenTotals.cachedInputTokens)} tokens`}
-                />
-              </div>
+              <StatusMetrics
+                currentContextLength={currentContextLength}
+                inputTokens={tokenTotals.inputTokens}
+                outputTokens={tokenTotals.outputTokens}
+                cachedInputTokens={tokenTotals.cachedInputTokens}
+                cacheHitRate={cacheHitRate}
+              />
             </div>
             </div>
           </header>
@@ -1368,130 +1298,30 @@ export function ChatShell({
             ref={scrollContainerRef}
             className="relative flex-1 overflow-y-auto px-4 pb-[calc(var(--composer-h,7rem)+0.5rem)] pt-[calc(var(--header-h,3.5rem)+1rem)]"
           >
-            {messages.length === 0 ? (
-              <div className="hidden min-h-[520px] items-center justify-center sm:flex">
-                <section className="w-full max-w-3xl">
-                  <div className="mb-4">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
-                      Quick Starts
-                    </p>
-                  </div>
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {starterPrompts.map((prompt, index) => (
-                      <button
-                        key={prompt}
-                        type="button"
-                        onClick={() => void handleStarterPrompt(prompt)}
-                        disabled={isBusy}
-                        className="group flex items-start justify-between gap-4 rounded-lg border border-[rgba(23,23,23,0.12)] px-4 py-4 text-left transition hover:border-[rgba(201,106,43,0.45)] hover:bg-white/55 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <div>
-                          <p className="font-mono text-[11px] text-[#9e9285]">
-                            0{index + 1}
-                          </p>
-                          <p className="mt-2 text-base leading-7 text-[#282019] transition group-hover:text-[#9c5626]">
-                            {prompt}
-                          </p>
-                        </div>
-                        <span className="mt-1 text-lg text-[#b7a99a] transition group-hover:translate-x-1 group-hover:text-[#9c5626]">
-                          ↗
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              </div>
-            ) : (
-              <div className="mx-auto max-w-4xl space-y-6">
-                {messages.map((message, index) => {
-                  const isLastMessage = index === messages.length - 1;
-                  const isStreamingMessage =
-                    isLastMessage
-                    && message.role === "assistant"
-                    && (status === "submitted" || status === "streaming");
-
-                  return (
-                    <div
-                      key={message.id}
-                      className="rise-in"
-                      style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}
-                    >
-                      <ChatMessage
-                        message={message}
-                        canRegenerate={message.role === "assistant"}
-                        isStreaming={isStreamingMessage}
-                        onRegenerate={handleRegenerateFromMessage}
-                        onToolApprovalResponse={handleToolApprovalResponse}
-                        onQuestionAnswer={handleQuestionAnswer}
-                        questionInteractionEnabled={isLastMessage && !isBusy}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <ChatMessageList
+              messages={messages}
+              status={status}
+              isBusy={isBusy}
+              onStarterPrompt={handleStarterPrompt}
+              onRegenerate={handleRegenerateFromMessage}
+              onToolApprovalResponse={handleToolApprovalResponse}
+              onQuestionAnswer={handleQuestionAnswer}
+            />
           </div>
 
           <div
             ref={composerRef}
             className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 py-2 pb-[max(0.5rem,calc(env(safe-area-inset-bottom)-8px))] lg:px-4 lg:py-4 lg:pb-[max(1rem,calc(env(safe-area-inset-bottom)-8px))]"
           >
-            {interruptedRunDetected && !isBusy ? (
-              <div className="pointer-events-auto mb-2 flex items-center justify-between gap-2 rounded-[18px] border border-[#ead4ba] bg-[#fff6ea] px-3 py-2 text-sm text-[#805126] lg:mb-3 lg:gap-3 lg:px-4 lg:py-3">
-                <span>检测到上一次 Agent 执行被中断，当前已恢复为可继续操作状态。</span>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleReplayLatestTurn()}
-                    disabled={!canReplayLatestTurn}
-                    className="rounded-full border border-[#d7b38e] px-3 py-1.5 text-xs font-medium text-[#7f4218] transition hover:border-[#b86b36] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    重新生成上一条回复
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDismissInterruption()}
-                    aria-label="忽略此提示"
-                    title="忽略此提示"
-                    className="flex h-7 w-7 items-center justify-center rounded-full text-[#a07a4f] transition hover:bg-[#f1dcc1] hover:text-[#7f4218]"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 14 14"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {conversationCreationError ? (
-              <div className="pointer-events-auto mb-2 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818] lg:mb-3 lg:px-4 lg:py-3">
-                {conversationCreationError}
-              </div>
-            ) : null}
-
-            {error ? (
-              <div className="pointer-events-auto mb-2 flex items-center justify-between gap-2 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818] lg:mb-3 lg:gap-3 lg:px-4 lg:py-3">
-                <span className="min-w-0 break-words">{error.message}</span>
-                <button
-                  type="button"
-                  onClick={() => void handleReplayLatestTurn()}
-                  disabled={!canReplayLatestTurn}
-                  title="丢弃本轮已产生的回复与工具结果，从最后一条消息重新生成"
-                  className="shrink-0 rounded-full border border-[#d89a86] px-3 py-1.5 text-xs font-medium text-[#9a3818] transition hover:border-[#b86b36] hover:text-[#7f2f12] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  重试上一轮
-                </button>
-              </div>
-            ) : null}
+            <InterruptionBanner
+              interruptedRunDetected={interruptedRunDetected}
+              isBusy={isBusy}
+              canReplayLatestTurn={canReplayLatestTurn}
+              conversationCreationError={conversationCreationError}
+              error={error}
+              onReplayLatestTurn={handleReplayLatestTurn}
+              onDismissInterruption={handleDismissInterruption}
+            />
 
             <form onSubmit={handleSubmit} className="pointer-events-auto">
               <div className="rounded-2xl border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.7)] shadow-[0_18px_28px_-2px_rgba(255,251,245,0.99),0_36px_48px_-2px_rgba(255,251,245,0.94),0_8px_30px_rgba(23,23,23,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-2xl backdrop-saturate-150">
