@@ -20,6 +20,7 @@ import {
   systemPrompt,
 } from "@/lib/ai/system-prompt";
 import { createAgentTools } from "@/lib/ai/tools";
+import { repairToolCall } from "@/lib/ai/repair-tool-call";
 import { connectMcpServers, type McpServerToolInfo } from "@/lib/ai/mcp";
 import { discoverSkills, type SkillInfo } from "@/lib/ai/skills";
 import {
@@ -276,6 +277,51 @@ function buildRuntimeSystemPrompt(
   return promptSections.join("\n\n").trim();
 }
 
+/** 把任意错误压成一行可读文案，带上错误名与 cause，便于日志与前端展示。 */
+function describeError(error: unknown): string {
+  if (error instanceof Error) {
+    const head =
+      error.name && error.name !== "Error"
+        ? `${error.name}: ${error.message}`
+        : error.message || error.name;
+    const cause =
+      error.cause instanceof Error
+        ? error.cause.message
+        : error.cause != null
+          ? String(error.cause)
+          : "";
+    return cause ? `${head}（cause: ${cause}）` : head;
+  }
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+type ChatErrorContext = {
+  conversationId: string;
+  provider: string;
+  model: string;
+  startedAt: number;
+  steps: number;
+};
+
+/** 统一记录聊天流错误：一行带上下文的摘要 + 原始错误对象（含堆栈）。 */
+function logChatError(
+  stage: string,
+  error: unknown,
+  ctx: ChatErrorContext,
+): void {
+  console.error(
+    `[chat] ${stage} failed conv=${ctx.conversationId} ` +
+      `provider=${ctx.provider || "?"} model=${ctx.model || "?"} ` +
+      `elapsed=${Date.now() - ctx.startedAt}ms steps=${ctx.steps} :: ${describeError(error)}`,
+    error,
+  );
+}
+
 function buildStreamingMetadata(
   requestStartedAt: number,
   timeline: AgentTimelineStep[],
@@ -455,6 +501,9 @@ export async function POST(request: Request) {
     system: runtimeSystemPrompt,
     messages: modelMessages,
     tools,
+    // 确定性纠偏：把模型按 Claude Code 习惯发来的工具调用（大写名、file_path
+    // 等参数键）就地翻译成本地工具契约，省掉“先错一次再重试”的额外往返。
+    experimental_repairToolCall: repairToolCall,
     stopWhen: stepCountIs(AGENT_MAX_STEPS),
     // Stop generating when the client disconnects or hits "stop", and close
     // MCP connections on every terminal path (finish / error / abort).
@@ -462,10 +511,24 @@ export async function POST(request: Request) {
     onFinish: () => {
       void mcpBundle.close();
     },
-    onError: () => {
+    onError: (event) => {
+      logChatError("stream", event.error, {
+        conversationId: parsed.data.conversationId,
+        provider: providerConfig.providerName,
+        model: providerConfig.model,
+        startedAt: requestStartedAt,
+        steps: timeline.length,
+      });
       void mcpBundle.close();
     },
     onAbort: () => {
+      // 中断不是异常（多为客户端断连或反代 proxy_read_timeout 掐流），单独记一条
+      // warn 便于和真正的报错区分，也让“等很久后中断”这类静默失败可被归因。
+      console.warn(
+        `[chat] stream aborted conv=${parsed.data.conversationId} ` +
+          `provider=${providerConfig.providerName || "?"} model=${providerConfig.model || "?"} ` +
+          `elapsed=${Date.now() - requestStartedAt}ms steps=${timeline.length}`,
+      );
       void mcpBundle.close();
     },
     experimental_onStepStart: ({ stepNumber }) => {
@@ -514,6 +577,18 @@ export async function POST(request: Request) {
   // dangling approval-requested / input-available parts into the DB.
   const uiMessageStream = createUIMessageStream<ChatUIMessage>({
     originalMessages: sanitizedMessages,
+    // 既把流式过程中的真实错误记到服务端日志，也作为可读文案发回前端错误横幅，
+    // 不再被 SDK 默认替换成通用的 "An error occurred."。
+    onError: (error) => {
+      logChatError("ui-stream", error, {
+        conversationId: parsed.data.conversationId,
+        provider: providerConfig.providerName,
+        model: providerConfig.model,
+        startedAt: requestStartedAt,
+        steps: timeline.length,
+      });
+      return `执行出错：${describeError(error)}`;
+    },
     execute: async ({ writer }) => {
       const innerStream = result.toUIMessageStream<ChatUIMessage>({
         messageMetadata: ({ part }) => {
