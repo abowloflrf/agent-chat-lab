@@ -1417,6 +1417,7 @@ export function ChatShell({
                         artifacts={artifacts}
                         open={artifactPopoverOpen}
                         onOpenChange={setArtifactPopoverOpen}
+                        onArtifactsChange={setArtifacts}
                       />
                     </span>
                   ) : null}

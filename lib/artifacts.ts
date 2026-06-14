@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { lstat, readdir, realpath, stat } from "node:fs/promises";
+import { lstat, readdir, realpath, stat, unlink } from "node:fs/promises";
 import {
   basename,
   extname,
@@ -274,6 +274,16 @@ async function buildArtifactRow(
   };
 }
 
+async function isArtifactFileAvailable(path: string) {
+  const resolved = await resolveWorkspacePath(path);
+  if (!resolved || resolved.relativePath !== path) {
+    return false;
+  }
+
+  const fileStat = await stat(resolved.absolutePath).catch(() => null);
+  return Boolean(fileStat?.isFile());
+}
+
 async function scanWorkspaceForArtifacts(window: ArtifactWindow) {
   const root = await getWorkspaceRoot();
   const start = window.startedAt - SCAN_TIME_PADDING_MS;
@@ -449,7 +459,24 @@ export async function listConversationArtifacts(
     .orderBy(desc(artifacts.updatedAt))
     .all();
 
-  return rows.map(rowToArtifact);
+  const availability = await Promise.all(
+    rows.map((row) => isArtifactFileAvailable(row.path)),
+  );
+  const staleIds = rows
+    .filter((_row, index) => !availability[index])
+    .map((row) => row.id);
+
+  if (staleIds.length > 0) {
+    db.transaction((tx) => {
+      for (const id of staleIds) {
+        tx.delete(artifacts).where(eq(artifacts.id, id)).run();
+      }
+    });
+  }
+
+  return rows
+    .filter((_row, index) => availability[index])
+    .map(rowToArtifact);
 }
 
 export async function getConversationArtifact(
@@ -495,5 +522,65 @@ export async function getArtifactFile(
     artifact,
     absolutePath: resolved.absolutePath,
     sizeBytes: fileStat.size,
+  };
+}
+
+export async function deleteConversationArtifact(
+  conversationId: string,
+  artifactIdValue: string,
+  options: { deleteFile?: boolean } = {},
+) {
+  await ensureDatabase();
+
+  const row = db
+    .select()
+    .from(artifacts)
+    .where(
+      and(
+        eq(artifacts.conversationId, conversationId),
+        eq(artifacts.id, artifactIdValue),
+      ),
+    )
+    .all()[0];
+
+  if (!row) {
+    return null;
+  }
+
+  let fileDeleted = false;
+  let fileMissing = false;
+
+  if (options.deleteFile) {
+    const resolved = await resolveWorkspacePath(row.path);
+
+    if (!resolved || resolved.relativePath !== row.path) {
+      fileMissing = true;
+    } else {
+      try {
+        await unlink(resolved.absolutePath);
+        fileDeleted = true;
+      } catch (error) {
+        if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+          fileMissing = true;
+        } else {
+          throw error;
+        }
+      }
+    }
+  }
+
+  db.delete(artifacts)
+    .where(
+      and(
+        eq(artifacts.conversationId, conversationId),
+        eq(artifacts.id, artifactIdValue),
+      ),
+    )
+    .run();
+
+  return {
+    artifact: rowToArtifact(row),
+    fileDeleted,
+    fileMissing,
   };
 }

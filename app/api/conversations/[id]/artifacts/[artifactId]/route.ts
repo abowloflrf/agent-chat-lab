@@ -1,5 +1,9 @@
 import { readFile } from "node:fs/promises";
-import { getArtifactFile } from "@/lib/artifacts";
+import {
+  deleteConversationArtifact,
+  getArtifactFile,
+  listConversationArtifacts,
+} from "@/lib/artifacts";
 
 export const runtime = "nodejs";
 
@@ -72,4 +76,32 @@ export async function GET(
   }
 
   return new Response(body, { headers });
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string; artifactId: string }> },
+) {
+  const { id, artifactId } = await params;
+  const url = new URL(request.url);
+  const deleteFile = url.searchParams.get("deleteFile") === "1";
+  const result = await deleteConversationArtifact(id, artifactId, { deleteFile });
+
+  if (!result) {
+    return Response.json(
+      {
+        error: "Artifact not found.",
+      },
+      { status: 404 },
+    );
+  }
+
+  const artifacts = await listConversationArtifacts(id);
+  return Response.json({
+    success: true,
+    artifact: result.artifact,
+    fileDeleted: result.fileDeleted,
+    fileMissing: result.fileMissing,
+    artifacts,
+  });
 }

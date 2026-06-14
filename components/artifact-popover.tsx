@@ -19,6 +19,7 @@ type ArtifactPopoverProps = {
   artifacts: ConversationArtifact[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onArtifactsChange?: (artifacts: ConversationArtifact[]) => void;
 };
 
 function formatBytes(bytes: number) {
@@ -60,6 +61,15 @@ function artifactLabel(kind: ConversationArtifact["kind"]) {
 function artifactUrl(conversationId: string, artifactId: string, download = false) {
   const base = `/api/conversations/${encodeURIComponent(conversationId)}/artifacts/${encodeURIComponent(artifactId)}`;
   return download ? `${base}?download=1` : base;
+}
+
+function artifactDeleteUrl(
+  conversationId: string,
+  artifactId: string,
+  deleteFile: boolean,
+) {
+  const base = artifactUrl(conversationId, artifactId);
+  return deleteFile ? `${base}?deleteFile=1` : base;
 }
 
 function canReadSource(kind: ConversationArtifact["kind"]) {
@@ -181,6 +191,20 @@ function DownloadIcon() {
         d="M10 3.5v8m0 0 3-3m-3 3-3-3M4.5 14.5v1.2a1.8 1.8 0 0 0 1.8 1.8h7.4a1.8 1.8 0 0 0 1.8-1.8v-1.2"
         stroke="currentColor"
         strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+      <path
+        d="M3.8 5.3h12.4M8 5.3V3.9h4v1.4M5.4 5.3l.7 10.1a1.5 1.5 0 0 0 1.5 1.4h4.8a1.5 1.5 0 0 0 1.5-1.4l.7-10.1M8.4 8.3v5.4M11.6 8.3v5.4"
+        stroke="currentColor"
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -392,12 +416,17 @@ export function ArtifactPopover({
   artifacts,
   open,
   onOpenChange,
+  onArtifactsChange,
 }: ArtifactPopoverProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const popoverId = useId();
   const [previewArtifactId, setPreviewArtifactId] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<ConversationArtifact | null>(null);
+  const [deleteFileChecked, setDeleteFileChecked] = useState(false);
+  const [pendingArtifactId, setPendingArtifactId] = useState<string | null>(null);
+  const [artifactError, setArtifactError] = useState<string | null>(null);
   const [position, setPosition] = useState<{
     top: number;
     left: number;
@@ -425,6 +454,57 @@ export function ArtifactPopover({
       artifacts.find((artifact) => artifact.id === previewArtifactId) ?? null
     );
   }, [artifacts, previewArtifactId]);
+
+  const removeArtifact = useCallback(
+    async (artifact: ConversationArtifact, deleteFile: boolean) => {
+      setPendingArtifactId(artifact.id);
+      setArtifactError(null);
+
+      try {
+        const response = await fetch(
+          artifactDeleteUrl(conversationId, artifact.id, deleteFile),
+          { method: "DELETE" },
+        );
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          throw new Error(payload?.error ?? "Artifact 操作失败。");
+        }
+
+        const payload = (await response.json()) as {
+          artifacts?: ConversationArtifact[];
+        };
+        const nextArtifacts =
+          payload.artifacts ?? artifacts.filter((item) => item.id !== artifact.id);
+
+        onArtifactsChange?.(nextArtifacts);
+        if (previewArtifactId === artifact.id) {
+          setPreviewArtifactId(null);
+        }
+        setRemoveTarget(null);
+        setDeleteFileChecked(false);
+      } catch (error) {
+        setArtifactError(
+          error instanceof Error ? error.message : "Artifact 操作失败。",
+        );
+      } finally {
+        setPendingArtifactId(null);
+      }
+    },
+    [artifacts, conversationId, onArtifactsChange, previewArtifactId],
+  );
+
+  const openRemoveDialog = useCallback(
+    (artifact: ConversationArtifact) => {
+      setRemoveTarget(artifact);
+      setDeleteFileChecked(false);
+      setArtifactError(null);
+      onOpenChange(false);
+    },
+    [onOpenChange],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -518,6 +598,7 @@ export function ArtifactPopover({
             <div className="max-h-[min(62vh,27rem)] overflow-y-auto py-1 md:max-h-[340px]">
               {artifacts.map((artifact) => {
                 const downloadUrl = artifactUrl(conversationId, artifact.id, true);
+                const pending = pendingArtifactId === artifact.id;
 
                 return (
                   <div
@@ -551,11 +632,12 @@ export function ArtifactPopover({
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         type="button"
+                        disabled={pending}
                         onClick={() => {
                           setPreviewArtifactId(artifact.id);
                           onOpenChange(false);
                         }}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#8c8175] transition hover:bg-[rgba(201,106,43,0.08)] hover:text-[#9c5626]"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#8c8175] transition hover:bg-[rgba(201,106,43,0.08)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-45"
                         aria-label={`预览 ${artifact.name}`}
                         title="预览"
                       >
@@ -569,6 +651,16 @@ export function ArtifactPopover({
                       >
                         <DownloadIcon />
                       </a>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => openRemoveDialog(artifact)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#a05a4e] transition hover:bg-[rgba(169,68,55,0.1)] hover:text-[#8d3125] disabled:cursor-not-allowed disabled:opacity-45"
+                        aria-label={`移除 ${artifact.name}`}
+                        title="移除"
+                      >
+                        <TrashIcon />
+                      </button>
                     </div>
                   </div>
                 );
@@ -577,7 +669,7 @@ export function ArtifactPopover({
           )}
           {artifacts.length > 0 ? (
             <div className="border-t border-[rgba(23,23,23,0.06)] px-3 py-1.5 text-[10px] leading-4 text-[#b0a496]">
-              预览会在当前页面打开，下载保留原文件
+              {artifactError ?? "预览会在当前页面打开，下载保留原文件"}
             </div>
           ) : null}
         </div>
@@ -591,6 +683,78 @@ export function ArtifactPopover({
           conversationId={conversationId}
           onClose={() => setPreviewArtifactId(null)}
         />
+      ) : null}
+
+      {removeTarget ? (
+        <BodyPortal>
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(36,28,21,0.28)] p-4 backdrop-blur-[2px]"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`移除 ${removeTarget.name}`}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget && !pendingArtifactId) {
+                setRemoveTarget(null);
+                setDeleteFileChecked(false);
+              }
+            }}
+          >
+            <div className="w-full max-w-sm rounded-xl border border-[rgba(23,23,23,0.1)] bg-white p-4 text-[#2d251e] shadow-[0_24px_80px_rgba(37,28,20,0.22)]">
+              <div>
+                <p className="text-sm font-semibold">移除 Artifact</p>
+                <p className="mt-1 break-words font-mono text-xs leading-5 text-[#8e8070]">
+                  {removeTarget.path}
+                </p>
+              </div>
+
+              <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-lg border border-[rgba(23,23,23,0.08)] bg-[#fffaf4] p-3 text-sm text-[#5f5348]">
+                <input
+                  type="checkbox"
+                  checked={deleteFileChecked}
+                  disabled={pendingArtifactId === removeTarget.id}
+                  onChange={(event) => setDeleteFileChecked(event.currentTarget.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[#9c5626]"
+                />
+                <span>
+                  同时删除 workspace 中的文件
+                  <span className="mt-1 block text-xs leading-5 text-[#9e9285]">
+                    默认只取消当前会话关联，文件会保留在磁盘上。
+                  </span>
+                </span>
+              </label>
+
+              {artifactError ? (
+                <p className="mt-3 text-xs leading-5 text-[#9b3328]">
+                  {artifactError}
+                </p>
+              ) : null}
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={pendingArtifactId === removeTarget.id}
+                  onClick={() => {
+                    setRemoveTarget(null);
+                    setDeleteFileChecked(false);
+                  }}
+                  className="rounded-md border border-[rgba(23,23,23,0.1)] px-3 py-1.5 text-sm text-[#6f6257] transition hover:bg-[rgba(23,23,23,0.04)] disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  disabled={pendingArtifactId === removeTarget.id}
+                  onClick={() =>
+                    void removeArtifact(removeTarget, deleteFileChecked)
+                  }
+                  className="rounded-md bg-[#8d3125] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#76271e] disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  {deleteFileChecked ? "移除并删除文件" : "移除关联"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </BodyPortal>
       ) : null}
     </div>
   );
