@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -101,6 +102,24 @@ function getSidebarCollapsedServerSnapshot() {
 function setSidebarCollapsedStorage(value: boolean) {
   window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, value ? "1" : "0");
   window.dispatchEvent(new Event(SIDEBAR_COLLAPSED_EVENT));
+}
+
+/**
+ * 把 element 的实时高度写进 container 的某个 CSS 变量，并随 element 尺寸变化更新：
+ * 先立即设一次再 observe，返回 cleanup 供 effect 卸载时 disconnect。
+ */
+function observeElementHeightVar(
+  element: HTMLElement,
+  container: HTMLElement,
+  cssVarName: string,
+) {
+  const update = () => {
+    container.style.setProperty(cssVarName, `${element.offsetHeight}px`);
+  };
+  update();
+  const observer = new ResizeObserver(update);
+  observer.observe(element);
+  return () => observer.disconnect();
 }
 
 /**
@@ -483,28 +502,14 @@ export function ChatShell({
     const header = headerRef.current;
     const container = scrollContainerRef.current;
     if (!header || !container) return;
-
-    const update = () => {
-      container.style.setProperty("--header-h", `${header.offsetHeight}px`);
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(header);
-    return () => observer.disconnect();
+    return observeElementHeightVar(header, container, "--header-h");
   }, []);
 
   useEffect(() => {
     const composer = composerRef.current;
     const container = scrollContainerRef.current;
     if (!composer || !container) return;
-
-    const update = () => {
-      container.style.setProperty("--composer-h", `${composer.offsetHeight}px`);
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(composer);
-    return () => observer.disconnect();
+    return observeElementHeightVar(composer, container, "--composer-h");
   }, []);
 
   useEffect(() => {
@@ -907,41 +912,43 @@ export function ChatShell({
 
   const latestUserMessageText = findLastUserMessageText(messages);
   const canReplayLatestTurn = !isBusy && latestUserMessageText.length > 0;
-  const currentContextLength = messages.reduce<number | null>((maxTokens, message) => {
-    const observability = parseAgentObservability(message.metadata);
-    const messageMaxInputTokens = observability?.timeline.reduce((messageMax, step) => {
-      return Math.max(messageMax, step.usage.inputTokens);
-    }, 0);
+  // 单遍历同时算出当前上下文长度与累计 token：每条消息只 parseAgentObservability
+  // （zod safeParse）一次，避免流式每个 chunk 重复两遍解析。语义严格等价于原先的两次
+  // reduce：currentContextLength 取各消息 step 内 inputTokens 的最大值再跨消息取最大，
+  // 无 observability 的消息跳过、初值 null（区分"无数据"与"为 0"）；tokenTotals 仅累加
+  // 有 observability 的消息、初值 0。
+  const { currentContextLength, tokenTotals, cacheHitRate } = useMemo(() => {
+    let contextLength: number | null = null;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let cachedInputTokens = 0;
 
-    if (messageMaxInputTokens === undefined) {
-      return maxTokens;
-    }
-
-    return maxTokens === null
-      ? messageMaxInputTokens
-      : Math.max(maxTokens, messageMaxInputTokens);
-  }, null);
-  const tokenTotals = messages.reduce(
-    (totals, message) => {
+    for (const message of messages) {
       const observability = parseAgentObservability(message.metadata);
       if (!observability) {
-        return totals;
+        continue;
       }
 
+      let messageMaxInputTokens = 0;
       for (const step of observability.timeline) {
-        totals.inputTokens += step.usage.inputTokens;
-        totals.outputTokens += step.usage.outputTokens;
-        totals.cachedInputTokens += step.usage.cachedInputTokens;
+        messageMaxInputTokens = Math.max(messageMaxInputTokens, step.usage.inputTokens);
+        inputTokens += step.usage.inputTokens;
+        outputTokens += step.usage.outputTokens;
+        cachedInputTokens += step.usage.cachedInputTokens;
       }
 
-      return totals;
-    },
-    { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
-  );
-  const cacheHitRate =
-    tokenTotals.inputTokens > 0
-      ? tokenTotals.cachedInputTokens / tokenTotals.inputTokens
-      : null;
+      contextLength =
+        contextLength === null
+          ? messageMaxInputTokens
+          : Math.max(contextLength, messageMaxInputTokens);
+    }
+
+    return {
+      currentContextLength: contextLength,
+      tokenTotals: { inputTokens, outputTokens, cachedInputTokens },
+      cacheHitRate: inputTokens > 0 ? cachedInputTokens / inputTokens : null,
+    };
+  }, [messages]);
   const displayConversationTitle = conversationTitle || DEFAULT_CONVERSATION_TITLE;
 
   function scrollToBottom() {
