@@ -20,12 +20,11 @@ import {
   ASK_USER_QUESTION_TOOL_NAME,
   type AskUserQuestionOutput,
 } from "@/lib/ai/ask-user-question";
-import { ArtifactPopover } from "@/components/artifact-popover";
+import { ChatComposer } from "@/components/chat-composer";
+import { ChatHeader } from "@/components/chat-header";
 import { ChatMessageList } from "@/components/chat-message-list";
-import { ConversationList } from "@/components/conversation-list";
+import { ChatSidebar } from "@/components/chat-sidebar";
 import { InterruptionBanner } from "@/components/interruption-banner";
-import { ModuleSwitcher } from "@/components/module-switcher";
-import { StatusMetrics } from "@/components/status-metrics";
 import {
   DEFAULT_CONVERSATION_TITLE,
   MAX_TEXTAREA_ROWS,
@@ -34,21 +33,14 @@ import {
 import {
   extractMessageText,
   findLastUserMessageText,
-  formatShortConversationId,
   hasUnresolvedInterruption,
   hostFromUrl,
   normalizeRecoveredMessages,
   reconcileToolSelection,
   resolveModelSelection,
 } from "@/lib/chat-utils";
-import {
-  ModelSelector,
-  type ModelSelection,
-} from "@/components/model-selector";
-import {
-  SessionToolSelector,
-  type SessionToolItem,
-} from "@/components/session-tool-selector";
+import type { ModelSelection } from "@/components/model-selector";
+import type { SessionToolItem } from "@/components/session-tool-selector";
 import {
   agentObservabilitySchema,
   getMessageTimestamp,
@@ -205,43 +197,6 @@ class SessionToolsStore {
   setSkillNames(value: string[] | null) {
     this.#skillNames = value;
   }
-}
-
-function McpIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-3.5 w-3.5"
-    >
-      <rect x="2" y="3" width="20" height="7" rx="2" />
-      <rect x="2" y="14" width="20" height="7" rx="2" />
-      <path d="M6 6.5h.01M6 17.5h.01" />
-    </svg>
-  );
-}
-
-function SkillsIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-3.5 w-3.5"
-    >
-      <path d="M12 3l1.9 4.7L18.5 9.5l-4.6 1.8L12 16l-1.9-4.7L5.5 9.5l4.6-1.8z" />
-      <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z" />
-    </svg>
-  );
 }
 
 class ConversationIdStore {
@@ -1170,129 +1125,40 @@ export function ChatShell({
             : "lg:grid-cols-[300px_minmax(0,1fr)]"
         }`}
       >
-        <aside
-          className={`dark-panel rise-in fixed inset-y-0 left-0 z-50 overflow-hidden transition-transform duration-200 lg:relative lg:z-auto lg:translate-x-0 ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <div className="relative flex h-full w-[280px] flex-col border-r border-white/10 p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:w-[300px]">
-            <div className="border-b border-white/8 pb-4">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0 flex-1">
-                  <ModuleSwitcher />
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={toggleSidebarCollapsed}
-                    title="收起侧边栏"
-                    aria-label="收起侧边栏"
-                    className="hidden h-8 w-8 items-center justify-center rounded-md text-[#cabfb2] transition hover:bg-white/10 hover:text-white lg:flex"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <line x1="9" y1="3" x2="9" y2="21" />
-                      <path d="m16 15-3-3 3-3" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSidebarOpen(false)}
-                    aria-label="关闭侧边栏"
-                    className="flex h-8 w-8 items-center justify-center rounded-md text-[#cabfb2] transition hover:bg-white/10 hover:text-white lg:hidden"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <section className="min-h-0 flex-1 pt-4">
-              <ConversationList
-                currentConversationId={conversationId}
-                onNewConversation={() => {
-                  handleNewConversation();
-                  setSidebarOpen(false);
-                }}
-                onConversationTitleChange={setConversationTitle}
-                onConversationSelect={() => setSidebarOpen(false)}
-                refreshTrigger={sidebarRefreshCounter}
-                isCreatingConversation={isCreatingConversation}
-                pendingTitle={pendingTitle}
-              />
-            </section>
-          </div>
-        </aside>
+        <ChatSidebar
+          sidebarOpen={sidebarOpen}
+          conversationId={conversationId}
+          sidebarRefreshCounter={sidebarRefreshCounter}
+          isCreatingConversation={isCreatingConversation}
+          pendingTitle={pendingTitle}
+          onToggleCollapsed={toggleSidebarCollapsed}
+          onCloseSidebar={() => setSidebarOpen(false)}
+          onNewConversation={() => {
+            handleNewConversation();
+            setSidebarOpen(false);
+          }}
+          onConversationTitleChange={setConversationTitle}
+        />
 
         <section className="glass-panel rise-in relative flex h-full min-h-0 flex-col overflow-hidden">
-          <header
-            ref={headerRef}
-            className={`absolute inset-x-0 top-0 z-20 border-b border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.7)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-2xl backdrop-saturate-150 transition-transform duration-200 ease-out will-change-transform lg:translate-y-0 ${
-              headerHidden ? "-translate-y-full lg:translate-y-0" : "translate-y-0"
-            }`}
-          >
-            <div className="px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:py-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-3">
-                  {sidebarCollapsed ? (
-                    <button
-                      type="button"
-                      onClick={toggleSidebarCollapsed}
-                      title="展开侧边栏"
-                      aria-label="展开侧边栏"
-                      className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)] lg:flex"
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                        <line x1="9" y1="3" x2="9" y2="21" />
-                        <path d="m14 9 3 3-3 3" />
-                      </svg>
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => setSidebarOpen(true)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)] lg:hidden"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <line x1="3" y1="6" x2="21" y2="6" />
-                      <line x1="3" y1="12" x2="21" y2="12" />
-                      <line x1="3" y1="18" x2="21" y2="18" />
-                    </svg>
-                  </button>
-                  <p className="min-w-0 flex-1 truncate text-lg font-semibold tracking-[-0.02em] text-[#241c15]">
-                    {displayConversationTitle}
-                  </p>
-                  {conversationId ? (
-                    <span className="hidden shrink-0 items-center rounded-full border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.52)] px-2.5 py-1 font-mono text-[11px] text-[#6c6156] sm:inline-flex">
-                      {formatShortConversationId(conversationId)}
-                    </span>
-                  ) : null}
-                  {conversationId && artifacts.length > 0 ? (
-                    <span className="inline-flex shrink-0">
-                      <ArtifactPopover
-                        conversationId={conversationId}
-                        artifacts={artifacts}
-                        open={artifactPopoverOpen}
-                        onOpenChange={setArtifactPopoverOpen}
-                        onArtifactsChange={setArtifacts}
-                      />
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              <StatusMetrics
-                currentContextLength={currentContextLength}
-                inputTokens={tokenTotals.inputTokens}
-                outputTokens={tokenTotals.outputTokens}
-                cachedInputTokens={tokenTotals.cachedInputTokens}
-                cacheHitRate={cacheHitRate}
-              />
-            </div>
-            </div>
-          </header>
+          <ChatHeader
+            headerRef={headerRef}
+            headerHidden={headerHidden}
+            sidebarCollapsed={sidebarCollapsed}
+            onToggleCollapsed={toggleSidebarCollapsed}
+            onOpenSidebar={() => setSidebarOpen(true)}
+            title={displayConversationTitle}
+            conversationId={conversationId}
+            artifacts={artifacts}
+            artifactPopoverOpen={artifactPopoverOpen}
+            onArtifactPopoverOpenChange={setArtifactPopoverOpen}
+            onArtifactsChange={setArtifacts}
+            currentContextLength={currentContextLength}
+            inputTokens={tokenTotals.inputTokens}
+            outputTokens={tokenTotals.outputTokens}
+            cachedInputTokens={tokenTotals.cachedInputTokens}
+            cacheHitRate={cacheHitRate}
+          />
 
           <div
             ref={scrollContainerRef}
@@ -1323,79 +1189,24 @@ export function ChatShell({
               onDismissInterruption={handleDismissInterruption}
             />
 
-            <form onSubmit={handleSubmit} className="pointer-events-auto">
-              <div className="rounded-2xl border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.7)] shadow-[0_18px_28px_-2px_rgba(255,251,245,0.99),0_36px_48px_-2px_rgba(255,251,245,0.94),0_8px_30px_rgba(23,23,23,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-2xl backdrop-saturate-150">
-                <label className="block">
-                  <span className="sr-only">输入消息</span>
-                  <textarea
-                    ref={textareaRef}
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="输入消息..."
-                    rows={MIN_TEXTAREA_ROWS}
-                    className="w-full resize-none bg-transparent px-3.5 pb-1.5 pt-3 text-[15px] leading-7 text-[#171717] outline-none placeholder:text-[#9f968b] lg:px-4"
-                    style={{
-                      minHeight: `calc(${MIN_TEXTAREA_ROWS}lh + 1.125rem)`,
-                      maxHeight: `calc(${MAX_TEXTAREA_ROWS}lh + 1.125rem)`,
-                    }}
-                  />
-                </label>
-
-                <div className="flex items-center justify-between gap-2 px-2 pb-2 lg:px-2.5 lg:pb-2.5">
-                  <div className="flex min-w-0 items-center gap-1">
-                    <ModelSelector
-                      providers={providers}
-                      selected={selectedModel}
-                      onSelect={setSelectedModel}
-                      disabled={isBusy}
-                    />
-                    <SessionToolSelector
-                      label="MCP"
-                      icon={<McpIcon />}
-                      items={mcpServerItems}
-                      selectedIds={selectedMcpServerIds}
-                      onChange={setSelectedMcpServerIds}
-                      disabled={isBusy}
-                      emptyHint="本次对话不会连接任何 MCP 服务"
-                    />
-                    <SessionToolSelector
-                      label="Skills"
-                      icon={<SkillsIcon />}
-                      items={skillItems}
-                      selectedIds={selectedSkillNames}
-                      onChange={setSelectedSkillNames}
-                      disabled={isBusy}
-                      emptyHint="本次对话不会加载任何 Skill"
-                    />
-                    <span className="ml-1 hidden truncate text-[11px] text-[#b0a496] lg:inline">
-                      Enter 发送 · Shift+Enter 换行
-                    </span>
-                  </div>
-                  {isBusy ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleStop()}
-                      title="停止生成"
-                      aria-label="停止生成"
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition hover:bg-[#9c5626] animate-[pulse-ring_2s_ease-in-out_infinite]"
-                    >
-                      <svg className="animate-[square-breathe_2s_ease-in-out_infinite]" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5" /></svg>
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      disabled={draft.trim().length === 0}
-                      title="发送消息"
-                      aria-label="发送消息"
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition-colors duration-200 hover:bg-[#9c5626] disabled:cursor-not-allowed disabled:bg-[rgba(23,23,23,0.07)] disabled:text-[#b3a797]"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 13V3M4 7l4-4 4 4" /></svg>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </form>
+            <ChatComposer
+              onSubmit={handleSubmit}
+              textareaRef={textareaRef}
+              draft={draft}
+              onDraftChange={setDraft}
+              onKeyDown={handleKeyDown}
+              providers={providers}
+              selectedModel={selectedModel}
+              onSelectModel={setSelectedModel}
+              mcpServerItems={mcpServerItems}
+              selectedMcpServerIds={selectedMcpServerIds}
+              onChangeMcpServerIds={setSelectedMcpServerIds}
+              skillItems={skillItems}
+              selectedSkillNames={selectedSkillNames}
+              onChangeSkillNames={setSelectedSkillNames}
+              isBusy={isBusy}
+              onStop={handleStop}
+            />
           </div>
         </section>
       </div>

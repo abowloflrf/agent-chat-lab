@@ -39,6 +39,7 @@
 ### P2 架构与产品扩展
 - [ ] 为模型供应商增加“本地调用”模式（V1）：浏览器直连 provider 发起纯聊天请求，暂不支持 tool call、approval、timeline 和服务端 Agent loop
 - [ ] 支持按用户隔离 system settings、conversations、notes、todos
+- [ ] chat-shell 逻辑层 hook 化（重构阶段 4，可选）：将流恢复、路由竞态守卫、会话配置对账等抽成自定义 hook；高风险，需先补测试框架兜底竞态回归
 
 ## 维护规则
 - 新任务、范围变更、优先级调整时，只在本文件维护未完成事项。
