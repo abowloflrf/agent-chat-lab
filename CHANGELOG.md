@@ -2,6 +2,9 @@
 
 本文件用于记录已完成功能、已落地优化和重要文档整理，不再把这些内容放进 `TODO.md`。
 
+## 2026-06-14
+- 聊天界面优化：流式自动滚动、输入框与顶部状态栏改液态玻璃、Artifacts 入口精简
+
 ## 2026-06-13
 
 - 基础镜像预装常用 Python 库（requests、pandas、openpyxl、matplotlib、Pillow、pyyaml、pypdf）

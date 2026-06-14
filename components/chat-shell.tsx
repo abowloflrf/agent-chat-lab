@@ -60,6 +60,7 @@ const starterPrompts = [
 const MIN_TEXTAREA_ROWS = 1;
 const MAX_TEXTAREA_ROWS = 6;
 const STREAM_RECOVERY_IDLE_MS = 120000;
+const AUTO_SCROLL_THRESHOLD_PX = 80;
 const CHAT_INSTANCE_ID = "chat-shell";
 const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
 const SIDEBAR_COLLAPSED_EVENT = "sidebar-collapsed-change";
@@ -477,8 +478,10 @@ export function ChatShell({
   const [headerHidden, setHeaderHidden] = useState(false);
   const lastScrollTopRef = useRef(0);
   const scrollDeltaAccRef = useRef(0);
+  const pinnedToBottomRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const streamActivityAtRef = useRef(0);
   const previousRouteConversationIdRef = useRef<string | null>(routeConversationId);
@@ -543,6 +546,11 @@ export function ChatShell({
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    pinnedToBottomRef.current = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
+
     if (window.innerWidth >= 1024) {
       setHeaderHidden(false);
       return;
@@ -582,6 +590,20 @@ export function ChatShell({
     update();
     const observer = new ResizeObserver(update);
     observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const composer = composerRef.current;
+    const container = scrollContainerRef.current;
+    if (!composer || !container) return;
+
+    const update = () => {
+      container.style.setProperty("--composer-h", `${composer.offsetHeight}px`);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(composer);
     return () => observer.disconnect();
   }, []);
 
@@ -822,6 +844,19 @@ export function ChatShell({
     messagesRef.current = messages;
   }, [messages]);
 
+  // AI 回复时跟随内容自动贴底；用户向上滚动会清除 pinned 标记从而暂停，
+  // 滚回底部后标记恢复、生成中继续跟随。
+  useEffect(() => {
+    if (!isBusy || !pinnedToBottomRef.current) {
+      return;
+    }
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+    container.scrollTop = container.scrollHeight;
+  }, [messages, isBusy]);
+
   useEffect(() => {
     const wasBusy = prevIsBusyRef.current;
     prevIsBusyRef.current = isBusy;
@@ -972,17 +1007,6 @@ export function ChatShell({
 
   const latestUserMessageText = findLastUserMessageText(messages);
   const canReplayLatestTurn = !isBusy && latestUserMessageText.length > 0;
-  const userMessageCount = messages.filter(
-    (message) => message.role === "user",
-  ).length;
-  const toolStepCount = messages.reduce((count, message) => {
-    return (
-      count +
-      message.parts.filter(
-        (part) => part.type === "dynamic-tool" || part.type.startsWith("tool-"),
-      ).length
-    );
-  }, 0);
   const currentContextLength = messages.reduce<number | null>((maxTokens, message) => {
     const observability = parseAgentObservability(message.metadata);
     const messageMaxInputTokens = observability?.timeline.reduce((messageMax, step) => {
@@ -1021,6 +1045,7 @@ export function ChatShell({
   const displayConversationTitle = conversationTitle || DEFAULT_CONVERSATION_TITLE;
 
   function scrollToBottom() {
+    pinnedToBottomRef.current = true;
     const container = scrollContainerRef.current;
     if (container) {
       container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
@@ -1343,21 +1368,21 @@ export function ChatShell({
         <section className="glass-panel rise-in relative flex h-full min-h-0 flex-col overflow-hidden">
           <header
             ref={headerRef}
-            className={`absolute inset-x-0 top-0 z-20 border-b border-[rgba(23,23,23,0.06)] bg-[rgba(255,252,247,0.62)] backdrop-blur-xl backdrop-saturate-150 transition-transform duration-200 ease-out will-change-transform lg:translate-y-0 ${
+            className={`absolute inset-x-0 top-0 z-20 border-b border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.7)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-2xl backdrop-saturate-150 transition-transform duration-200 ease-out will-change-transform lg:translate-y-0 ${
               headerHidden ? "-translate-y-full lg:translate-y-0" : "translate-y-0"
             }`}
           >
             <div className="px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="flex items-center gap-3">
                   {sidebarCollapsed ? (
                     <button
                       type="button"
                       onClick={toggleSidebarCollapsed}
                       title="展开侧边栏"
                       aria-label="展开侧边栏"
-                      className="hidden h-8 w-8 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)] lg:flex"
+                      className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)] lg:flex"
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -1369,7 +1394,7 @@ export function ChatShell({
                   <button
                     type="button"
                     onClick={() => setSidebarOpen(true)}
-                    className="flex h-8 w-8 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)] lg:hidden"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)] lg:hidden"
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                       <line x1="3" y1="6" x2="21" y2="6" />
@@ -1377,21 +1402,23 @@ export function ChatShell({
                       <line x1="3" y1="18" x2="21" y2="18" />
                     </svg>
                   </button>
-                  <p className="truncate text-lg font-semibold tracking-[-0.02em] text-[#241c15]">
+                  <p className="min-w-0 flex-1 truncate text-lg font-semibold tracking-[-0.02em] text-[#241c15]">
                     {displayConversationTitle}
                   </p>
                   {conversationId ? (
-                    <span className="hidden items-center rounded-full border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.52)] px-2.5 py-1 font-mono text-[11px] text-[#6c6156] sm:inline-flex">
+                    <span className="hidden shrink-0 items-center rounded-full border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.52)] px-2.5 py-1 font-mono text-[11px] text-[#6c6156] sm:inline-flex">
                       {formatShortConversationId(conversationId)}
                     </span>
                   ) : null}
-                  {conversationId ? (
-                    <ArtifactPopover
-                      conversationId={conversationId}
-                      artifacts={artifacts}
-                      open={artifactPopoverOpen}
-                      onOpenChange={setArtifactPopoverOpen}
-                    />
+                  {conversationId && artifacts.length > 0 ? (
+                    <span className="inline-flex shrink-0">
+                      <ArtifactPopover
+                        conversationId={conversationId}
+                        artifacts={artifacts}
+                        open={artifactPopoverOpen}
+                        onOpenChange={setArtifactPopoverOpen}
+                      />
+                    </span>
                   ) : null}
                 </div>
               </div>
@@ -1424,30 +1451,6 @@ export function ChatShell({
                   }
                   title={`缓存命中率 ${formatCacheHitRate(cacheHitRate)}${cacheHitRate === null ? "" : "%"} · 命中 ${formatContextLength(tokenTotals.cachedInputTokens)} tokens`}
                 />
-
-                <span
-                  aria-hidden
-                  className="h-3 w-px self-center bg-[rgba(23,23,23,0.14)]"
-                />
-
-                <StatusMetric
-                  muted
-                  label="MSG"
-                  value={String(messages.length)}
-                  title="消息数"
-                />
-                <StatusMetric
-                  muted
-                  label="TOOL"
-                  value={String(toolStepCount)}
-                  title="工具调用步数"
-                />
-                <StatusMetric
-                  muted
-                  label="TURN"
-                  value={String(userMessageCount)}
-                  title="用户输入轮次"
-                />
               </div>
             </div>
             </div>
@@ -1455,7 +1458,7 @@ export function ChatShell({
 
           <div
             ref={scrollContainerRef}
-            className="relative flex-1 overflow-y-auto px-4 pb-4 pt-[calc(var(--header-h,3.5rem)+1rem)]"
+            className="relative flex-1 overflow-y-auto px-4 pb-[calc(var(--composer-h,7rem)+0.5rem)] pt-[calc(var(--header-h,3.5rem)+1rem)]"
           >
             {messages.length === 0 ? (
               <div className="hidden min-h-[520px] items-center justify-center sm:flex">
@@ -1521,9 +1524,12 @@ export function ChatShell({
             )}
           </div>
 
-          <div className="relative border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.92)] px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:px-4 lg:py-4 lg:pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div
+            ref={composerRef}
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 py-2 pb-[max(0.5rem,calc(env(safe-area-inset-bottom)-8px))] lg:px-4 lg:py-4 lg:pb-[max(1rem,calc(env(safe-area-inset-bottom)-8px))]"
+          >
             {interruptedRunDetected && !isBusy ? (
-              <div className="mb-2 flex items-center justify-between gap-2 rounded-[18px] border border-[#ead4ba] bg-[#fff6ea] px-3 py-2 text-sm text-[#805126] lg:mb-3 lg:gap-3 lg:px-4 lg:py-3">
+              <div className="pointer-events-auto mb-2 flex items-center justify-between gap-2 rounded-[18px] border border-[#ead4ba] bg-[#fff6ea] px-3 py-2 text-sm text-[#805126] lg:mb-3 lg:gap-3 lg:px-4 lg:py-3">
                 <span>检测到上一次 Agent 执行被中断，当前已恢复为可继续操作状态。</span>
                 <div className="flex shrink-0 items-center gap-2">
                   <button
@@ -1559,13 +1565,13 @@ export function ChatShell({
             ) : null}
 
             {conversationCreationError ? (
-              <div className="mb-2 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818] lg:mb-3 lg:px-4 lg:py-3">
+              <div className="pointer-events-auto mb-2 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818] lg:mb-3 lg:px-4 lg:py-3">
                 {conversationCreationError}
               </div>
             ) : null}
 
             {error ? (
-              <div className="mb-2 flex items-center justify-between gap-2 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818] lg:mb-3 lg:gap-3 lg:px-4 lg:py-3">
+              <div className="pointer-events-auto mb-2 flex items-center justify-between gap-2 rounded-[18px] border border-[#e8b5a7] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818] lg:mb-3 lg:gap-3 lg:px-4 lg:py-3">
                 <span className="min-w-0 break-words">{error.message}</span>
                 <button
                   type="button"
@@ -1579,8 +1585,8 @@ export function ChatShell({
               </div>
             ) : null}
 
-            <form onSubmit={handleSubmit}>
-              <div className="rounded-2xl border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] shadow-[0_1px_2px_rgba(23,23,23,0.04)] transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-[rgba(201,106,43,0.45)] focus-within:bg-white focus-within:shadow-[0_4px_18px_rgba(201,106,43,0.1)]">
+            <form onSubmit={handleSubmit} className="pointer-events-auto">
+              <div className="rounded-2xl border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.7)] shadow-[0_18px_28px_-2px_rgba(255,251,245,0.99),0_36px_48px_-2px_rgba(255,251,245,0.94),0_8px_30px_rgba(23,23,23,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-2xl backdrop-saturate-150">
                 <label className="block">
                   <span className="sr-only">输入消息</span>
                   <textarea

@@ -112,6 +112,23 @@ function ArtifactIcon() {
   );
 }
 
+function PaperclipIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+    >
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </svg>
+  );
+}
+
 function BackIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -463,15 +480,14 @@ export function ArtifactPopover({
         }}
         aria-expanded={open}
         aria-controls={popoverId}
-        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition sm:px-2.5 ${
+        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium transition ${
           artifacts.length > 0
-            ? "border-[rgba(201,106,43,0.28)] bg-[rgba(201,106,43,0.08)] text-[#8b4317] hover:border-[rgba(201,106,43,0.45)] hover:text-[#6f320f]"
-            : "border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.48)] text-[#776b60] hover:border-[rgba(23,23,23,0.16)] hover:text-[#3f352c]"
+            ? "text-[#9c5626] hover:bg-[rgba(201,106,43,0.1)]"
+            : "text-[#776b60] hover:bg-[rgba(23,23,23,0.05)]"
         }`}
         title="查看会话 artifacts"
       >
-        <ArtifactIcon />
-        <span className="hidden sm:inline">Artifacts</span>
+        <PaperclipIcon />
         <span className="font-mono">{artifacts.length}</span>
       </button>
 
