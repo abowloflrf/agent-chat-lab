@@ -42,11 +42,11 @@ export const builtInTools = [
   },
   {
     name: "WebSearch",
-    description: "使用 Tavily 联网搜索最新网页信息，适合处理时效性或外部事实查询。",
+    description: "联网搜索最新网页信息，适合处理时效性或外部事实查询。后端在 Tavily 与 Exa 之间随机负载均衡并自动回退。",
   },
   {
     name: "WebFetch",
-    description: "使用 Tavily 抓取一个或多个 URL 的网页正文，适合在搜索后继续读取原文内容。",
+    description: "抓取一个或多个 URL 的网页正文，适合在搜索后继续读取原文内容。后端在 Tavily 与 Exa 之间随机负载均衡并自动回退。",
   },
   {
     name: "Skill",

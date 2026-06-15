@@ -162,6 +162,7 @@ export const todos = sqliteTable(
 export const systemSettings = sqliteTable("system_settings", {
   id: integer("id", { mode: "number" }).primaryKey(),
   tavilyApiKey: text("tavily_api_key").notNull(),
+  exaApiKey: text("exa_api_key").notNull().default(""),
   mcpServers: text("mcp_servers").notNull().default("[]"),
   disabledSkills: text("disabled_skills").notNull().default("[]"),
   createdAt: integer("created_at", { mode: "number" }).notNull(),

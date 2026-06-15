@@ -82,6 +82,7 @@ export const mcpServerInputSchema = z.object({
 
 export const systemSettingsSchema = z.object({
   tavilyApiKey: z.string().trim().default(""),
+  exaApiKey: z.string().trim().default(""),
   providers: z.array(providerSettingsSchema).default([]),
   mcpServers: z.array(mcpServerSchema).default([]),
   // 被用户在设置页关闭的 skill 名单（skill 本体在文件系统，这里只存开关状态）。
@@ -90,6 +91,7 @@ export const systemSettingsSchema = z.object({
 
 export const systemSettingsInputSchema = z.object({
   tavilyApiKey: z.string().trim().optional(),
+  exaApiKey: z.string().trim().optional(),
   providers: z.array(providerSettingsInputSchema).optional(),
   mcpServers: z.array(mcpServerInputSchema).optional(),
   disabledSkills: z.array(z.string()).optional(),
@@ -102,6 +104,7 @@ export const providerConfigSchema = z.object({
   model: z.string().trim().default(""),
   protocol: providerProtocolSchema,
   tavilyApiKey: z.string().trim().default(""),
+  exaApiKey: z.string().trim().default(""),
 });
 
 export const providerConfigInputSchema = z.object({
@@ -110,6 +113,7 @@ export const providerConfigInputSchema = z.object({
   model: z.string().trim().optional(),
   protocol: z.enum(providerProtocols).optional(),
   tavilyApiKey: z.string().trim().optional(),
+  exaApiKey: z.string().trim().optional(),
 });
 
 export type ProviderModel = z.infer<typeof providerModelSchema>;
@@ -126,6 +130,7 @@ export const defaultProviderConfig: ProviderConfig = {
   model: "",
   protocol: "chat-completion",
   tavilyApiKey: "",
+  exaApiKey: "",
 };
 
 export const defaultProviderSettings: ProviderSettings = {
@@ -141,6 +146,7 @@ export const defaultProviderSettings: ProviderSettings = {
 
 export const defaultSystemSettings: SystemSettings = {
   tavilyApiKey: "",
+  exaApiKey: "",
   providers: [defaultProviderSettings],
   mcpServers: [],
   disabledSkills: [],
@@ -169,6 +175,7 @@ export function normalizeProviderConfig(config: ProviderConfig): ProviderConfig 
     model: config.model.trim(),
     protocol: config.protocol || "chat-completion",
     tavilyApiKey: config.tavilyApiKey.trim(),
+    exaApiKey: config.exaApiKey.trim(),
   };
 }
 
@@ -217,6 +224,7 @@ export function normalizeSystemSettings(input: SystemSettings): SystemSettings {
 
   return {
     tavilyApiKey: input.tavilyApiKey.trim(),
+    exaApiKey: input.exaApiKey.trim(),
     providers: normalizedProviders.map((provider) => ({
       ...provider,
       isDefault: defaultProviderId === provider.id,

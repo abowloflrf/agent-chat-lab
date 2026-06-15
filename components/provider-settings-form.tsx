@@ -1130,7 +1130,7 @@ export function ProviderSettingsForm() {
                       />
                     </label>
                     <p className="mt-2 text-xs leading-5 text-[#8a8176]">
-                      `WebSearch` 会在需要联网查询最新网页信息时自动调用。未填写时，服务端会回退到环境变量 `TAVILY_API_KEY`。
+                      `WebSearch` / `WebFetch` 会在需要联网时自动调用。若同时配置 Tavily 与 Exa，每次请求会在两者间随机分担、某家失败时自动回退；只配一个则始终用它。未填写时回退到环境变量 `TAVILY_API_KEY`。
                     </p>
 
                     {/* Tavily Usage Progress Bar */}
@@ -1210,6 +1210,34 @@ export function ProviderSettingsForm() {
                         )}
                       </div>
                     )}
+
+                    <div className="mt-5 border-t border-[rgba(23,23,23,0.06)] pt-4">
+                      <label className="block">
+                        <span className={labelClass}>Exa API Key</span>
+                        <SecretInput
+                          value={settings.exaApiKey}
+                          onChange={(e) =>
+                            setSettings((current) => ({
+                              ...current,
+                              exaApiKey: e.target.value,
+                            }))
+                          }
+                          placeholder="exa-..."
+                        />
+                      </label>
+                      <p className="mt-2 text-xs leading-5 text-[#8a8176]">
+                        可选。作为 Tavily 的第二个联网来源参与负载均衡，用满一家时自动切到另一家。未填写时回退到环境变量 `EXA_API_KEY`。用量请查看{" "}
+                        <a
+                          href="https://dashboard.exa.ai"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline transition hover:text-[#c96a2b]"
+                        >
+                          Exa Dashboard
+                        </a>
+                        。
+                      </p>
+                    </div>
                   </div>
 
                   <div className="space-y-3">

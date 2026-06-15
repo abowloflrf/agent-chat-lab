@@ -27,6 +27,7 @@ const envProviderConfig: ProviderConfig = normalizeProviderConfig({
   model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
   protocol: "chat-completion",
   tavilyApiKey: process.env.TAVILY_API_KEY ?? "",
+  exaApiKey: process.env.EXA_API_KEY ?? "",
 });
 
 function toBool(value: number) {
@@ -81,6 +82,7 @@ function toInt(value: boolean) {
 function buildDefaultSettingsFromEnv(): SystemSettings {
   return normalizeSystemSettings({
     tavilyApiKey: envProviderConfig.tavilyApiKey,
+    exaApiKey: envProviderConfig.exaApiKey,
     providers: [
       {
         ...defaultProviderSettings,
@@ -134,6 +136,7 @@ function buildProviderConfigFromSettings(
     model: modelId || envProviderConfig.model,
     protocol: provider.protocol || envProviderConfig.protocol,
     tavilyApiKey: settings.tavilyApiKey || envProviderConfig.tavilyApiKey,
+    exaApiKey: settings.exaApiKey || envProviderConfig.exaApiKey,
   });
 }
 
@@ -192,6 +195,7 @@ function parseSettingsInput(input: unknown) {
 
   const normalized = normalizeSystemSettings({
     tavilyApiKey: parsed.data.tavilyApiKey ?? "",
+    exaApiKey: parsed.data.exaApiKey ?? "",
     providers: (parsed.data.providers ?? []).map((provider) => ({
       id: provider.id?.trim() || crypto.randomUUID(),
       name: provider.name?.trim() || defaultProviderSettings.name,
@@ -258,6 +262,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
 
   return normalizeSystemSettings({
     tavilyApiKey: settingsRow?.tavilyApiKey ?? "",
+    exaApiKey: settingsRow?.exaApiKey ?? "",
     providers: providerRows.map((providerRow) => ({
       id: providerRow.id,
       name: providerRow.name,
@@ -301,6 +306,7 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
       .values({
         id: SETTINGS_ROW_ID,
         tavilyApiKey: normalized.tavilyApiKey,
+        exaApiKey: normalized.exaApiKey,
         mcpServers: mcpServersJson,
         disabledSkills: disabledSkillsJson,
         createdAt: now,
@@ -310,6 +316,7 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
         target: systemSettings.id,
         set: {
           tavilyApiKey: normalized.tavilyApiKey,
+          exaApiKey: normalized.exaApiKey,
           mcpServers: mcpServersJson,
           disabledSkills: disabledSkillsJson,
           updatedAt: now,
@@ -386,5 +393,6 @@ export function resolveProviderConfig(input: unknown): ProviderConfig {
     model: parsed.data.model || envProviderConfig.model,
     protocol: parsed.data.protocol || envProviderConfig.protocol,
     tavilyApiKey: parsed.data.tavilyApiKey || envProviderConfig.tavilyApiKey,
+    exaApiKey: parsed.data.exaApiKey || envProviderConfig.exaApiKey,
   });
 }

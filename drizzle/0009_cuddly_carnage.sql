@@ -1,0 +1,1 @@
+ALTER TABLE `system_settings` ADD `exa_api_key` text DEFAULT '' NOT NULL;

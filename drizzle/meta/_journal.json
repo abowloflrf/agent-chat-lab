@@ -60,6 +60,13 @@
       "when": 1781342042642,
       "tag": "0008_last_pandemic",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1781452181225,
+      "tag": "0009_cuddly_carnage",
+      "breakpoints": true
     }
   ]
 }

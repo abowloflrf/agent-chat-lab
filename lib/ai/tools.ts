@@ -17,6 +17,13 @@ import {
   writeFileForTool,
 } from "@/lib/ai/file-tools";
 import { loadSkill } from "@/lib/ai/skills";
+import {
+  hasAnySearchProvider,
+  runWebFetch,
+  runWebSearch,
+  webFetchInputSchema,
+  webSearchInputSchema,
+} from "@/lib/ai/web-search";
 import type { ProviderConfig } from "@/lib/provider-config";
 import { createNote, readTodos, searchNotes, writeTodo } from "@/lib/persistence";
 
@@ -29,198 +36,6 @@ const MAX_TAGS_COUNT = 6;
 const MAX_TODO_TITLE_LENGTH = 120;
 const MAX_TODO_CONTENT_LENGTH = 500;
 const TODO_READ_CONTENT_PREVIEW_LENGTH = 120;
-const DEFAULT_WEB_SEARCH_LIMIT = 5;
-const MAX_WEB_SEARCH_LIMIT = 10;
-const MAX_WEB_FETCH_URLS = 5;
-const WEB_FETCH_CONTENT_PREVIEW_LENGTH = 1200;
-const TAVILY_SEARCH_URL = "https://api.tavily.com/search";
-const TAVILY_EXTRACT_URL = "https://api.tavily.com/extract";
-
-const tavilySearchInputSchema = z.object({
-  query: z.string().trim().min(1).max(300).describe("要搜索的网页查询词。"),
-  topic: z
-    .enum(["general", "news"])
-    .default("general")
-    .describe("查询主题。涉及新闻或最新动态时使用 news。"),
-  maxResults: z
-    .number()
-    .int()
-    .min(1)
-    .max(MAX_WEB_SEARCH_LIMIT)
-    .default(DEFAULT_WEB_SEARCH_LIMIT)
-    .describe("返回结果数量，范围 1-10。"),
-  timeRange: z
-    .enum(["day", "week", "month", "year"])
-    .optional()
-    .describe("仅在需要较新结果时指定时间范围。"),
-  includeDomains: z
-    .array(z.string().trim().min(1).max(120))
-    .max(8)
-    .default([])
-    .describe("可选，只搜索这些域名。"),
-  excludeDomains: z
-    .array(z.string().trim().min(1).max(120))
-    .max(8)
-    .default([])
-    .describe("可选，排除这些域名。"),
-});
-
-type TavilySearchInput = z.infer<typeof tavilySearchInputSchema>;
-
-const tavilyExtractInputSchema = z.object({
-  urls: z
-    .array(z.string().trim().url().max(500))
-    .min(1)
-    .max(MAX_WEB_FETCH_URLS)
-    .describe(
-      `要抓取并提取正文的网页 URL 列表，可一次传入多个并发抓取（最多 ${MAX_WEB_FETCH_URLS} 个）。`,
-    ),
-  query: z
-    .string()
-    .trim()
-    .max(300)
-    .optional()
-    .describe("可选，当前关心的问题或提取重点，用于让 Tavily 返回更相关的内容片段。"),
-  extractDepth: z
-    .enum(["basic", "advanced"])
-    .default("basic")
-    .describe("提取深度。advanced 更完整，但通常更慢。"),
-  format: z
-    .enum(["markdown", "text"])
-    .default("markdown")
-    .describe("返回内容格式。"),
-});
-
-type TavilyExtractInput = z.infer<typeof tavilyExtractInputSchema>;
-
-async function searchWithTavily(
-  input: TavilySearchInput,
-  tavilyApiKey: string,
-) {
-  const response = await fetch(TAVILY_SEARCH_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${tavilyApiKey}`,
-    },
-    body: JSON.stringify({
-      query: input.query,
-      topic: input.topic,
-      max_results: input.maxResults,
-      time_range: input.timeRange,
-      include_domains: input.includeDomains,
-      exclude_domains: input.excludeDomains,
-      search_depth: "basic",
-      include_answer: "basic",
-      include_raw_content: false,
-      include_images: false,
-      include_favicon: false,
-    }),
-  });
-
-  const payload = (await response.json().catch(() => null)) as
-    | {
-        answer?: string;
-        query?: string;
-        response_time?: number;
-        images?: string[];
-        results?: Array<{
-          title?: string;
-          url?: string;
-          content?: string;
-          score?: number;
-          published_date?: string;
-        }>;
-        error?: string;
-      }
-    | null;
-
-  if (!response.ok) {
-    throw new Error(payload?.error || `Tavily 请求失败 (${response.status})`);
-  }
-
-  return {
-    query: payload?.query ?? input.query,
-    answer: payload?.answer ?? null,
-    responseTime: payload?.response_time ?? null,
-    suggestedNextAction:
-      "如果需要核对原文、总结网页正文或提取细节，请从 results 中挑出最相关的一个或多个 url，一次性传给 WebFetch 并发抓取。",
-    results: (payload?.results ?? []).map((result) => ({
-      title: result.title ?? "",
-      url: result.url ?? "",
-      content: result.content ?? "",
-      score: result.score ?? null,
-      publishedDate: result.published_date ?? null,
-    })),
-  };
-}
-
-async function extractWithTavily(
-  input: TavilyExtractInput,
-  tavilyApiKey: string,
-) {
-  const response = await fetch(TAVILY_EXTRACT_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${tavilyApiKey}`,
-    },
-    body: JSON.stringify({
-      urls: input.urls,
-      query: input.query,
-      extract_depth: input.extractDepth,
-      format: input.format,
-      include_images: false,
-      include_favicon: true,
-    }),
-  });
-
-  const payload = (await response.json().catch(() => null)) as
-    | {
-        results?: Array<{
-          url?: string;
-          raw_content?: string;
-          images?: string[];
-          favicon?: string;
-        }>;
-        failed_results?: Array<{
-          url?: string;
-          error?: string;
-        }>;
-        response_time?: number;
-        error?: string;
-      }
-    | null;
-
-  if (!response.ok) {
-    throw new Error(payload?.error || `Tavily Extract 请求失败 (${response.status})`);
-  }
-
-  const results = (payload?.results ?? []).map((result) => {
-    const content = result.raw_content ?? null;
-
-    return {
-      url: result.url ?? "",
-      content,
-      favicon: result.favicon ?? null,
-      contentPreview: content
-        ? content.slice(0, WEB_FETCH_CONTENT_PREVIEW_LENGTH)
-        : null,
-      contentLength: content?.length ?? 0,
-    };
-  });
-
-  const failedResults = (payload?.failed_results ?? []).map((failed) => ({
-    url: failed.url ?? "",
-    error: failed.error ?? "抓取失败。",
-  }));
-
-  return {
-    responseTime: payload?.response_time ?? null,
-    results,
-    failedResults,
-  };
-}
 
 function evaluateExpression(expression: string) {
   const normalized = expression.replace(/\s+/g, " ").trim();
@@ -485,19 +300,19 @@ export function createAgentTools(
 
     WebSearch: tool({
       description:
-        "使用 Tavily 进行网页搜索，适合查询最新信息、新闻动态、版本变化或需要外部事实核验的问题。",
-      inputSchema: tavilySearchInputSchema,
+        "Search the web for up-to-date information, news, version changes, or anything that needs external fact-checking. Backed by Tavily and/or Exa with automatic load-balancing and failover; the chosen provider is reported in the result's `provider` field.",
+      inputSchema: webSearchInputSchema,
       execute: async (input) => {
-        if (!config.tavilyApiKey) {
+        if (!hasAnySearchProvider(config)) {
           return {
             ok: false,
             error:
-              "未配置 Tavily API Key，无法执行联网搜索。请先到 /settings 填写 Tavily API Key。",
+              "No web search provider configured. Add a Tavily or Exa API key in /settings first.",
           };
         }
 
         try {
-          const result = await searchWithTavily(input, config.tavilyApiKey);
+          const result = await runWebSearch(input, config);
           return {
             ok: true,
             ...result,
@@ -505,10 +320,7 @@ export function createAgentTools(
         } catch (error) {
           return {
             ok: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Tavily 搜索失败，原因未知。",
+            error: error instanceof Error ? error.message : "Web search failed.",
           };
         }
       },
@@ -516,38 +328,27 @@ export function createAgentTools(
 
     WebFetch: tool({
       description:
-        "使用 Tavily 抓取并提取网页正文，可一次传入多个 URL 并发抓取，适合在已经知道 URL 后读取页面内容、核对原文、对比多个来源或提取文档要点。需要读取多个页面时把它们一起放进 urls，不要拆成多次调用。常见知名网站 URL：Hacker News (https://news.ycombinator.com)、GitHub (https://github.com)、Reddit (https://www.reddit.com)、ProductHunt (https://www.producthunt.com)。当用户提到这些网站名称时，直接构造对应 URL 调用本工具，无需先搜索。",
-      inputSchema: tavilyExtractInputSchema,
+        "Fetch and extract the main content of one or more web pages. Pass several URLs at once to fetch them concurrently; use it after you already know the URLs to read page content, verify sources, compare multiple sources, or extract key points. When you need several pages, put them all in `urls` instead of calling repeatedly. Common site URLs: Hacker News (https://news.ycombinator.com), GitHub (https://github.com), Reddit (https://www.reddit.com), ProductHunt (https://www.producthunt.com) — when the user names these, build the URL and call this tool directly without searching first. Backed by Tavily and/or Exa with automatic load-balancing and failover.",
+      inputSchema: webFetchInputSchema,
       execute: async (input) => {
-        if (!config.tavilyApiKey) {
+        if (!hasAnySearchProvider(config)) {
           return {
             ok: false,
             error:
-              "未配置 Tavily API Key，无法执行网页抓取。请先到 /settings 填写 Tavily API Key。",
+              "No web search provider configured. Add a Tavily or Exa API key in /settings first.",
           };
         }
 
         try {
-          const result = await extractWithTavily(input, config.tavilyApiKey);
-          const hasLongContent = result.results.some(
-            (item) =>
-              item.content &&
-              item.content.length > WEB_FETCH_CONTENT_PREVIEW_LENGTH,
-          );
+          const result = await runWebFetch(input, config);
           return {
             ok: true,
             ...result,
-            suggestedNextAction: hasLongContent
-              ? "如果只需要回答当前问题，优先基于各结果的 contentPreview 提炼；只有在必要时再引用更长正文。"
-              : "可以直接基于提取结果回答用户问题。",
           };
         } catch (error) {
           return {
             ok: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Tavily 网页抓取失败，原因未知。",
+            error: error instanceof Error ? error.message : "Web fetch failed.",
           };
         }
       },
