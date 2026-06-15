@@ -1140,7 +1140,7 @@ export function ChatShell({
           onConversationTitleChange={setConversationTitle}
         />
 
-        <section className="glass-panel rise-in relative flex h-full min-h-0 flex-col overflow-hidden">
+        <section className="rise-in relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--panel)]">
           <ChatHeader
             headerRef={headerRef}
             headerHidden={headerHidden}

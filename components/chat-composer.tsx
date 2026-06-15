@@ -93,7 +93,7 @@ export function ChatComposer({
 }) {
   return (
     <form onSubmit={onSubmit} className="pointer-events-auto">
-      <div className="rounded-2xl border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.7)] shadow-[0_18px_28px_-2px_rgba(255,251,245,0.99),0_36px_48px_-2px_rgba(255,251,245,0.94),0_8px_30px_rgba(23,23,23,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-2xl backdrop-saturate-150">
+      <div className="rounded-3xl border border-[rgba(23,23,23,0.08)] bg-[var(--glass-bg)] shadow-[0_18px_28px_-2px_rgba(255,251,245,0.99),0_36px_48px_-2px_rgba(255,251,245,0.94),0_8px_30px_rgba(23,23,23,0.08),inset_0_1px_0_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.12)] backdrop-blur-xl backdrop-saturate-[1.8] backdrop-brightness-105">
         <label className="block">
           <span className="sr-only">输入消息</span>
           <textarea

@@ -20,6 +20,7 @@
   --accent: #c96a2b;
   --accent-strong: #a44d16;
   --panel: rgba(255, 252, 247, 0.84);
+  --glass-bg: rgba(255, 255, 255, 0.65);
   --panel-strong: #1b1712;
   --panel-soft: rgba(34, 29, 22, 0.9);
 }
@@ -176,7 +177,7 @@ body::after {
 }
 
 .rise-in {
-  animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .float-slow {

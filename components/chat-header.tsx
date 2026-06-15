@@ -49,7 +49,7 @@ export function ChatHeader({
   return (
     <header
       ref={headerRef}
-      className={`absolute inset-x-0 top-0 z-20 border-b border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.7)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-2xl backdrop-saturate-150 transition-transform duration-200 ease-out will-change-transform lg:translate-y-0 ${
+      className={`absolute inset-x-0 top-0 z-20 border-b border-[rgba(23,23,23,0.08)] bg-[var(--glass-bg)] shadow-[inset_0_1px_0_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.12),0_2px_8px_-3px_rgba(23,23,23,0.05)] backdrop-blur-xl backdrop-saturate-[1.8] backdrop-brightness-105 transition-transform duration-200 ease-out will-change-transform lg:translate-y-0 ${
         headerHidden ? "-translate-y-full lg:translate-y-0" : "translate-y-0"
       }`}
     >
