@@ -657,13 +657,14 @@ export function ChatShell({
   }, [messages]);
 
   // AI 回复时跟随内容自动贴底；用户向上滚动会清除 pinned 标记从而暂停，
-  // 滚回底部后标记恢复、生成中继续跟随。
+  // 滚回底部后标记恢复、生成中继续跟随。输入框聚焦时跳过，避免移动端流式贴底
+  // 抢走软键盘焦点导致无法输入。
   useEffect(() => {
     if (!isBusy || !pinnedToBottomRef.current) {
       return;
     }
     const container = scrollContainerRef.current;
-    if (!container) {
+    if (!container || document.activeElement === textareaRef.current) {
       return;
     }
     container.scrollTop = container.scrollHeight;
