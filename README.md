@@ -13,8 +13,8 @@
 
 <table>
   <tr>
-    <td width="65%"><img src="docs/screenshots/desktop.jpg" alt="桌面端聊天界面" /></td>
-    <td width="35%"><img src="docs/screenshots/mobile.jpg" alt="移动端聊天界面" /></td>
+    <td width="65%"><img src="docs/screenshots/desktop.png" alt="桌面端聊天界面" /></td>
+    <td width="35%"><img src="docs/screenshots/mobile.png" alt="移动端聊天界面" /></td>
   </tr>
   <tr>
     <td align="center">桌面端：会话列表、工具调用卡片、token 统计</td>
