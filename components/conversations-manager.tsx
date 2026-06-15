@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ConversationStat } from "@/lib/persistence";
 import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
 import { formatFullDateTime } from "@/lib/datetime";
@@ -11,11 +11,46 @@ import { formatRelativeTime } from "@/lib/todo-ui";
 type LoadState = "loading" | "error" | "ready";
 
 const DASH = "—";
+const PAGE_SIZE = 100;
 
-async function fetchConversationStats(): Promise<ConversationStat[]> {
-  const response = await fetch("/api/stats/conversations");
+type ConversationStatsResponse = {
+  conversations: ConversationStat[];
+  total: number;
+  page: number;
+  pageSize: number;
+  queryDurationMs: number;
+};
+
+type ConversationStatsRequest = {
+  page: number;
+  query: string;
+  signal?: AbortSignal;
+};
+
+async function fetchConversationStats({
+  page,
+  query,
+  signal,
+}: ConversationStatsRequest): Promise<ConversationStatsResponse> {
+  const searchParams = new URLSearchParams({
+    page: String(page),
+    pageSize: String(PAGE_SIZE),
+  });
+  const trimmedQuery = query.trim();
+
+  if (trimmedQuery) {
+    searchParams.set("q", trimmedQuery);
+  }
+
+  const response = await fetch(`/api/stats/conversations?${searchParams.toString()}`, {
+    signal,
+  });
   const payload = (await response.json()) as {
     conversations?: ConversationStat[];
+    total?: number;
+    page?: number;
+    pageSize?: number;
+    queryDurationMs?: number;
     error?: string;
   };
 
@@ -23,7 +58,13 @@ async function fetchConversationStats(): Promise<ConversationStat[]> {
     throw new Error(payload.error ?? "加载会话列表失败。");
   }
 
-  return payload.conversations ?? [];
+  return {
+    conversations: payload.conversations ?? [],
+    total: payload.total ?? 0,
+    page: payload.page ?? page,
+    pageSize: payload.pageSize ?? PAGE_SIZE,
+    queryDurationMs: payload.queryDurationMs ?? 0,
+  };
 }
 
 function toMillis(isoString: string): number {
@@ -45,6 +86,11 @@ export function ConversationsManager() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [total, setTotal] = useState(0);
+  const [queryDurationMs, setQueryDurationMs] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -67,7 +113,28 @@ export function ConversationsManager() {
     return () => clearTimeout(timer);
   }, [confirmingBulk]);
 
-  const load = useCallback(async (mode: "initial" | "refresh") => {
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current !== null) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
+
+  const applyResult = useCallback((next: ConversationStatsResponse, currentPage: number) => {
+    const nextTotalPages = Math.max(1, Math.ceil(next.total / PAGE_SIZE));
+    if (next.conversations.length === 0 && next.total > 0 && currentPage > nextTotalPages) {
+      setPage(nextTotalPages);
+      return;
+    }
+    setRows(next.conversations);
+    setTotal(next.total);
+    setQueryDurationMs(next.queryDurationMs);
+    setSelected(new Set());
+    setLoadState("ready");
+  }, []);
+
+  const load = useCallback(async (mode: "initial" | "refresh", signal?: AbortSignal) => {
     if (mode === "initial") {
       setLoadState("loading");
     } else {
@@ -75,57 +142,44 @@ export function ConversationsManager() {
     }
 
     try {
-      const next = await fetchConversationStats();
-      setRows(next);
-      setSelected(new Set());
-      setLoadState("ready");
-    } catch {
+      const next = await fetchConversationStats({ page, query: debouncedQuery, signal });
+      applyResult(next, page);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
       if (mode === "initial") {
         setLoadState("error");
       }
     } finally {
-      setRefreshing(false);
+      if (!signal?.aborted) {
+        setRefreshing(false);
+      }
     }
-  }, []);
+  }, [page, debouncedQuery, applyResult]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    fetchConversationStats()
-      .then((next) => {
-        if (!cancelled) {
-          setRows(next);
-          setLoadState("ready");
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setLoadState("error");
-        }
+    const controller = new AbortController();
+    fetchConversationStats({ page, query: debouncedQuery, signal: controller.signal })
+      .then((next) => applyResult(next, page))
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setLoadState("error");
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const visibleRows = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-
-    if (!normalized) {
-      return rows;
-    }
-
-    return rows.filter((row) =>
-      (row.title ?? DEFAULT_CONVERSATION_TITLE).toLowerCase().includes(normalized),
-    );
-  }, [query, rows]);
+    return () => controller.abort();
+  }, [page, debouncedQuery, applyResult]);
 
   const selectedVisibleCount = useMemo(
-    () => visibleRows.reduce((count, row) => (selected.has(row.id) ? count + 1 : count), 0),
-    [selected, visibleRows],
+    () => rows.reduce((count, row) => (selected.has(row.id) ? count + 1 : count), 0),
+    [selected, rows],
   );
-  const allVisibleSelected = visibleRows.length > 0 && selectedVisibleCount === visibleRows.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(total, (page - 1) * PAGE_SIZE + rows.length);
+  const canGoPrevious = page > 1 && loadState !== "loading";
+  const canGoNext = page < totalPages && loadState !== "loading";
+  const allVisibleSelected = rows.length > 0 && selectedVisibleCount === rows.length;
 
   const toggleSelect = useCallback((id: string) => {
     setConfirmingBulk(false);
@@ -144,18 +198,18 @@ export function ConversationsManager() {
     setConfirmingBulk(false);
     setSelected((current) => {
       const next = new Set(current);
-      if (visibleRows.every((row) => next.has(row.id))) {
-        for (const row of visibleRows) {
+      if (rows.every((row) => next.has(row.id))) {
+        for (const row of rows) {
           next.delete(row.id);
         }
       } else {
-        for (const row of visibleRows) {
+        for (const row of rows) {
           next.add(row.id);
         }
       }
       return next;
     });
-  }, [visibleRows]);
+  }, [rows]);
 
   const openConversation = useCallback(
     (id: string) => {
@@ -189,7 +243,9 @@ export function ConversationsManager() {
           throw new Error("删除会话失败。");
         }
 
-        setRows((current) => current.filter((row) => !removed.has(row.id)));
+        const remainingRows = rows.filter((row) => !removed.has(row.id));
+        setRows(remainingRows);
+        setTotal((current) => Math.max(0, current - ids.length));
         setSelected((current) => {
           const next = new Set(current);
           for (const id of ids) {
@@ -197,6 +253,13 @@ export function ConversationsManager() {
           }
           return next;
         });
+
+        if (remainingRows.length === 0 && page > 1) {
+          setLoadState("loading");
+          setPage((current) => Math.max(1, current - 1));
+        } else {
+          await load("refresh");
+        }
       } catch {
         // Reload to resync if the delete failed midway.
         void load("refresh");
@@ -204,17 +267,58 @@ export function ConversationsManager() {
         setBusy(false);
       }
     },
-    [load],
+    [load, page, rows],
   );
 
   const deleteSelected = useCallback(() => {
-    const ids = visibleRows.filter((row) => selected.has(row.id)).map((row) => row.id);
+    const ids = rows.filter((row) => selected.has(row.id)).map((row) => row.id);
     if (ids.length === 0) {
       return;
     }
     setConfirmingBulk(false);
     void deleteIds(ids);
-  }, [deleteIds, selected, visibleRows]);
+  }, [deleteIds, selected, rows]);
+
+  const paginationBar =
+    loadState === "ready" ? (
+      <div className="flex items-center justify-between gap-4 text-xs">
+        <span className="tabular-nums text-[#9a8d7d]">
+          {total === 0 ? "共 0 个会话" : `${pageStart}–${pageEnd} / 共 ${total} 个会话`}
+          {queryDurationMs !== null && (
+            <span className="ml-3 text-[#b5a898]">{queryDurationMs} ms</span>
+          )}
+        </span>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2 text-[#6d6257]">
+            <button
+              type="button"
+              onClick={() => {
+                setLoadState("loading");
+                setPage((current) => Math.max(1, current - 1));
+              }}
+              disabled={!canGoPrevious || refreshing}
+              className="rounded-full border border-[rgba(23,23,23,0.1)] bg-white/70 px-3 py-1.5 font-medium transition hover:border-[rgba(201,106,43,0.32)] hover:text-[#352d25] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              上一页
+            </button>
+            <span className="min-w-[4rem] text-center font-mono tabular-nums text-[#817669]">
+              {page} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setLoadState("loading");
+                setPage((current) => Math.min(totalPages, current + 1));
+              }}
+              disabled={!canGoNext || refreshing}
+              className="rounded-full border border-[rgba(23,23,23,0.1)] bg-white/70 px-3 py-1.5 font-medium transition hover:border-[rgba(201,106,43,0.32)] hover:text-[#352d25] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              下一页
+            </button>
+          </div>
+        )}
+      </div>
+    ) : null;
 
   return (
     <div>
@@ -239,7 +343,16 @@ export function ConversationsManager() {
         <input
           type="search"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            const value = event.target.value;
+            setQuery(value);
+            if (debounceRef.current !== null) clearTimeout(debounceRef.current);
+            debounceRef.current = setTimeout(() => {
+              setDebouncedQuery(value);
+              setPage(1);
+              setLoadState("loading");
+            }, 300);
+          }}
           placeholder="按标题搜索…"
           className="h-9 w-full max-w-xs rounded-lg border border-[rgba(23,23,23,0.12)] bg-white/70 px-3 text-sm text-[#352d25] outline-none transition placeholder:text-[#a99e8f] focus:border-[rgba(201,106,43,0.45)]"
         />
@@ -266,11 +379,9 @@ export function ConversationsManager() {
             </button>
           </div>
         ) : null}
-        <span className="ml-auto text-xs text-[#9a8d7d]">
-          共 {visibleRows.length} 个会话
-          {visibleRows.length !== rows.length ? `（共 ${rows.length}）` : ""}
-        </span>
       </div>
+
+      {paginationBar ? <div className="mb-3">{paginationBar}</div> : null}
 
       {loadState === "loading" ? (
         <div className="py-12 text-center text-sm text-[#8a8176]">加载会话列表中…</div>
@@ -288,54 +399,57 @@ export function ConversationsManager() {
             重试
           </button>
         </div>
-      ) : visibleRows.length === 0 ? (
+      ) : rows.length === 0 ? (
         <div className="accent-line py-12 pl-4">
           <p className="text-lg font-semibold tracking-[-0.02em] text-[#352d25]">
-            没有匹配的会话
+            {query.trim() ? "没有匹配的会话" : "暂无会话"}
           </p>
-          <p className="mt-2 text-sm leading-6 text-[#6e665d]">调整搜索条件后再试。</p>
+          <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+            {query.trim() ? "调整搜索条件后再试。" : "开始聊天后，会话会显示在这里。"}
+          </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[840px] border-collapse text-[13px]">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-[0.1em] text-[#a0937f]">
-                <th className="w-9 px-2 py-2">
-                  <input
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={toggleSelectAll}
-                    aria-label="全选"
-                    className="h-3.5 w-3.5 cursor-pointer accent-[#c96a2b]"
-                  />
-                </th>
-                <th className="px-2 py-2 font-medium">标题</th>
-                <th className="px-2 py-2 font-medium">最后对话</th>
-                <th className="px-2 py-2 text-right font-medium">输入</th>
-                <th className="px-2 py-2 text-right font-medium">输出</th>
-                <th className="px-2 py-2 text-right font-medium">命中率</th>
-                <th className="px-2 py-2 text-right font-medium">轮次</th>
-                <th className="px-2 py-2 font-medium">模型</th>
-                <th className="px-2 py-2 text-right font-medium">上下文</th>
-                <th className="px-2 py-2 text-right font-medium">数据量</th>
-                <th className="w-10 px-2 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map((row) => {
-                const title = row.title ?? DEFAULT_CONVERSATION_TITLE;
-                const createdMs = toMillis(row.createdAt);
-                const lastMs = toMillis(row.lastMessageAt);
-                const isSelected = selected.has(row.id);
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[840px] border-collapse text-[13px]">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-[0.1em] text-[#a0937f]">
+                  <th className="w-9 px-2 py-2">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="全选"
+                      className="h-3.5 w-3.5 cursor-pointer accent-[#c96a2b]"
+                    />
+                  </th>
+                  <th className="px-2 py-2 font-medium">标题</th>
+                  <th className="px-2 py-2 font-medium">最后对话</th>
+                  <th className="px-2 py-2 text-right font-medium">输入</th>
+                  <th className="px-2 py-2 text-right font-medium">输出</th>
+                  <th className="px-2 py-2 text-right font-medium">命中率</th>
+                  <th className="px-2 py-2 text-right font-medium">轮次</th>
+                  <th className="px-2 py-2 font-medium">模型</th>
+                  <th className="px-2 py-2 text-right font-medium">上下文</th>
+                  <th className="px-2 py-2 text-right font-medium">数据量</th>
+                  <th className="w-10 px-2 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const title = row.title ?? DEFAULT_CONVERSATION_TITLE;
+                  const createdMs = toMillis(row.createdAt);
+                  const lastMs = toMillis(row.lastMessageAt);
+                  const isSelected = selected.has(row.id);
 
-                return (
-                  <tr
-                    key={row.id}
-                    onClick={() => openConversation(row.id)}
-                    className={`cursor-pointer border-t border-[rgba(23,23,23,0.06)] transition hover:bg-[rgba(201,106,43,0.05)] ${
-                      isSelected ? "bg-[rgba(201,106,43,0.07)]" : ""
-                    }`}
-                  >
+                  return (
+                    <tr
+                      key={row.id}
+                      onClick={() => openConversation(row.id)}
+                      className={`cursor-pointer border-t border-[rgba(23,23,23,0.06)] transition hover:bg-[rgba(201,106,43,0.05)] ${
+                        isSelected ? "bg-[rgba(201,106,43,0.07)]" : ""
+                      }`}
+                    >
                     <td className="px-2 py-2.5" onClick={(event) => event.stopPropagation()}>
                       <input
                         type="checkbox"
@@ -453,10 +567,12 @@ export function ConversationsManager() {
                     </td>
                   </tr>
                 );
-              })}
-            </tbody>
-          </table>
-        </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+          {paginationBar ? <div className="mt-4">{paginationBar}</div> : null}
+        </>
       )}
     </div>
   );

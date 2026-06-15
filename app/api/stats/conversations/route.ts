@@ -2,7 +2,36 @@ import { listConversationStats } from "@/lib/persistence";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  const conversations = await listConversationStats();
-  return Response.json({ conversations });
+const DEFAULT_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 500;
+
+function parsePositiveInt(value: string | null, fallback: number): number {
+  if (value === null) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const page = parsePositiveInt(searchParams.get("page"), 1);
+  const requestedPageSize = parsePositiveInt(searchParams.get("pageSize"), DEFAULT_PAGE_SIZE);
+  const pageSize = Math.min(requestedPageSize, MAX_PAGE_SIZE);
+  const query = searchParams.get("q") ?? undefined;
+  const startedAt = performance.now();
+  const result = await listConversationStats({
+    query,
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+  });
+  const queryDurationMs = Math.round(performance.now() - startedAt);
+
+  return Response.json({
+    ...result,
+    page,
+    pageSize,
+    queryDurationMs,
+  });
 }

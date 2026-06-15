@@ -606,6 +606,19 @@ export type ConversationStat = {
   hasUsage: boolean;
 };
 
+export type ConversationStatsQueryOptions = {
+  query?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type ConversationStatsQueryResult = {
+  conversations: ConversationStat[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 type RawConversationStat = {
   id: string;
   title: string | null;
@@ -622,8 +635,27 @@ type RawConversationStat = {
   has_usage: number;
 };
 
-export async function listConversationStats(): Promise<ConversationStat[]> {
+type RawCountRow = {
+  count: number;
+};
+
+export async function listConversationStats(
+  options: ConversationStatsQueryOptions = {},
+): Promise<ConversationStatsQueryResult> {
   await ensureDatabase();
+
+  const query = options.query?.trim() ?? "";
+  const limit = Math.min(Math.max(1, options.limit ?? 100), 500);
+  const offset = Math.max(0, options.offset ?? 0);
+  const whereClause = query
+    ? sql`WHERE lower(coalesce(c.title, '')) LIKE ${`%${query.toLocaleLowerCase()}%`}`
+    : sql``;
+
+  const countRows = db.all(sql`
+    SELECT COUNT(*) AS count
+    FROM conversations c
+    ${whereClause}
+  `) as RawCountRow[];
 
   const rows = db.all(sql`
     SELECT
@@ -668,30 +700,38 @@ export async function listConversationStats(): Promise<ConversationStat[]> {
       FROM usage_records
       WHERE id IN (SELECT MAX(id) FROM usage_records GROUP BY conversation_id)
     ) l ON l.conversation_id = c.id
+    ${whereClause}
     ORDER BY c.last_message_at DESC
+    LIMIT ${limit}
+    OFFSET ${offset}
   `) as RawConversationStat[];
 
-  return rows.map((row) => {
-    const inputTokens = Number(row.input_tokens) || 0;
-    const cachedInputTokens = Number(row.cached_input_tokens) || 0;
+  return {
+    conversations: rows.map((row) => {
+      const inputTokens = Number(row.input_tokens) || 0;
+      const cachedInputTokens = Number(row.cached_input_tokens) || 0;
 
-    return {
-      id: row.id,
-      title: row.title,
-      createdAt: toIsoString(row.created_at),
-      lastMessageAt: toIsoString(row.last_message_at),
-      userTurns: Number(row.user_turns) || 0,
-      inputTokens,
-      outputTokens: Number(row.output_tokens) || 0,
-      cachedInputTokens,
-      totalTokens: Number(row.total_tokens) || 0,
-      cacheHitRate: inputTokens > 0 ? cachedInputTokens / inputTokens : null,
-      contextTokens: row.context_tokens === null ? null : Number(row.context_tokens),
-      lastModelId: row.last_model_id,
-      dataBytes: Number(row.data_bytes) || 0,
-      hasUsage: Number(row.has_usage) === 1,
-    };
-  });
+      return {
+        id: row.id,
+        title: row.title,
+        createdAt: toIsoString(row.created_at),
+        lastMessageAt: toIsoString(row.last_message_at),
+        userTurns: Number(row.user_turns) || 0,
+        inputTokens,
+        outputTokens: Number(row.output_tokens) || 0,
+        cachedInputTokens,
+        totalTokens: Number(row.total_tokens) || 0,
+        cacheHitRate: inputTokens > 0 ? cachedInputTokens / inputTokens : null,
+        contextTokens: row.context_tokens === null ? null : Number(row.context_tokens),
+        lastModelId: row.last_model_id,
+        dataBytes: Number(row.data_bytes) || 0,
+        hasUsage: Number(row.has_usage) === 1,
+      };
+    }),
+    total: Number(countRows[0]?.count) || 0,
+    limit,
+    offset,
+  };
 }
 
 export async function batchDeleteConversations(ids: string[]): Promise<number> {
