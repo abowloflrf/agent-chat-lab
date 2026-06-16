@@ -305,6 +305,9 @@ export function ChatShell({
   const lastScrollTopRef = useRef(0);
   const scrollDeltaAccRef = useRef(0);
   const pinnedToBottomRef = useRef(true);
+  // 用户发送/重发后强制贴底一次：发送时置位，待新消息渲染进 DOM 后由贴底 effect
+  // 消费，绕过"输入框聚焦则跳过"的守卫，确保发送后整段对话直接滚到最底部。
+  const forceScrollToBottomRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
@@ -647,6 +650,7 @@ export function ChatShell({
   // 每个流式 chunk 都生成新回调、击穿 ChatMessage 的 memo。
   const isBusyRef = useRef(isBusy);
   const messagesRef = useRef(messages);
+  const draftRef = useRef(draft);
 
   useEffect(() => {
     isBusyRef.current = isBusy;
@@ -656,15 +660,35 @@ export function ChatShell({
     messagesRef.current = messages;
   }, [messages]);
 
-  // AI 回复时跟随内容自动贴底；用户向上滚动会清除 pinned 标记从而暂停，
-  // 滚回底部后标记恢复、生成中继续跟随。输入框聚焦时跳过，避免移动端流式贴底
-  // 抢走软键盘焦点导致无法输入。
   useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  // AI 回复时跟随内容自动贴底；用户向上滚动会清除 pinned 标记从而暂停，
+  // 滚回底部后标记恢复、生成中继续跟随。
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    // 发送/重发触发的强制贴底：无视聚焦守卫，把刚渲染的新消息滚进视野。
+    if (forceScrollToBottomRef.current) {
+      forceScrollToBottomRef.current = false;
+      pinnedToBottomRef.current = true;
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+
     if (!isBusy || !pinnedToBottomRef.current) {
       return;
     }
-    const container = scrollContainerRef.current;
-    if (!container || document.activeElement === textareaRef.current) {
+    // 仅当用户正在输入框里撰写下一条消息（草稿非空）时让出滚动控制权，避免流式
+    // 贴底打断输入；发送后草稿已清空，仍照常跟随到底。
+    if (
+      document.activeElement === textareaRef.current &&
+      draftRef.current.trim() !== ""
+    ) {
       return;
     }
     container.scrollTop = container.scrollHeight;
@@ -859,12 +883,11 @@ export function ChatShell({
   }, [messages]);
   const displayConversationTitle = conversationTitle || DEFAULT_CONVERSATION_TITLE;
 
+  // 置位强制贴底标记，真正的滚动交给贴底 effect 在新消息渲染进 DOM 后执行——
+  // 避免在消息入 DOM 前对旧高度做平滑滚动、与随后的瞬时贴底相互抢滚动。
   function scrollToBottom() {
     pinnedToBottomRef.current = true;
-    const container = scrollContainerRef.current;
-    if (container) {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-    }
+    forceScrollToBottomRef.current = true;
   }
 
   async function ensureConversationId() {

@@ -22,6 +22,7 @@ type HastElementLike = {
 };
 type HastNodeLike = HastElementLike | HastTextLike | { type: string; value?: unknown; children?: unknown };
 import { AgentTimeline } from "@/components/agent-timeline";
+import { ReasoningCard } from "@/components/reasoning-card";
 import { ToolCallGroup } from "@/components/tool-call-card";
 import type { AskUserQuestionOutput } from "@/lib/ai/ask-user-question";
 import { formatMessageDateTime } from "@/lib/datetime";
@@ -710,17 +711,11 @@ export const ChatMessage = memo(function ChatMessage({
               if (block.kind === "reasoning") {
                 const part = block.part;
                 return (
-                  <details
+                  <ReasoningCard
                     key={`${message.id}-reasoning-${block.index}`}
-                    className="rounded-[16px] border border-[rgba(201,106,43,0.18)] bg-[rgba(255,241,229,0.72)] px-4 py-3 text-sm text-[#4c3829]"
-                  >
-                    <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-[0.22em] text-[#a44d16]">
-                      推理轨迹
-                    </summary>
-                    <pre className="mt-3 whitespace-pre-wrap font-mono text-xs leading-6 text-[#6b5340]">
-                      {getReasoningText(part)}
-                    </pre>
-                  </details>
+                    text={getReasoningText(part)}
+                    streaming={isStreaming && part.state === "streaming"}
+                  />
                 );
               }
 

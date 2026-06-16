@@ -283,13 +283,72 @@ body::after {
   animation: menu-appear 0.15s ease-out both;
 }
 
+/* Thinking 卡片：流光标题 + 脉动火花 + 单行预览 */
+@keyframes thinking-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.thinking-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(164, 77, 22, 0.5) 25%,
+    #a44d16 45%,
+    #e7a063 50%,
+    #a44d16 55%,
+    rgba(164, 77, 22, 0.5) 75%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: thinking-shimmer 2s linear infinite;
+}
+
+@keyframes thinking-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+.thinking-pulse {
+  transform-origin: center;
+  animation: thinking-pulse 1.6s ease-in-out infinite;
+}
+
+/* 预览区：顶部渐隐遮罩，旧行上移淡出、最新行在底部清晰 */
+.reasoning-peek {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 60%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 60%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rise-in,
   .float-slow,
   .pulse-soft,
   .tool-running-indicator,
   .tool-spin,
-  .menu-appear {
+  .menu-appear,
+  .thinking-pulse {
+    animation: none;
+  }
+
+  /* 流光禁用后回落为纯色，保证标题可读 */
+  .thinking-shimmer {
+    background: none;
+    -webkit-text-fill-color: #a44d16;
+    color: #a44d16;
     animation: none;
   }
 
