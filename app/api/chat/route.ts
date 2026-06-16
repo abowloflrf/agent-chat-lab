@@ -13,6 +13,7 @@ import {
   buildUnansweredOutput,
 } from "@/lib/ai/ask-user-question";
 import { getChatModel } from "@/lib/ai/model";
+import { createOpenAICompatibleChatReasoningTransform } from "@/lib/ai/chat-reasoning-transform";
 import {
   buildMcpContextPrompt,
   buildSkillContextPrompt,
@@ -590,6 +591,11 @@ export async function POST(request: Request) {
     system: runtimeSystemPrompt,
     messages: modelMessages,
     tools,
+    includeRawChunks: providerConfig.protocol === "chat-completion",
+    experimental_transform:
+      providerConfig.protocol === "chat-completion"
+        ? createOpenAICompatibleChatReasoningTransform()
+        : undefined,
     providerOptions:
       providerConfig.protocol === "openai-response"
         ? {
