@@ -66,7 +66,29 @@ function isNativeReasoningPart(part: TextStreamPart<ToolSet>) {
 }
 
 function shouldCloseReasoningBefore(part: TextStreamPart<ToolSet>) {
-  return part.type !== "raw" && part.type !== "start" && part.type !== "start-step";
+  // 这些是流的边界/占位事件，不代表答案正文开始，必须让推理跨越它们继续聚合：
+  // - raw：原始 chunk，推理正是从中提取
+  // - start / start-step：运行 / 步骤边界
+  // - text-start / text-end：文本块边界。部分 OpenAI 兼容 provider（如豆包）在推理
+  //   阶段就发 content:""，使 provider 提前 enqueue 一个 text-start；若据此关闭推理，
+  //   后续 reasoning_content 会另起新段，导致「推理1 + 回复 + 推理2」式割裂。
+  if (
+    part.type === "raw" ||
+    part.type === "start" ||
+    part.type === "start-step" ||
+    part.type === "text-start" ||
+    part.type === "text-end"
+  ) {
+    return false;
+  }
+
+  // 仅当出现非空正文时才视为答案开始；空 text-delta（推理阶段的占位 content:""）忽略。
+  if (part.type === "text-delta") {
+    return part.text.length > 0;
+  }
+
+  // 其余（工具调用、source/file、finish/finish-step、error/abort 等）都意味着推理已结束。
+  return true;
 }
 
 export function createOpenAICompatibleChatReasoningTransform<
