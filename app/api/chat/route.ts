@@ -66,6 +66,91 @@ function stripMessageId(message: ChatUIMessage): Omit<ChatUIMessage, "id"> {
   return rest;
 }
 
+type OpenAIItemIdCarrier = {
+  providerOptions?: Record<string, unknown>;
+  providerMetadata?: Record<string, unknown>;
+};
+
+function stripOpenAIItemIdFromProviderMap(
+  providerMap: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  const openai = providerMap?.openai;
+
+  if (
+    !openai ||
+    typeof openai !== "object" ||
+    Array.isArray(openai) ||
+    !("itemId" in openai)
+  ) {
+    return providerMap;
+  }
+
+  const { itemId, ...openAIWithoutItemId } = openai as Record<string, unknown>;
+  void itemId;
+
+  const nextProviderMap = { ...providerMap };
+  if (Object.keys(openAIWithoutItemId).length > 0) {
+    nextProviderMap.openai = openAIWithoutItemId;
+  } else {
+    delete nextProviderMap.openai;
+  }
+
+  return Object.keys(nextProviderMap).length > 0 ? nextProviderMap : undefined;
+}
+
+function stripOpenAIResponseItemIds(
+  messages: ChatUIMessage[],
+): ChatUIMessage[] {
+  let changed = false;
+  const nextMessages = messages.map((message) => {
+    let partsChanged = false;
+    const nextParts = message.parts.map((part) => {
+      const carrier = part as ChatUIMessage["parts"][number] & OpenAIItemIdCarrier;
+      const nextProviderOptions = stripOpenAIItemIdFromProviderMap(
+        carrier.providerOptions,
+      );
+      const nextProviderMetadata = stripOpenAIItemIdFromProviderMap(
+        carrier.providerMetadata,
+      );
+
+      if (
+        nextProviderOptions === carrier.providerOptions &&
+        nextProviderMetadata === carrier.providerMetadata
+      ) {
+        return part;
+      }
+
+      partsChanged = true;
+      const nextPart = {
+        ...part,
+      } as ChatUIMessage["parts"][number] & OpenAIItemIdCarrier;
+
+      if (nextProviderOptions === undefined) {
+        delete nextPart.providerOptions;
+      } else {
+        nextPart.providerOptions = nextProviderOptions;
+      }
+
+      if (nextProviderMetadata === undefined) {
+        delete nextPart.providerMetadata;
+      } else {
+        nextPart.providerMetadata = nextProviderMetadata;
+      }
+
+      return nextPart as ChatUIMessage["parts"][number];
+    });
+
+    if (!partsChanged) {
+      return message;
+    }
+
+    changed = true;
+    return { ...message, parts: nextParts };
+  });
+
+  return changed ? nextMessages : messages;
+}
+
 /**
  * Auto-reject any tool calls still in "approval-requested" state.
  *
@@ -426,8 +511,12 @@ export async function POST(request: Request) {
   const sanitizedMessages = settleInterruptedToolCalls(
     resolveUnansweredQuestions(autoRejectPendingApprovals(parsed.data.messages)),
   );
+  const messagesForRequest =
+    providerConfig.protocol === "openai-response"
+      ? stripOpenAIResponseItemIds(sanitizedMessages)
+      : sanitizedMessages;
   const modelMessages = await convertToModelMessages(
-    sanitizedMessages.map(stripMessageId),
+    messagesForRequest.map(stripMessageId),
     {
       tools: agentTools,
       // 防御性兜底：上面的 sanitize 链应已消化所有未完成的工具调用，
@@ -453,7 +542,7 @@ export async function POST(request: Request) {
   const mcpBundlePromise = connectMcpServers(mcpServers);
 
   try {
-    await persistIncomingMessages(parsed.data.conversationId, sanitizedMessages);
+    await persistIncomingMessages(parsed.data.conversationId, messagesForRequest);
     // 把本轮实际使用的模型 / MCP / Skills 选择写回会话，使其在下次打开时恢复。
     // 缺省字段写 null：模型缺省=沿用全局默认，数组缺省=未收窄（默认全开）。
     await saveConversationSessionConfig(parsed.data.conversationId, {
@@ -486,7 +575,7 @@ export async function POST(request: Request) {
   // Build the prompt after connecting so it can advertise the MCP tools that
   // actually came online this turn.
   const runtimeSystemPrompt = buildRuntimeSystemPrompt(
-    parsed.data.messages,
+    messagesForRequest,
     advertisedMcpServers,
     enabledSkills,
   );
@@ -501,6 +590,16 @@ export async function POST(request: Request) {
     system: runtimeSystemPrompt,
     messages: modelMessages,
     tools,
+    providerOptions:
+      providerConfig.protocol === "openai-response"
+        ? {
+            openai: {
+              store: false,
+              promptCacheKey: parsed.data.conversationId,
+              reasoningSummary: "auto",
+            },
+          }
+        : undefined,
     // 确定性纠偏：把模型按 Claude Code 习惯发来的工具调用（大写名、file_path
     // 等参数键）就地翻译成本地工具契约，省掉“先错一次再重试”的额外往返。
     experimental_repairToolCall: repairToolCall,
@@ -576,7 +675,7 @@ export async function POST(request: Request) {
   // Use the sanitized history so onFinish persistence doesn't resurrect
   // dangling approval-requested / input-available parts into the DB.
   const uiMessageStream = createUIMessageStream<ChatUIMessage>({
-    originalMessages: sanitizedMessages,
+    originalMessages: messagesForRequest,
     // 既把流式过程中的真实错误记到服务端日志，也作为可读文案发回前端错误横幅，
     // 不再被 SDK 默认替换成通用的 "An error occurred."。
     onError: (error) => {
@@ -659,16 +758,21 @@ export async function POST(request: Request) {
       });
     },
     onFinish: async ({ messages }) => {
-      await persistFinishedConversation(parsed.data.conversationId, messages);
+      const messagesToPersist =
+        providerConfig.protocol === "openai-response"
+          ? stripOpenAIResponseItemIds(messages)
+          : messages;
 
-      const userMessages = messages.filter((m) => m.role === "user");
-      const assistantMessages = messages.filter((m) => m.role === "assistant");
+      await persistFinishedConversation(parsed.data.conversationId, messagesToPersist);
+
+      const userMessages = messagesToPersist.filter((m) => m.role === "user");
+      const assistantMessages = messagesToPersist.filter((m) => m.role === "assistant");
 
       if (userMessages.length === 1 && assistantMessages.length === 1) {
         after(async () => {
           await generateConversationTitle(
             parsed.data.conversationId,
-            messages,
+            messagesToPersist,
             providerConfig,
           );
         });

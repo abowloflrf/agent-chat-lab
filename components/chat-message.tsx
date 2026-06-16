@@ -210,6 +210,10 @@ type RenderBlock =
   | { kind: "reasoning"; part: ReasoningPart; index: number }
   | { kind: "tools"; parts: ToolLikePart[]; key: string };
 
+function getReasoningText(part: ReasoningPart) {
+  return typeof part.text === "string" ? part.text : "";
+}
+
 /**
  * 把 parts 折叠成渲染块：相邻的工具调用聚合成一个分组。
  * step-start / source-* 等不渲染的 part 视为透明，不打断工具分组，
@@ -227,7 +231,9 @@ function buildRenderBlocks(parts: UIMessage["parts"]): RenderBlock[] {
     }
 
     if (part.type === "reasoning") {
-      blocks.push({ kind: "reasoning", part, index });
+      if (getReasoningText(part).trim() !== "") {
+        blocks.push({ kind: "reasoning", part, index });
+      }
       return;
     }
 
@@ -712,7 +718,7 @@ export const ChatMessage = memo(function ChatMessage({
                       推理轨迹
                     </summary>
                     <pre className="mt-3 whitespace-pre-wrap font-mono text-xs leading-6 text-[#6b5340]">
-                      {"text" in part ? part.text : JSON.stringify(part, null, 2)}
+                      {getReasoningText(part)}
                     </pre>
                   </details>
                 );
