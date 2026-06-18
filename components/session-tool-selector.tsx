@@ -111,29 +111,15 @@ export function SessionToolSelector({
         title={`本次会话的 ${label}`}
         className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2 transition hover:bg-[rgba(23,23,23,0.05)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50 ${triggerStateClass}`}
       >
-        <span className="shrink-0">{icon}</span>
-        <span className="font-mono text-[11px]">{label}</span>
+        <span className={`shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-md transition-colors ${open ? "bg-[rgba(201,106,43,0.12)] text-[#9c5626]" : ""}`}>{icon}</span>
+        <span className="hidden font-mono text-[11px] sm:inline">{label}</span>
         {noneSelected ? (
-          <span className="font-mono text-[10px] text-[#b0a496]">关</span>
+          <span className="hidden font-mono text-[10px] text-[#b0a496] sm:inline">关</span>
         ) : allSelected ? null : (
-          <span className="rounded-full bg-[rgba(201,106,43,0.12)] px-1.5 font-mono text-[10px] tabular-nums text-[#9c5626]">
+          <span className="hidden sm:inline-flex rounded-full bg-[rgba(201,106,43,0.12)] px-1.5 font-mono text-[10px] tabular-nums text-[#9c5626]">
             {selectedCount}/{total}
           </span>
         )}
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 16 16"
-          fill="none"
-          className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`}
-        >
-          <path
-            d="M4 6l4 4 4-4"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
       </button>
 
       {open ? (
