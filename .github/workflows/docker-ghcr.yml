@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Test, Build and Push Docker Image
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
     tags:
       - "v*.*.*"
       - "*.*.*"
+  pull_request:
 
 permissions:
   contents: read
@@ -17,8 +18,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    name: Lint, test & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build (type-check)
+        run: pnpm build
+
   docker:
     name: Build ${{ matrix.platform }}
+    # Tests gate the image: a red test job skips docker (and the merge job below).
+    needs: test
+    # PRs only run tests; build/push happens on pushes to main and tags.
+    if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false

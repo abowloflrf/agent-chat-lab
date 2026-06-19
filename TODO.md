@@ -7,10 +7,9 @@
 - [ ] MCP 工具名按服务器名前缀隔离，避免跨服务器同名工具互相覆盖
 - [ ] 为 MCP 工具执行增加超时控制（当前仅连接与工具发现有超时）
 - [ ] 改进 `/api/models` 失败提示，按鉴权 / URL / 上游错误给出更可操作的报错
-- [ ] 引入测试框架
-- [ ] 为 `lib/ai/tools.ts` 添加单元测试
-- [ ] 为 `/api/chat` 添加集成测试
-- [ ] 为 `/api/models` 添加集成测试
+
+### P1 测试补齐
+- [ ] 为 DB 持久层补单测（`persistence` / `settings` 读写路径 / `artifacts`，需 in-memory SQLite 夹具）
 
 ### P1 Agent 能力补齐
 - [ ] Resumable Streaming：关闭页面后 Agent 继续运行，重新打开自动重连（设计方案见 [docs/resumable-streaming-plan.md](docs/resumable-streaming-plan.md)）
@@ -39,7 +38,8 @@
 ### P2 架构与产品扩展
 - [ ] 为模型供应商增加“本地调用”模式（V1）：浏览器直连 provider 发起纯聊天请求，暂不支持 tool call、approval、timeline 和服务端 Agent loop
 - [ ] 支持按用户隔离 system settings、conversations、notes、todos
-- [ ] chat-shell 逻辑层 hook 化（重构阶段 4，可选）：将流恢复、路由竞态守卫、会话配置对账等抽成自定义 hook；高风险，需先补测试框架兜底竞态回归
+- [ ] chat-shell 逻辑层 hook 化（重构阶段 4，可选）：将流恢复、路由竞态守卫、会话配置对账等抽成自定义 hook；高风险，需先补对应竞态回归测试兜底（测试框架已就绪）
+- [ ] DeepSeek 思考模式工具调用回传 `reasoning_content`（可选，规范对齐）：`@ai-sdk/openai` chat 路径会丢弃 reasoning，需用自定义 fetch 拦截出站 body、观测响应流补回字段，并按模型名 gate。实测 v4-flash 当前省略不报 400，故暂不做；触发条件：出现 `reasoning_content must be passed back` 的 400，或上 v4-pro 跑深串行 agent 后察觉工具调用后推理质量下降。须做就做完整版（覆盖单轮内多步循环，仅补跨轮历史无意义）。
 
 ## 维护规则
 - 新任务、范围变更、优先级调整时，只在本文件维护未完成事项。
