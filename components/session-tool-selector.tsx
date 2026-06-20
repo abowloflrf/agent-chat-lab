@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import * as Popover from "@radix-ui/react-popover";
 
 export type SessionToolItem = {
   /** 稳定标识：MCP 用 server id，Skill 用 skill name。 */
@@ -27,8 +28,9 @@ type SessionToolSelectorProps = {
 };
 
 /**
- * 底部工具栏的「本次会话」多选 chip：与 ModelSelector 同构（向上弹出、暖色卡片），
- * 但语义是多选——点条目只切换勾选、不关闭菜单。无候选项时整个 chip 不渲染。
+ * 底部工具栏的「本次会话」多选 chip：向上弹出的暖色卡片，语义是多选——点条目
+ * 只切换勾选、不关闭面板（Popover 仅在点外部/Esc 时关闭）。无候选项时整个 chip
+ * 不渲染。弹层定位与溢出避让交给 Radix Popover。
  */
 export function SessionToolSelector({
   label,
@@ -39,35 +41,6 @@ export function SessionToolSelector({
   emptyHint,
   disabled = false,
 }: SessionToolSelectorProps) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
   // 候选为空时不占位（同 ModelSelector ≤1 隐藏的思路）。
   if (items.length === 0) {
     return null;
@@ -99,31 +72,36 @@ export function SessionToolSelector({
   }
 
   return (
-    // 移动端故意不做定位上下文（static），让弹层锚定到外层 composer 的 relative 容器、
-    // 横跨输入框宽度，避免最右侧 chip 的弹层溢出屏幕；sm+ 恢复贴着 chip 弹出。
-    <div ref={containerRef} className="sm:relative">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((value) => !value)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title={`本次会话的 ${label}`}
-        className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2 transition hover:bg-[rgba(23,23,23,0.05)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50 ${triggerStateClass}`}
-      >
-        <span className={`shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-md transition-colors ${open ? "bg-[rgba(201,106,43,0.12)] text-[#9c5626]" : ""}`}>{icon}</span>
-        <span className="hidden font-mono text-[11px] sm:inline">{label}</span>
-        {noneSelected ? (
-          <span className="hidden font-mono text-[10px] text-[#b0a496] sm:inline">关</span>
-        ) : allSelected ? null : (
-          <span className="hidden sm:inline-flex rounded-full bg-[rgba(201,106,43,0.12)] px-1.5 font-mono text-[10px] tabular-nums text-[#9c5626]">
-            {selectedCount}/{total}
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          title={`本次会话的 ${label}`}
+          className={`group inline-flex h-8 items-center gap-1.5 rounded-lg px-2 transition hover:bg-[rgba(23,23,23,0.05)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50 ${triggerStateClass}`}
+        >
+          <span className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-md transition-colors group-data-[state=open]:bg-[rgba(201,106,43,0.12)] group-data-[state=open]:text-[#9c5626]">
+            {icon}
           </span>
-        )}
-      </button>
+          <span className="hidden font-mono text-[11px] sm:inline">{label}</span>
+          {noneSelected ? (
+            <span className="hidden font-mono text-[10px] text-[#b0a496] sm:inline">关</span>
+          ) : allSelected ? null : (
+            <span className="hidden sm:inline-flex rounded-full bg-[rgba(201,106,43,0.12)] px-1.5 font-mono text-[10px] tabular-nums text-[#9c5626]">
+              {selectedCount}/{total}
+            </span>
+          )}
+        </button>
+      </Popover.Trigger>
 
-      {open ? (
-        <div className="menu-appear absolute inset-x-3 bottom-full z-50 mb-2 overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white shadow-lg shadow-black/8 sm:inset-x-auto sm:left-0 sm:min-w-[260px] sm:max-w-[340px]">
+      <Popover.Portal>
+        <Popover.Content
+          side="top"
+          align="start"
+          sideOffset={8}
+          collisionPadding={12}
+          className="menu-appear z-50 w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white shadow-lg shadow-black/8 sm:w-auto sm:min-w-[260px] sm:max-w-[340px]"
+        >
           <div className="flex items-center justify-between gap-2 border-b border-[rgba(23,23,23,0.06)] px-3 py-2">
             <span className="text-[10px] uppercase tracking-[0.18em] text-[#978b7e]">
               本次会话 · {label}
@@ -145,8 +123,7 @@ export function SessionToolSelector({
                 <button
                   key={item.id}
                   type="button"
-                  role="menuitemcheckbox"
-                  aria-checked={checked}
+                  aria-pressed={checked}
                   onClick={() => toggle(item.id)}
                   className="flex w-full items-start gap-2.5 px-3 py-1.5 text-left transition hover:bg-[rgba(201,106,43,0.06)]"
                 >
@@ -200,8 +177,8 @@ export function SessionToolSelector({
               未勾选的项本次对话不会加载
             </div>
           )}
-        </div>
-      ) : null}
-    </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

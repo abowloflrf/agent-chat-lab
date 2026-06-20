@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import * as Popover from "@radix-ui/react-popover";
 import type { ProviderSettings } from "@/lib/provider-config";
 
 export type ModelSelection = {
@@ -32,26 +32,8 @@ export function ModelSelector({
   onSelect,
   disabled = false,
 }: ModelSelectorProps) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
   const groups = buildEnabledModels(providers);
   const totalModels = groups.reduce((sum, g) => sum + g.models.length, 0);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
 
   if (totalModels <= 1) {
     return null;
@@ -60,34 +42,41 @@ export function ModelSelector({
   const displayLabel = selected?.modelId ?? "选择模型";
 
   return (
-    <div ref={containerRef} className="sm:relative">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[#6c6156] transition hover:bg-[rgba(23,23,23,0.05)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <span className="max-w-[88px] truncate font-mono text-[11px] sm:max-w-[180px]">
-          {displayLabel}
-        </span>
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 16 16"
-          fill="none"
-          className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`}
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className="group inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[#6c6156] transition hover:bg-[rgba(23,23,23,0.05)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <path
-            d="M4 6l4 4 4-4"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
+          <span className="max-w-[88px] truncate font-mono text-[11px] sm:max-w-[180px]">
+            {displayLabel}
+          </span>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 16 16"
+            fill="none"
+            className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180"
+          >
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </Popover.Trigger>
 
-      {open ? (
-        <div className="menu-appear absolute inset-x-3 bottom-full z-50 mb-2 overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white shadow-lg shadow-black/8 sm:inset-x-auto sm:left-0 sm:min-w-[240px] sm:max-w-[320px]">
+      <Popover.Portal>
+        <Popover.Content
+          side="top"
+          align="start"
+          sideOffset={8}
+          collisionPadding={12}
+          className="menu-appear z-50 w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white shadow-lg shadow-black/8 sm:w-auto sm:min-w-[240px] sm:max-w-[320px]"
+        >
           <div className="max-h-[60vh] overflow-y-auto py-1 sm:max-h-[280px]">
             {groups.map((group) => (
               <div key={group.providerId}>
@@ -100,56 +89,56 @@ export function ModelSelector({
                     selected?.modelId === model.modelId;
 
                   return (
-                    <button
-                      key={`${group.providerId}-${model.id}`}
-                      type="button"
-                      onClick={() => {
-                        onSelect({
-                          providerId: group.providerId,
-                          providerName: group.providerName,
-                          modelId: model.modelId,
-                        });
-                        setOpen(false);
-                      }}
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition hover:bg-[rgba(201,106,43,0.06)] ${
-                        isSelected
-                          ? "font-medium text-[#9c5626]"
-                          : "text-[#4a4138]"
-                      }`}
-                    >
-                      <span
-                        className={`inline-flex h-4 w-4 shrink-0 items-center justify-center ${
-                          isSelected ? "text-[#9c5626]" : "text-transparent"
+                    <Popover.Close asChild key={`${group.providerId}-${model.id}`}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onSelect({
+                            providerId: group.providerId,
+                            providerName: group.providerName,
+                            modelId: model.modelId,
+                          })
+                        }
+                        className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition hover:bg-[rgba(201,106,43,0.06)] ${
+                          isSelected
+                            ? "font-medium text-[#9c5626]"
+                            : "text-[#4a4138]"
                         }`}
                       >
-                        {isSelected ? (
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            className="h-3.5 w-3.5"
-                          >
-                            <path
-                              d="M3 8.5l3.5 3.5 6.5-7"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        ) : null}
-                      </span>
-                      <span className="truncate font-mono text-[12px]">
-                        {model.modelId}
-                      </span>
-                    </button>
+                        <span
+                          className={`inline-flex h-4 w-4 shrink-0 items-center justify-center ${
+                            isSelected ? "text-[#9c5626]" : "text-transparent"
+                          }`}
+                        >
+                          {isSelected ? (
+                            <svg
+                              aria-hidden="true"
+                              viewBox="0 0 16 16"
+                              fill="none"
+                              className="h-3.5 w-3.5"
+                            >
+                              <path
+                                d="M3 8.5l3.5 3.5 6.5-7"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          ) : null}
+                        </span>
+                        <span className="truncate font-mono text-[12px]">
+                          {model.modelId}
+                        </span>
+                      </button>
+                    </Popover.Close>
                   );
                 })}
               </div>
             ))}
           </div>
-        </div>
-      ) : null}
-    </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
