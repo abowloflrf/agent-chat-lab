@@ -6,14 +6,17 @@
 
 - **逻辑/数据/传输层**已全量、地道地使用 AI SDK（`useChat` / `DefaultChatTransport` / `streamText` / `createUIMessageStream` / `tool()` / `createMCPClient` / `generateText`），**无可替代的自研轮子**。
 - **UI 层**为全自研。Vercel 的现成 UI 库是 **AI Elements**。
-- 已落地的替换（均为**独立库、不绑 shadcn**，且是真实功能升级）：
-  - Markdown / 代码渲染栈 → **Streamdown**（`@streamdown/code` `@streamdown/math` `@streamdown/cjk` `@streamdown/mermaid`），等价于 AI Elements 的 `Response` / `CodeBlock`，并自带表格 + Mermaid 控件。
-  - 聊天自动贴底 → **use-stick-to-bottom**，即 AI Elements `Conversation` 的内核。
+- 已落地的替换：
+  - **独立库、不绑 shadcn**（真实功能升级）：
+    - Markdown / 代码渲染栈 → **Streamdown**（`@streamdown/code` `@streamdown/math` `@streamdown/cjk` `@streamdown/mermaid`），等价于 AI Elements 的 `Response` / `CodeBlock`，并自带表格 + Mermaid 控件。
+    - 聊天自动贴底 → **use-stick-to-bottom**，即 AI Elements `Conversation` 的内核。
+  - **引入 shadcn/Radix 生态**（首个真正落地的 AI Elements 组件）：
+    - 推理卡 → AI Elements **`Reasoning` / `ReasoningTrigger` / `ReasoningContent`**，按官方源码手动 vendor 到 `components/ai-elements/`（含 shadcn 风格 `Collapsible`、`cn`、`Shimmer`）。换来思考耗时（"Thought for N seconds"）与正文 markdown 渲染；代价是引入 `@radix-ui/react-collapsible`、`lucide-react`、`tw-animate-css`、`motion`（官方 `Shimmer` 用）。未跑 shadcn init（无 `components.json`）。
 
 ## 关键约束：AI Elements 绑定 shadcn/ui
 
 - AI Elements 建立在 **shadcn/ui** 之上，依赖 `radix-ui` / `class-variance-authority` / `clsx` / `tailwind-merge`，安装命令 `npx ai-elements@latest add <component>` 在未配置时会**自动初始化 shadcn/ui**。
-- 本项目**未使用 shadcn/ui**（无 `components.json`、无 radix），是 Tailwind v4 + 全自研 + 棕色双主题。
+- 本项目**未跑 shadcn init**（无 `components.json`），但为落地 `Reasoning` 已手动 vendor 了 shadcn 风格的 `Collapsible`（`components/ui/collapsible.tsx`）+ `cn`（`lib/utils.ts`）+ Radix（`@radix-ui/react-collapsible`）+ `tw-animate-css`。整体仍是 Tailwind v4 + 棕色双主题。
 - 但因 Streamdown 集成，`app/globals.css` 已补了一部分 shadcn 设计 token（`--color-background/foreground/border/sidebar/muted/muted-foreground/primary`，调成暖棕色调），这降低了**单个** AI Elements 组件落地的门槛——但仍需引入 radix/cva 等运行时依赖。
 - **优先判断**：采用某个 AI Elements 组件前，先看它背后是否有**独立库**可直接用（如 Streamdown、use-stick-to-bottom），能绕开 shadcn 则优先；否则按"引入 shadcn 生态"评估成本。
 
@@ -25,6 +28,7 @@
 |---|---|---|
 | `Response` / `CodeBlock` | Markdown 渲染栈（`components/chat-message.tsx`） | ✅ Streamdown（原生默认样式） |
 | `Conversation`（贴底内核） | 自研滚动状态机 | ✅ use-stick-to-bottom |
+| `Reasoning` | `components/ai-elements/reasoning.tsx`（接入 `chat-message.tsx`） | ✅ AI Elements 官方版手动 vendor（含 `Collapsible` / `Shimmer`，新增耗时显示 + 正文 markdown） |
 | 表格 / Mermaid 控件 | — | ✅ 随 Streamdown 开启 |
 
 ---
@@ -35,7 +39,6 @@
 
 | AI Elements | 本项目实现 | 必须保住的功能 | 成本/风险 | 当前结论 |
 |---|---|---|---|---|
-| `Reasoning` | `components/reasoning-card.tsx` | 流式思考预览（底部贴流、顶部淡出）、完成后收起为单行、shimmer/pulse 动画 | 中（shadcn） | 暂不换，自研更细 |
 | `Tool` | `components/tool-call-card.tsx`（+ `ask-user-question-card.tsx`、`todo-tool-card.tsx`） | 状态机（running/success/error/waiting）、相邻调用分组折叠、**Bash 审批流**、**Todo 面板**、**AskUserQuestion 交互表单**、原始 JSON 折叠、WebSearch/WebFetch/Bash 专项展示 | 高（远超 AI Elements 工具卡） | 暂不换，功能差距大 |
 | `PromptInput` | `components/chat-composer.tsx`（+ `model-selector.tsx`、`session-tool-selector.tsx`） | textarea 自动高度、Enter/Shift+Enter、模型选择器、MCP/Skills 多选、发送/停止按钮与忙碌动画 | 中-高（shadcn） | 暂不换 |
 | `Message` / `Conversation` | `components/chat-message.tsx`、`chat-message-list.tsx`、`chat-shell.tsx` | 棕色双主题（user 棕底 / assistant 白底）、消息操作、可观测指标、时间戳、布局 | 高（要重做主题） | 暂不换 |
@@ -63,7 +66,7 @@
 
 ## D. 建议的调研顺序
 
-1. **低风险试水（验证 shadcn 能否与现有棕色主题共存）**：先拿 `Suggestion` / `Actions` / `Loader` 之一做 PoC，跑通 `npx ai-elements@latest add <component>` 在 Tailwind v4 + 无 shadcn 项目里的初始化流程，确认 radix/cva 引入与主题 token 适配的实际成本。
+1. ~~低风险试水~~ **已验证**：`Reasoning` 落地证明在 Tailwind v4 + 无 shadcn 项目里，**手动 vendor 官方源码**（自建 `cn` / `Collapsible`，按需补依赖）即可，**不必跑** `npx ai-elements add` 触发 shadcn init；棕色主题靠 `globals.css` 已有的 shadcn token（`muted-foreground`/`foreground`/`background`）自动适配。后续组件沿用此路径；只需注意官方源码与本项目更严的 `react-hooks` 规则、新版 Streamdown 类型可能有小冲突（用定向 disable / 类型收窄处理）。
 2. **新功能优先于重写**：`Source`/`InlineCitation`（给 WebSearch 配引用）和 `Branch`（多版本回复）是**净增价值**，比重写已有的 Tool/Message 更值得做。
 3. **大件最后**：`Tool` / `Message` / `PromptInput` 自研版功能强、风险高，仅在确定整体迁往 shadcn 体系时再评估。
 4. 每项调研前先查是否有**独立库**（参考 Streamdown / use-stick-to-bottom 的路径），能绕开 shadcn 的优先。

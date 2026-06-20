@@ -11,7 +11,11 @@ import { cjk } from "@streamdown/cjk";
 import { mermaid } from "@streamdown/mermaid";
 import "streamdown/styles.css";
 import { AgentTimeline } from "@/components/agent-timeline";
-import { ReasoningCard } from "@/components/reasoning-card";
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning";
 import { ToolCallGroup } from "@/components/tool-call-card";
 import type { AskUserQuestionOutput } from "@/lib/ai/ask-user-question";
 import { formatMessageDateTime } from "@/lib/datetime";
@@ -462,11 +466,16 @@ export const ChatMessage = memo(function ChatMessage({
               if (block.kind === "reasoning") {
                 const part = block.part;
                 return (
-                  <ReasoningCard
+                  <Reasoning
                     key={`${message.id}-reasoning-${block.index}`}
-                    text={getReasoningText(part)}
-                    streaming={isStreaming && part.state === "streaming"}
-                  />
+                    className="mb-5"
+                    isStreaming={isStreaming && part.state === "streaming"}
+                  >
+                    <ReasoningTrigger />
+                    <ReasoningContent>
+                      {getReasoningText(part)}
+                    </ReasoningContent>
+                  </Reasoning>
                 );
               }
 
