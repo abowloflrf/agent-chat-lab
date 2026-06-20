@@ -103,7 +103,7 @@ export function ChatComposer({
             onKeyDown={onKeyDown}
             placeholder="输入消息..."
             rows={MIN_TEXTAREA_ROWS}
-            className="w-full resize-none bg-transparent px-3.5 pb-1.5 pt-3 text-[15px] leading-7 text-[#171717] outline-none placeholder:text-[#9f968b] lg:px-4"
+            className="w-full resize-none field-sizing-content overflow-y-auto bg-transparent px-3.5 pb-1.5 pt-3 text-[15px] leading-7 text-[#171717] outline-none placeholder:text-[#9f968b] lg:px-4"
             style={{
               minHeight: `calc(${MIN_TEXTAREA_ROWS}lh + 1.125rem)`,
               maxHeight: `calc(${MAX_TEXTAREA_ROWS}lh + 1.125rem)`,

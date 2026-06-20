@@ -26,11 +26,7 @@ import { ChatHeader } from "@/components/chat-header";
 import { ChatMessageList } from "@/components/chat-message-list";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { InterruptionBanner } from "@/components/interruption-banner";
-import {
-  DEFAULT_CONVERSATION_TITLE,
-  MAX_TEXTAREA_ROWS,
-  MIN_TEXTAREA_ROWS,
-} from "@/lib/constants";
+import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
 import {
   extractMessageText,
   findLastUserMessageText,
@@ -597,31 +593,6 @@ export function ChatShell({
   useEffect(() => {
     streamActivityAtRef.current = Date.now();
   }, [messages, status]);
-
-  useEffect(() => {
-    const textarea = textareaRef.current;
-
-    if (!textarea) {
-      return;
-    }
-
-    const computedStyle = window.getComputedStyle(textarea);
-    const lineHeight = Number.parseFloat(computedStyle.lineHeight) || 28;
-    const paddingTop = Number.parseFloat(computedStyle.paddingTop) || 0;
-    const paddingBottom = Number.parseFloat(computedStyle.paddingBottom) || 0;
-    const verticalPadding = paddingTop + paddingBottom;
-    const minHeight = lineHeight * MIN_TEXTAREA_ROWS + verticalPadding;
-    const maxHeight = lineHeight * MAX_TEXTAREA_ROWS + verticalPadding;
-
-    textarea.style.height = "0px";
-    const nextHeight = Math.min(
-      Math.max(textarea.scrollHeight, minHeight),
-      maxHeight,
-    );
-    textarea.style.height = `${nextHeight}px`;
-    textarea.style.overflowY =
-      textarea.scrollHeight > maxHeight ? "auto" : "hidden";
-  }, [draft]);
 
   useEffect(() => {
     const hasMissingTimestamp = messages.some((message) => {
