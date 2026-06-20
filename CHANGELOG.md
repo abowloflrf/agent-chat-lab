@@ -2,6 +2,9 @@
 
 本文件用于记录已完成功能、已落地优化和重要文档整理，不再把这些内容放进 `TODO.md`。
 
+## 2026-06-20
+- Chat Completion 协议改用 @ai-sdk/openai-compatible，思考模型工具调用回传 reasoning_content
+
 ## 2026-06-19
 - 引入 Vitest 单元测试、补充单测
 

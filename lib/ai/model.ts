@@ -1,5 +1,6 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { ProviderConfig } from "@/lib/provider-config";
 import { resolveProviderConfig } from "@/lib/settings";
 
@@ -22,11 +23,13 @@ export function getChatModel(config: ProviderConfig) {
       return provider(config.model);
     }
     default: {
-      const provider = createOpenAI({
+      const provider = createOpenAICompatible({
+        name: config.providerName || "openai-compatible",
         apiKey: config.apiKey,
         baseURL: config.baseUrl,
+        includeUsage: true,
       });
-      return provider.chat(config.model);
+      return provider.chatModel(config.model);
     }
   }
 }
