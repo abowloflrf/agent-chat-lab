@@ -32,10 +32,10 @@
 - [ ] 支持指定删除某条消息
 - [ ] 允许编辑用户已发送的某条消息，并基于编辑后的内容重新发送
 - [ ] 完善 artifacts 误收录预防策略（忽略规则、输出目录约束、扫描开关等）
-- [ ] Markdown 渲染增强（Mermaid 图表）
 - [ ] 会话详情顶部状态栏支持跨 Safari / Chrome 一致的轻量毛玻璃效果，且无明显分层横条
 
 ### P2 架构与产品扩展
+- [ ] 逐步调研 AI Elements 组件替换 / 引入新功能（清单与优先级见 [docs/ai-elements-adoption.md](docs/ai-elements-adoption.md)）
 - [ ] 为模型供应商增加“本地调用”模式（V1）：浏览器直连 provider 发起纯聊天请求，暂不支持 tool call、approval、timeline 和服务端 Agent loop
 - [ ] 支持按用户隔离 system settings、conversations、notes、todos
 - [ ] chat-shell 逻辑层 hook 化（重构阶段 4，可选）：将流恢复、路由竞态守卫、会话配置对账等抽成自定义 hook；高风险，需先补对应竞态回归测试兜底（测试框架已就绪）

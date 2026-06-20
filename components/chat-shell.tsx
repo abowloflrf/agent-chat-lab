@@ -5,6 +5,7 @@ import {
   lastAssistantMessageIsCompleteWithApprovalResponses,
 } from "ai";
 import { useChat } from "@ai-sdk/react";
+import { useStickToBottom } from "use-stick-to-bottom";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -53,7 +54,6 @@ import type { ProviderSettings } from "@/lib/provider-config";
 import type { ConversationSessionConfig } from "@/lib/persistence";
 
 const STREAM_RECOVERY_IDLE_MS = 120000;
-const AUTO_SCROLL_THRESHOLD_PX = 80;
 const CHAT_INSTANCE_ID = "chat-shell";
 const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
 const SIDEBAR_COLLAPSED_EVENT = "sidebar-collapsed-change";
@@ -304,15 +304,21 @@ export function ChatShell({
   const [headerHidden, setHeaderHidden] = useState(false);
   const lastScrollTopRef = useRef(0);
   const scrollDeltaAccRef = useRef(0);
-  const pinnedToBottomRef = useRef(true);
-  // 用户发送/重发后强制贴底一次：发送时置位，待新消息渲染进 DOM 后由贴底 effect
-  // 消费，绕过"输入框聚焦则跳过"的守卫，确保发送后整段对话直接滚到最底部。
-  const forceScrollToBottomRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const streamActivityAtRef = useRef(0);
+  // Auto stick-to-bottom for the message stream (replaces the hand-rolled
+  // pinned-to-bottom state machine). `scrollRef` is the scroll container and
+  // `contentRef` wraps the growing message list. `initial: false` preserves
+  // opening a recovered conversation at its current position.
+  const {
+    scrollRef,
+    contentRef,
+    scrollToBottom: stickScrollToBottom,
+    stopScroll,
+    isAtBottom,
+  } = useStickToBottom({ initial: false });
   const previousRouteConversationIdRef = useRef<string | null>(routeConversationId);
   const isResettingToNewConversationRef = useRef(false);
   const conversationId = routeConversationId ?? localConversationId;
@@ -372,13 +378,12 @@ export function ChatShell({
     );
   }
 
+  // Mobile-only: hide the header on downward scroll, reveal on upward scroll.
+  // Stick-to-bottom tracking is handled by use-stick-to-bottom; this listener
+  // only drives header visibility and shares the same scroll container.
   const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current;
+    const container = scrollRef.current;
     if (!container) return;
-
-    const distanceFromBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight;
-    pinnedToBottomRef.current = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
 
     if (window.innerWidth >= 1024) {
       setHeaderHidden(false);
@@ -399,28 +404,28 @@ export function ChatShell({
     } else if (scrollDeltaAccRef.current < -30) {
       setHeaderHidden(false);
     }
-  }, []);
+  }, [scrollRef]);
 
   useEffect(() => {
-    const container = scrollContainerRef.current;
+    const container = scrollRef.current;
     if (!container) return;
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
+  }, [handleScroll, scrollRef]);
 
   useEffect(() => {
     const header = headerRef.current;
-    const container = scrollContainerRef.current;
+    const container = scrollRef.current;
     if (!header || !container) return;
     return observeElementHeightVar(header, container, "--header-h");
-  }, []);
+  }, [scrollRef]);
 
   useEffect(() => {
     const composer = composerRef.current;
-    const container = scrollContainerRef.current;
+    const container = scrollRef.current;
     if (!composer || !container) return;
     return observeElementHeightVar(composer, container, "--composer-h");
-  }, []);
+  }, [scrollRef]);
 
   useEffect(() => {
     let cancelled = false;
@@ -664,35 +669,21 @@ export function ChatShell({
     draftRef.current = draft;
   }, [draft]);
 
-  // AI 回复时跟随内容自动贴底；用户向上滚动会清除 pinned 标记从而暂停，
-  // 滚回底部后标记恢复、生成中继续跟随。
+  // Pause auto-follow while the user is composing the next message mid-stream
+  // so streaming output doesn't yank the viewport. stopScroll() escapes the
+  // stick-to-bottom lock; sending re-locks via stickScrollToBottom(). Once
+  // escaped, the library won't re-follow until the user scrolls back down.
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) {
+    if (!isBusy || !isAtBottom) {
       return;
     }
-
-    // 发送/重发触发的强制贴底：无视聚焦守卫，把刚渲染的新消息滚进视野。
-    if (forceScrollToBottomRef.current) {
-      forceScrollToBottomRef.current = false;
-      pinnedToBottomRef.current = true;
-      container.scrollTop = container.scrollHeight;
-      return;
-    }
-
-    if (!isBusy || !pinnedToBottomRef.current) {
-      return;
-    }
-    // 仅当用户正在输入框里撰写下一条消息（草稿非空）时让出滚动控制权，避免流式
-    // 贴底打断输入；发送后草稿已清空，仍照常跟随到底。
-    if (
+    const composing =
       document.activeElement === textareaRef.current &&
-      draftRef.current.trim() !== ""
-    ) {
-      return;
+      draftRef.current.trim() !== "";
+    if (composing) {
+      stopScroll();
     }
-    container.scrollTop = container.scrollHeight;
-  }, [messages, isBusy]);
+  }, [messages, isBusy, isAtBottom, stopScroll]);
 
   useEffect(() => {
     const wasBusy = prevIsBusyRef.current;
@@ -883,13 +874,6 @@ export function ChatShell({
   }, [messages]);
   const displayConversationTitle = conversationTitle || DEFAULT_CONVERSATION_TITLE;
 
-  // 置位强制贴底标记，真正的滚动交给贴底 effect 在新消息渲染进 DOM 后执行——
-  // 避免在消息入 DOM 前对旧高度做平滑滚动、与随后的瞬时贴底相互抢滚动。
-  function scrollToBottom() {
-    pinnedToBottomRef.current = true;
-    forceScrollToBottomRef.current = true;
-  }
-
   async function ensureConversationId() {
     const existingConversationId = conversationIdStore.get();
     if (existingConversationId) {
@@ -947,7 +931,7 @@ export function ChatShell({
     recoverDeadStream();
     setConversationCreationError(null);
     setInterruptedRunDetected(false);
-    scrollToBottom();
+    void stickScrollToBottom();
     await ensureConversationId();
     setDraft("");
     await sendMessage({ text });
@@ -979,7 +963,7 @@ export function ChatShell({
     clearError();
     setConversationCreationError(null);
     setInterruptedRunDetected(false);
-    scrollToBottom();
+    void stickScrollToBottom();
     await ensureConversationId();
     await sendMessage({ text: prompt });
   }
@@ -1185,18 +1169,20 @@ export function ChatShell({
           />
 
           <div
-            ref={scrollContainerRef}
+            ref={scrollRef}
             className="relative flex-1 overflow-y-auto px-4 pb-[calc(var(--composer-h,7rem)+0.5rem)] pt-[calc(var(--header-h,3.5rem)+1rem)]"
           >
-            <ChatMessageList
-              messages={messages}
-              status={status}
-              isBusy={isBusy}
-              onStarterPrompt={handleStarterPrompt}
-              onRegenerate={handleRegenerateFromMessage}
-              onToolApprovalResponse={handleToolApprovalResponse}
-              onQuestionAnswer={handleQuestionAnswer}
-            />
+            <div ref={contentRef}>
+              <ChatMessageList
+                messages={messages}
+                status={status}
+                isBusy={isBusy}
+                onStarterPrompt={handleStarterPrompt}
+                onRegenerate={handleRegenerateFromMessage}
+                onToolApprovalResponse={handleToolApprovalResponse}
+                onQuestionAnswer={handleQuestionAnswer}
+              />
+            </div>
           </div>
 
           <div

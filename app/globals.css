@@ -1,6 +1,10 @@
 @import "katex/dist/katex.min.css";
 @import "tailwindcss";
 
+/* Let Tailwind scan Streamdown's bundled utility classes (code block UI etc.). */
+@source "../node_modules/streamdown/dist/*.js";
+@source "../node_modules/@streamdown/mermaid/dist/*.js";
+
 /* KaTeX: prevent long formulas from overflowing message bubbles */
 .katex-display {
   overflow-x: auto;
@@ -23,11 +27,23 @@
   --glass-bg: rgba(255, 255, 255, 0.65);
   --panel-strong: #1b1712;
   --panel-soft: rgba(34, 29, 22, 0.9);
+  /* shadcn-compatible tokens consumed by Streamdown's built-in code block,
+     table and mermaid UI, tuned to the warm cream/brown palette. */
+  --sidebar: rgba(250, 246, 240, 0.96);
+  --muted-foreground: #8c7767;
+  --surface-muted: rgba(201, 106, 43, 0.1);
+  --primary-foreground: #fff8f2;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-sidebar: var(--sidebar);
+  --color-muted: var(--surface-muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--primary-foreground);
   --font-sans: var(--font-space-grotesk);
   --font-mono: var(--font-ibm-plex-mono);
 }

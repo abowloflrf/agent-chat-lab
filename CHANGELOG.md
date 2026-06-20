@@ -3,6 +3,7 @@
 本文件用于记录已完成功能、已落地优化和重要文档整理，不再把这些内容放进 `TODO.md`。
 
 ## 2026-06-20
+- Markdown 渲染改用 Vercel Streamdown（流式输出更稳，统一代码块/数学/中文渲染，新增 Mermaid 图表与表格复制/下载/全屏），聊天自动贴底改用 use-stick-to-bottom
 - Chat Completion 协议改用 @ai-sdk/openai-compatible，思考模型工具调用回传 reasoning_content
 
 ## 2026-06-19

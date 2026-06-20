@@ -2,25 +2,14 @@
 
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
 import Image from "next/image";
-import { memo, useMemo, useState, type ReactNode } from "react";
+import { memo, useMemo, useState } from "react";
 import createDOMPurify from "dompurify";
-import ReactMarkdown, { type Options as ReactMarkdownOptions } from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import rehypeShikiFromHighlighter from "@shikijs/rehype/core";
-import { SHIKI_THEME, useShikiHighlighter } from "@/lib/shiki";
-
-type RehypePlugins = NonNullable<ReactMarkdownOptions["rehypePlugins"]>;
-
-type HastTextLike = { type: "text"; value: string };
-type HastElementLike = {
-  type: "element";
-  tagName: string;
-  properties?: { className?: unknown };
-  children: Array<HastNodeLike>;
-};
-type HastNodeLike = HastElementLike | HastTextLike | { type: string; value?: unknown; children?: unknown };
+import { Streamdown } from "streamdown";
+import { createCodePlugin } from "@streamdown/code";
+import { createMathPlugin } from "@streamdown/math";
+import { cjk } from "@streamdown/cjk";
+import { mermaid } from "@streamdown/mermaid";
+import "streamdown/styles.css";
 import { AgentTimeline } from "@/components/agent-timeline";
 import { ReasoningCard } from "@/components/reasoning-card";
 import { ToolCallGroup } from "@/components/tool-call-card";
@@ -28,6 +17,13 @@ import type { AskUserQuestionOutput } from "@/lib/ai/ask-user-question";
 import { formatMessageDateTime } from "@/lib/datetime";
 import { formatTokenCount } from "@/lib/format";
 import { getMessageTimestamp, parseAgentObservability } from "@/lib/observability";
+
+// Light-only app: force the same Shiki theme for both light/dark slots so code
+// blocks match the previous github-light highlighting.
+const codePlugin = createCodePlugin({ themes: ["github-light", "github-light"] });
+// remark-math (previous renderer) parsed single-dollar inline math by default;
+// keep that behaviour, since the Streamdown math plugin defaults it off.
+const mathPlugin = createMathPlugin({ singleDollarTextMath: true });
 
 const markdownTextStyles = {
   user: {
@@ -84,42 +80,7 @@ const markdownTextStyles = {
   },
 } as const;
 
-function hastToText(node: HastNodeLike): string {
-  if (node.type === "text" && typeof (node as HastTextLike).value === "string") {
-    return (node as HastTextLike).value;
-  }
-  const children = (node as { children?: unknown }).children;
-  if (Array.isArray(children)) {
-    return children.map((child) => hastToText(child as HastNodeLike)).join("");
-  }
-  return "";
-}
-
-function extractLanguageFromHast(node: HastElementLike | undefined): string | null {
-  if (!node || !Array.isArray(node.children)) {
-    return null;
-  }
-  const codeNode = node.children.find(
-    (child): child is HastElementLike =>
-      (child as HastElementLike).type === "element"
-      && (child as HastElementLike).tagName === "code",
-  );
-  const rawClass =
-    (codeNode?.properties as { className?: unknown; class?: unknown } | undefined)?.className
-    ?? (codeNode?.properties as { class?: unknown } | undefined)?.class;
-  const classTokens: string[] = Array.isArray(rawClass)
-    ? rawClass.filter((entry): entry is string => typeof entry === "string")
-    : typeof rawClass === "string"
-      ? rawClass.split(/\s+/)
-      : [];
-  for (const token of classTokens) {
-    const match = token.match(/^language-([\w-]+)/);
-    if (match) {
-      return match[1];
-    }
-  }
-  return null;
-}
+type MarkdownStyles = (typeof markdownTextStyles)[keyof typeof markdownTextStyles];
 
 function formatDuration(durationMs: number) {
   if (durationMs < 1000) {
@@ -252,10 +213,6 @@ function buildRenderBlocks(parts: UIMessage["parts"]): RenderBlock[] {
   return blocks;
 }
 
-function isSvgContent(language: string | null, code: string): boolean {
-  return language === "svg" || (language === "xml" && code.trimStart().startsWith("<svg"));
-}
-
 function sanitizeSvg(raw: string): string {
   if (typeof window === "undefined") return "";
   const purify = createDOMPurify(window);
@@ -301,12 +258,17 @@ function parseSvgDimensions(svg: string) {
   return { width: 800, height: 600 };
 }
 
+/**
+ * Visual preview for ```svg fences: renders the sanitized SVG as an image with a
+ * source/preview toggle. Registered as a Streamdown custom renderer so it bypasses
+ * the default code block for SVG content.
+ */
 function SvgPreview({
   code,
   styles,
 }: {
   code: string;
-  styles: (typeof markdownTextStyles)[keyof typeof markdownTextStyles];
+  styles: MarkdownStyles;
 }) {
   const [showSource, setShowSource] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -395,122 +357,6 @@ function SvgPreview({
   );
 }
 
-function CodeBlock({
-  code,
-  language,
-  children,
-  styles,
-}: {
-  code: string;
-  language: string | null;
-  children: ReactNode;
-  styles: (typeof markdownTextStyles)[keyof typeof markdownTextStyles];
-}) {
-  const [copied, setCopied] = useState(false);
-  const [wrapped, setWrapped] = useState(false);
-
-  if (isSvgContent(language, code)) {
-    return <SvgPreview code={code} styles={styles} />;
-  }
-
-  async function handleCopyCode() {
-    try {
-      await copyText(code);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch (error) {
-      console.error("Failed to copy code block:", error);
-    }
-  }
-
-  return (
-    <div className={styles.codeFrame}>
-      <div className={styles.codeHeader}>
-        <span className={styles.codeLabel}>
-          {language && language !== "text" ? language : "code"}
-        </span>
-        <div className="flex items-center gap-2 text-[10px] text-[#8c7767]">
-          <button
-            type="button"
-            onClick={() => setWrapped((value) => !value)}
-            className={`inline-flex h-5 items-center rounded-full border px-2 transition ${
-              wrapped
-                ? "border-[rgba(156,86,38,0.28)] bg-[rgba(156,86,38,0.08)] text-[#9c5626]"
-                : "border-[rgba(23,23,23,0.08)] text-[#8c7767] hover:text-[#9c5626]"
-            }`}
-            aria-label={wrapped ? "关闭代码换行" : "开启代码换行"}
-            title={wrapped ? "关闭代码换行" : "开启代码换行"}
-            aria-pressed={wrapped}
-          >
-            <span className="font-medium leading-none">
-              {wrapped ? "换行开" : "换行关"}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleCopyCode()}
-            className="inline-flex h-5 w-5 items-center justify-center transition hover:text-[#9c5626]"
-            aria-label="复制代码块内容"
-            title={copied ? "已复制" : "复制代码块内容"}
-          >
-            {copied ? (
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="none"
-                className="h-3.5 w-3.5"
-              >
-                <path
-                  d="M4.5 10.5 8 14l7.5-8"
-                  className="stroke-current"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            ) : (
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="none"
-                className="h-3.5 w-3.5"
-              >
-                <rect
-                  x="7"
-                  y="3"
-                  width="9"
-                  height="11"
-                  rx="2"
-                  className="stroke-current"
-                  strokeWidth="1.4"
-                />
-                <rect
-                  x="4"
-                  y="6"
-                  width="9"
-                  height="11"
-                  rx="2"
-                  className="stroke-current"
-                  strokeWidth="1.4"
-                />
-              </svg>
-            )}
-          </button>
-        </div>
-      </div>
-      <pre className={`${styles.pre} ${wrapped ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
-        {language ? (
-          children
-        ) : (
-          // 无语言的 <code> 不带 language-* class，code 覆写会把它误判为
-          // 行内代码（深色贴字背景），这里直接按块级样式渲染原始文本
-          <code className={styles.codeInPre}>{code.replace(/\n$/, "")}</code>
-        )}
-      </pre>
-    </div>
-  );
-}
-
 export const ChatMessage = memo(function ChatMessage({
   message,
   onRegenerate,
@@ -533,26 +379,29 @@ export const ChatMessage = memo(function ChatMessage({
 }) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
-  const highlighter = useShikiHighlighter();
-  const rehypePlugins = useMemo<RehypePlugins>(() => {
-    const plugins: RehypePlugins = [rehypeKatex];
-    if (highlighter && !isStreaming) {
-      plugins.push([
-        rehypeShikiFromHighlighter,
-        highlighter,
-        {
-          theme: SHIKI_THEME,
-          addLanguageClass: true,
-          defaultLanguage: "text",
-        },
-      ]);
-    }
-    return plugins;
-  }, [highlighter, isStreaming]);
   const observability = !isUser ? parseAgentObservability(message.metadata) : null;
   const markdownStyles = isUser
     ? markdownTextStyles.user
     : markdownTextStyles.assistant;
+  // Streamdown plugins: Shiki highlighting + KaTeX + CJK, plus a custom renderer
+  // that previews ```svg fences. Memoized per theme (only two stable variants).
+  const markdownPlugins = useMemo(
+    () => ({
+      code: codePlugin,
+      math: mathPlugin,
+      cjk,
+      mermaid,
+      renderers: [
+        {
+          language: ["svg"],
+          component: ({ code }: { code: string }) => (
+            <SvgPreview code={code} styles={markdownStyles} />
+          ),
+        },
+      ],
+    }),
+    [markdownStyles],
+  );
   const messageTimestamp = getMessageTimestamp(message.metadata);
   const assistantStats = !isUser ? getAssistantStats(observability) : null;
   const rawText = message.parts
@@ -603,107 +452,9 @@ export const ChatMessage = memo(function ChatMessage({
                         : "border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.72)] text-[#2b231b]"
                     }`}
                   >
-                    <div className={markdownStyles.prose}>
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkMath]}
-                        rehypePlugins={rehypePlugins}
-                        components={{
-                        h1: ({ children }) => (
-                          <h1 className={`text-[28px] leading-[1.15] ${markdownStyles.heading}`}>
-                            {children}
-                          </h1>
-                        ),
-                        h2: ({ children }) => (
-                          <h2 className={`text-[22px] leading-[1.2] ${markdownStyles.heading}`}>
-                            {children}
-                          </h2>
-                        ),
-                        h3: ({ children }) => (
-                          <h3 className={`text-[18px] leading-[1.25] ${markdownStyles.heading}`}>
-                            {children}
-                          </h3>
-                        ),
-                        h4: ({ children }) => (
-                          <h4 className={`text-[16px] leading-[1.3] ${markdownStyles.heading}`}>
-                            {children}
-                          </h4>
-                        ),
-                        p: ({ children }) => (
-                          <p className={markdownStyles.paragraph}>{children}</p>
-                        ),
-                        pre: ({ children, node }) => {
-                          const hastNode = node as HastElementLike | undefined;
-                          const rawCode = hastNode ? hastToText(hastNode) : "";
-                          const language = extractLanguageFromHast(hastNode);
-
-                          return (
-                            <CodeBlock
-                              code={rawCode}
-                              language={language}
-                              styles={markdownStyles}
-                            >
-                              {children}
-                            </CodeBlock>
-                          );
-                        },
-                        code: ({ className, children }) => {
-                          const isBlock = /language-[\w-]+/.test(className ?? "");
-                          return (
-                            <code
-                              className={
-                                isBlock
-                                  ? `${className} ${markdownStyles.codeInPre}`
-                                  : markdownStyles.inlineCode
-                              }
-                            >
-                              {children}
-                            </code>
-                          );
-                        },
-                        strong: ({ children }) => (
-                          <strong className={markdownStyles.strong}>{children}</strong>
-                        ),
-                        em: ({ children }) => (
-                          <em className={markdownStyles.emphasis}>{children}</em>
-                        ),
-                        ul: ({ children }) => (
-                          <ul className={`list-disc ${markdownStyles.list}`}>{children}</ul>
-                        ),
-                        ol: ({ children }) => (
-                          <ol className={`list-decimal ${markdownStyles.list}`}>{children}</ol>
-                        ),
-                        li: ({ children }) => <li className="pl-1">{children}</li>,
-                        blockquote: ({ children }) => (
-                          <blockquote className={markdownStyles.blockquote}>
-                            {children}
-                          </blockquote>
-                        ),
-                        hr: () => <hr className={`my-5 border-t ${markdownStyles.rule}`} />,
-                        a: ({ href, children }) => (
-                          <a
-                            href={href}
-                            target="_blank"
-                            rel="noreferrer"
-                            className={markdownStyles.link}
-                          >
-                            {children}
-                          </a>
-                        ),
-                        table: ({ children }) => (
-                          <div className={markdownStyles.tableWrap}>
-                            <table className={markdownStyles.table}>{children}</table>
-                          </div>
-                        ),
-                        thead: ({ children }) => <thead>{children}</thead>,
-                        tbody: ({ children }) => <tbody>{children}</tbody>,
-                        tr: ({ children }) => <tr className={markdownStyles.tableRow}>{children}</tr>,
-                        th: ({ children }) => <th className={markdownStyles.th}>{children}</th>,
-                        td: ({ children }) => <td className={markdownStyles.td}>{children}</td>,
-                        }}
-                      >
-                        {part.text}
-                      </ReactMarkdown>
-                    </div>
+                    <Streamdown plugins={markdownPlugins}>
+                      {part.text}
+                    </Streamdown>
                   </div>
                 );
               }
