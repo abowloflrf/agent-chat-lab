@@ -43,6 +43,9 @@ export default function RootLayout({
   return (
     <html
       lang="zh-CN"
+      // Browser extensions (Dark Reader, translators, etc.) mutate <html> class
+      // before hydration; suppress the resulting benign attribute mismatch.
+      suppressHydrationWarning
       className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} h-full`}
     >
       <body className="h-full">{children}</body>

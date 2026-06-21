@@ -485,13 +485,11 @@ export const ChatMessage = memo(function ChatMessage({
                 return (
                   <div
                     key={`${message.id}-text-${block.index}`}
-                    className={`${
-                      isUser ? "w-fit max-w-full" : ""
-                    } rounded-[16px] px-4 py-3 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 ${
+                    className={
                       isUser
-                        ? "bg-[#4a3328] text-[#fff8f2] shadow-[0_16px_40px_rgba(74,51,40,0.14)]"
-                        : "border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.72)] text-[#2b231b]"
-                    }`}
+                        ? "w-fit max-w-full rounded-[16px] bg-[#4a3328] px-4 py-3 text-[14px] leading-[1.625] text-[#fff8f2] shadow-[0_16px_40px_rgba(74,51,40,0.14)] sm:text-[15px] sm:leading-7"
+                        : "text-[14px] leading-[1.625] text-[#2b231b] sm:text-[15px] sm:leading-7"
+                    }
                   >
                     <Streamdown
                       plugins={markdownPlugins}

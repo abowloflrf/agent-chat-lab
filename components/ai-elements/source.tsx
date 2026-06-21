@@ -20,9 +20,22 @@ export function hostOf(url: string): string {
 
 /** Favicon image with a globe fallback when the URL is missing or fails to load. */
 export const SourceFavicon = memo(
-  ({ favicon, className }: { favicon: string | null; className?: string }) => {
+  ({
+    favicon,
+    url,
+    className,
+  }: {
+    favicon?: string | null;
+    url?: string | null;
+    className?: string;
+  }) => {
     const [failed, setFailed] = useState(false);
-    if (!favicon || failed) {
+    // WebSearch results carry no favicon; derive one from the domain so every
+    // source shows an icon, falling back to a globe only if that also fails.
+    const host = url ? hostOf(url) : null;
+    const src =
+      favicon ?? (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null);
+    if (!src || failed) {
       return (
         <GlobeIcon className={cn("size-4 shrink-0 text-muted-foreground", className)} />
       );
@@ -31,7 +44,7 @@ export const SourceFavicon = memo(
       // Favicons come from arbitrary hosts; a plain img avoids next/image remote config.
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={favicon}
+        src={src}
         alt=""
         width={16}
         height={16}
@@ -112,7 +125,7 @@ export const Source = memo(
         )}
         {...props}
       >
-        <SourceFavicon favicon={favicon ?? null} />
+        <SourceFavicon favicon={favicon} url={href} />
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-xs font-medium">{title || host}</span>
           {title ? (
