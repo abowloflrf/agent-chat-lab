@@ -79,6 +79,9 @@ type ToolInvocation = {
 
 type ToolLikePart = ToolUIPart | DynamicToolUIPart;
 
+export const TITLE_PROMPT_MAX_USER_CHARS = 2_000;
+export const TITLE_PROMPT_MAX_ASSISTANT_CHARS = 1_200;
+
 function parseJson<T>(value: string | null, fallback: T): T {
   if (!value) {
     return fallback;
@@ -192,6 +195,51 @@ function extractMessageText(message: ChatUIMessage | undefined) {
     .map((part) => part.text)
     .join("\n")
     .trim();
+}
+
+function truncateForTitlePrompt(text: string, maxChars: number) {
+  if (text.length <= maxChars) {
+    return text;
+  }
+
+  return `${text.slice(0, maxChars).trimEnd()}\n...[truncated]`;
+}
+
+export function buildConversationTitlePrompt(input: {
+  userContent: string;
+  assistantContent: string;
+}) {
+  const userContent = truncateForTitlePrompt(
+    input.userContent,
+    TITLE_PROMPT_MAX_USER_CHARS,
+  );
+  const assistantContent = truncateForTitlePrompt(
+    input.assistantContent,
+    TITLE_PROMPT_MAX_ASSISTANT_CHARS,
+  );
+
+  const systemMessage = [
+    "You generate concise conversation titles.",
+    "Infer the topic from the first user message and, when available, the first assistant response.",
+    "Return only the final title as plain text.",
+    "Do not return JSON, Markdown, quotes, labels, explanations, or chain-of-thought.",
+  ].join(" ");
+  const promptMessage = `First user message:
+${userContent}
+
+${assistantContent ? `First assistant response:\n${assistantContent}\n\n` : ""}Write a short conversation title.
+
+Requirements:
+- Summarize the clearly established topic or task.
+- Capture the user's core intent.
+- Prefer the conversation's primary language; use Chinese or English naturally.
+- Keep it concise and suitable for a sidebar conversation title.
+- Aim for 4-8 words or 6-24 Chinese characters.
+- Technical terms, framework names, and file/API names are allowed when helpful.
+- Avoid unnecessary punctuation.
+- Output plain text only, for example: 查询天气`;
+
+  return { systemMessage, promptMessage };
 }
 
 function toStoredMessage(row: typeof messages.$inferSelect): ChatUIMessage {
@@ -964,16 +1012,10 @@ export async function generateConversationTitle(
   const startTime = Date.now();
   titleLog.info("title generation started");
 
-  const systemMessage = "你是一个专业的会话标题生成助手。请根据首条用户消息与首条助手回复生成一个简短、清晰、可读的会话标题。只返回 JSON 格式：{\"title\": \"标题内容\"}。不要思考，不要解释，直接输出 JSON。";
-  const promptMessage = `用户的第一条消息是：${userContent}
-
-${assistantContent ? `助手的第一条回复是：${assistantContent}\n\n` : ""}请生成一个简短的会话标题，要求：
-- 优先概括这轮对话已经明确的主题
-- 不超过 20 个字符
-- 能准确概括用户的核心意图
-- 使用简洁的中文或英文
-- 不要使用标点符号
-- 只返回 JSON 格式，例如：{"title": "查询天气"}`;
+  const { systemMessage, promptMessage } = buildConversationTitlePrompt({
+    userContent,
+    assistantContent,
+  });
 
   try {
     const { text, usage } = await generateText({
@@ -995,17 +1037,20 @@ ${assistantContent ? `助手的第一条回复是：${assistantContent}\n\n` : "
       durationMs,
     };
 
-    const match = text.match(/\{[^}]*"title"[^}]*\}/);
-    if (match) {
-      const parsed = JSON.parse(match[0]);
-      if (parsed.title) {
-        await renameConversation(conversationId, parsed.title);
-        titleLog.info({ ...tokenInfo, title: parsed.title }, "title generation succeeded");
-        return { success: true, title: parsed.title };
-      }
+    const title = text
+      .trim()
+      .split(/\r?\n/)[0]
+      ?.replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, "")
+      .replace(/[。！？.!?]+$/g, "")
+      .trim()
+      .slice(0, 60);
+    if (title) {
+      await renameConversation(conversationId, title);
+      titleLog.info({ ...tokenInfo, title }, "title generation succeeded");
+      return { success: true, title };
     }
 
-    titleLog.warn({ ...tokenInfo, rawOutput: text }, "failed to parse title from model output");
+    titleLog.warn({ ...tokenInfo, rawOutput: text }, "failed to extract title from model output");
     return { success: false, title: null };
   } catch (error) {
     const durationMs = Date.now() - startTime;
