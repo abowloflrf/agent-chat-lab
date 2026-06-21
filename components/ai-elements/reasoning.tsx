@@ -46,15 +46,20 @@ export const Reasoning = memo(
     className,
     isStreaming = false,
     open,
-    defaultOpen = true,
+    defaultOpen,
     onOpenChange,
     duration: durationProp,
     children,
     ...props
   }: ReasoningProps) => {
+    // Capture whether this block was actively streaming at mount. History blocks
+    // (rehydrated on refresh) start collapsed and never auto-close; live blocks
+    // start open and collapse once streaming ends.
+    const [wasStreaming] = useState(isStreaming);
+
     const [isOpen, setIsOpen] = useControllableState({
       prop: open,
-      defaultProp: defaultOpen,
+      defaultProp: defaultOpen ?? wasStreaming,
       onChange: onOpenChange,
     });
     const [duration, setDuration] = useControllableState({
@@ -80,9 +85,9 @@ export const Reasoning = memo(
       }
     }, [isStreaming, startTime, setDuration]);
 
-    // Auto-open when streaming starts, auto-close when streaming ends (once only)
+    // Auto-close once a live streaming session ends (never for history blocks)
     useEffect(() => {
-      if (defaultOpen && !isStreaming && isOpen && !hasAutoClosed) {
+      if (wasStreaming && !isStreaming && isOpen && !hasAutoClosed) {
         // Add a small delay before closing to allow user to see the content
         const timer = setTimeout(() => {
           setIsOpen(false);
@@ -91,7 +96,7 @@ export const Reasoning = memo(
 
         return () => clearTimeout(timer);
       }
-    }, [isStreaming, isOpen, defaultOpen, setIsOpen, hasAutoClosed]);
+    }, [isStreaming, isOpen, wasStreaming, setIsOpen, hasAutoClosed]);
 
     const handleOpenChange = (newOpen: boolean) => {
       setIsOpen(newOpen);
