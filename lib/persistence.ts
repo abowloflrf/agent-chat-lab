@@ -81,6 +81,7 @@ type ToolLikePart = ToolUIPart | DynamicToolUIPart;
 
 export const TITLE_PROMPT_MAX_USER_CHARS = 2_000;
 export const TITLE_PROMPT_MAX_ASSISTANT_CHARS = 1_200;
+const TITLE_MAX_OUTPUT_TOKENS = 100;
 
 function parseJson<T>(value: string | null, fallback: T): T {
   if (!value) {
@@ -203,6 +204,24 @@ function truncateForTitlePrompt(text: string, maxChars: number) {
   }
 
   return `${text.slice(0, maxChars).trimEnd()}\n...[truncated]`;
+}
+
+function buildTitleProviderOptions(config: ProviderConfig) {
+  const disabledThinking = { thinking: { type: "disabled" } };
+  const providerOptions: Record<string, unknown> = {
+    openai: { reasoningEffort: "low", ...disabledThinking },
+    anthropic: disabledThinking,
+  };
+
+  if (config.protocol === "chat-completion") {
+    // OpenAI-compatible custom body fields must be nested under the configured
+    // provider name.
+    providerOptions[config.providerName || "openai-compatible"] = {
+      ...disabledThinking,
+    };
+  }
+
+  return providerOptions;
 }
 
 export function buildConversationTitlePrompt(input: {
@@ -1008,27 +1027,40 @@ export async function generateConversationTitle(
     return { success: false, title: null };
   }
 
-  const titleLog = logger.child({ module: "TitleGen", conversationId, model: providerConfig.model });
+  const titleLog = logger.child({
+    module: "TitleGen",
+    conversationId,
+    model: providerConfig.model,
+  });
   const startTime = Date.now();
-  titleLog.info("title generation started");
 
   const { systemMessage, promptMessage } = buildConversationTitlePrompt({
     userContent,
     assistantContent,
   });
 
+  titleLog.info(
+    {
+      providerName: providerConfig.providerName || null,
+      protocol: providerConfig.protocol,
+      maxOutputTokens: TITLE_MAX_OUTPUT_TOKENS,
+      userContentChars: userContent.length,
+      assistantContentChars: assistantContent.length,
+      promptMessageChars: promptMessage.length,
+    },
+    "title generation started",
+  );
+
   try {
-    const { text, usage } = await generateText({
+    const result = await generateText({
       model,
-      maxOutputTokens: 100,
-      providerOptions: {
-        openai: { reasoningEffort: "low" },
-        anthropic: { thinking: { type: "disabled" } },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any,
+      maxOutputTokens: TITLE_MAX_OUTPUT_TOKENS,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      providerOptions: buildTitleProviderOptions(providerConfig) as any,
       system: systemMessage,
       prompt: promptMessage,
     });
+    const { text, usage } = result;
 
     const durationMs = Date.now() - startTime;
     const tokenInfo = {
@@ -1037,24 +1069,48 @@ export async function generateConversationTitle(
       durationMs,
     };
 
-    const title = text
-      .trim()
-      .split(/\r?\n/)[0]
-      ?.replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, "")
+    const normalizedFirstLine = text.trim().split(/\r?\n/)[0] ?? "";
+    const titleCandidate = normalizedFirstLine
+      .replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, "")
       .replace(/[。！？.!?]+$/g, "")
-      .trim()
-      .slice(0, 60);
+      .trim();
+    const title = titleCandidate.slice(0, 60);
     if (title) {
       await renameConversation(conversationId, title);
-      titleLog.info({ ...tokenInfo, title }, "title generation succeeded");
+      titleLog.info(
+        {
+          ...tokenInfo,
+          finishReason: result.finishReason,
+          rawFinishReason: result.rawFinishReason ?? null,
+          title,
+        },
+        "title generation succeeded",
+      );
       return { success: true, title };
     }
 
-    titleLog.warn({ ...tokenInfo, rawOutput: text }, "failed to extract title from model output");
+    titleLog.warn(
+      {
+        ...tokenInfo,
+        finishReason: result.finishReason,
+        rawFinishReason: result.rawFinishReason ?? null,
+        rawOutput: text,
+        rawOutputLength: text.length,
+        reasoningPreview: result.reasoningText?.slice(0, 500) ?? null,
+        reasoningLength: result.reasoningText?.length ?? 0,
+      },
+      "failed to extract title from model output",
+    );
     return { success: false, title: null };
   } catch (error) {
     const durationMs = Date.now() - startTime;
-    titleLog.error({ err: error, durationMs }, "title generation failed");
+    titleLog.error(
+      {
+        err: error,
+        durationMs,
+      },
+      "title generation failed",
+    );
     return { success: false, title: null };
   }
 }
