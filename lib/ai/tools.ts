@@ -73,20 +73,21 @@ export function createAgentTools(
     // 通过 addToolOutput 回填，再自动发起下一轮请求。
     AskUserQuestion: tool({
       description:
-        'Ask the user one clarifying question and wait for their answer before continuing. Use it only when information essential to proceeding is missing AND no reasonable default assumption can be made. Never ask for facts you can obtain with other tools; do not ask frequently, and do not use it to confirm things you can reasonably infer. Prefer 2-4 mutually exclusive options; only mark a recommendation (first position, label suffixed with "(Recommended)") when you are reasonably confident in it — for genuinely open choices, mark none. Do not include catch-all options like "Other" — the UI provides free-form input automatically. Write the question and options in the user\'s conversation language. If the user skips, proceed with the recommended option, or make a reasonable assumption if none was marked.',
+        'Ask the user exactly one clarifying question and wait for their answer before continuing. Use it only when information essential to proceeding is missing AND no reasonable default assumption can be made. Look things up first (e.g. with TodoRead or WebSearch) and never ask for facts you can obtain with other tools; do not ask frequently, and do not use it to confirm things you can reasonably infer — most tasks should need zero questions. Prefer 2-4 mutually exclusive options; only mark a recommendation (first position, label suffixed with "(Recommended)") when you are reasonably confident in it — for genuinely open choices, mark none. Do not include catch-all options like "Other" — the UI provides free-form input automatically. Write the question and options in the user\'s conversation language. If the user skips, proceed with the recommended option, or make a reasonable assumption if none was marked. Example — skip it: user says "帮我查下最新的 Next.js 版本" → just call WebSearch, don\'t ask. Ask it: user says "帮我把这个部署上线" but two environments exist and neither is the default → ask which one, with them as the options.',
       inputSchema: askUserQuestionInputSchema,
       outputSchema: askUserQuestionOutputSchema,
     }),
 
     calculator: tool({
-      description: "计算基础数学表达式，仅支持 + - * / () 和小数。",
+      description:
+        "Evaluate a basic arithmetic expression. Supports + - * / ( ) and decimals only.",
       inputSchema: z.object({
         expression: z
           .string()
           .trim()
           .min(1)
           .max(MAX_EXPRESSION_LENGTH)
-          .describe("需要计算的数学表达式，例如 (18.5 + 7.2) * 3。"),
+          .describe("The arithmetic expression to evaluate, e.g. (18.5 + 7.2) * 3."),
       }),
       execute: async ({ expression }) => {
         const result = evaluateExpression(expression);
@@ -99,7 +100,8 @@ export function createAgentTools(
     }),
 
     create_note: tool({
-      description: "创建一条笔记，适合保存用户希望后续再次检索的信息。",
+      description:
+        "Save a note. Use it for information worth keeping long-term so it can be retrieved later with search_notes.",
       inputSchema: z.object({
         title: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
         content: z.string().trim().min(1).max(MAX_CONTENT_LENGTH),
@@ -113,7 +115,8 @@ export function createAgentTools(
     }),
 
     search_notes: tool({
-      description: "根据关键词搜索已经保存的笔记，返回最相关的结果。",
+      description:
+        "Search saved notes by keyword and return the most relevant ones. Use it to recall information previously stored with create_note.",
       inputSchema: z.object({
         query: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
       }),
@@ -122,64 +125,65 @@ export function createAgentTools(
 
     TodoWrite: tool({
       description:
-        "管理待办事项。create 新建待办（不需要 id，应提供 title）；update 按 id 修改标题、内容、优先级或状态（如开始处理时把 status 设为 in_progress）；complete/reopen 分别等价于 update + status=done / status=todo 的快捷方式；delete 按 id 删除。除 create 外的操作都需要先通过 TodoRead 获取 id。",
+        "Manage todos when the user asks to record, track, or plan tasks. action=create adds a new todo (no id needed, provide a title); update edits title/content/priority/status by id (e.g. set status to in_progress when the user starts a task); complete/reopen are shortcuts for update + status=done / status=todo; delete removes by id. Every action except create needs an id — call TodoRead first to obtain it.",
       inputSchema: z.object({
         action: z
           .enum(["create", "update", "complete", "reopen", "delete"])
           .describe(
-            "create 新建（无需 id）；update 修改字段含 status；complete 完成；reopen 重新打开；delete 删除。",
+            "create adds a new todo (no id); update edits fields including status; complete marks it done; reopen reverts it to todo; delete removes it.",
           ),
         id: z
           .string()
           .trim()
           .optional()
-          .describe("待办 id。除 create 外，其余操作都需要。"),
+          .describe("Todo id. Required for every action except create."),
         title: z
           .string()
           .trim()
           .max(MAX_TODO_TITLE_LENGTH)
           .optional()
-          .describe("待办标题。create 时建议提供，update 时可修改。"),
+          .describe("Todo title. Recommended on create, editable on update."),
         content: z
           .string()
           .trim()
           .max(MAX_TODO_CONTENT_LENGTH)
           .optional()
-          .describe("待办说明或补充内容。"),
+          .describe("Todo description or additional details."),
         status: z
           .enum(["todo", "in_progress", "done"])
           .optional()
           .describe(
-            "待办状态，仅 action=update 时生效。用户开始处理某项时设为 in_progress。complete/reopen 会自行设置状态，无需此字段。",
+            "Todo status; only applies when action=update. Set it to in_progress when the user starts working on the task. complete/reopen set the status themselves, so this field isn't needed for them.",
           ),
         priority: z
           .enum(["default", "high", "highest"])
           .optional()
-          .describe("待办优先级。"),
+          .describe("Todo priority."),
       }),
       execute: async (input) => writeTodo(input),
     }),
 
     TodoRead: tool({
-      description: "读取待办事项列表，可按关键词和状态筛选，返回最近更新的结果。",
+      description:
+        "List todos, optionally filtered by keyword and status, returning the most recently updated first. Call it before update/complete/reopen/delete to get the target id.",
       inputSchema: z.object({
         query: z
           .string()
           .trim()
           .max(MAX_TODO_TITLE_LENGTH)
           .optional()
-          .describe("可选，按标题或内容搜索待办。"),
+          .describe("Optional. Search todos by title or content."),
         status: z
           .enum(["all", "todo", "in_progress", "done"])
           .default("all")
-          .describe("待办状态筛选。"),
+          .describe("Filter by todo status."),
         limit: z
           .number()
           .int()
           .min(1)
           .max(50)
           .default(10)
-          .describe("返回条数上限。"),
+          .describe("Maximum number of todos to return."),
       }),
       execute: async ({ query, status, limit }) => {
         const result = await readTodos({ query, status, limit });
@@ -208,7 +212,7 @@ export function createAgentTools(
 
     Bash: tool({
       description:
-        "Execute a non-interactive shell command and return its stdout and stderr. Pipes, redirection, and command chaining (`|`, `>`, `&&`, …) are supported. Low-risk read-only commands run automatically; commands that may modify state or use shell features require user approval; commands deemed high-risk are rejected outright. When output exceeds the limit it is truncated to keep the most recent output, and the full transcript is saved to a temp file whose path is returned (open it with the read tool).",
+        "Execute a non-interactive shell command and return its stdout and stderr. Use it for real shell commands (git, npm, python, etc.) and only when the user explicitly asks to run a local command; do not use it to read, write, edit, or search files — use the read/write/edit tools for that. Pipes, redirection, and command chaining (`|`, `>`, `&&`, …) are supported. Low-risk read-only commands run automatically; commands that may modify state or use shell features require user approval — do not assume an approved command has already run, wait for the result; commands deemed high-risk are rejected outright. After a rejection, do not retry the same command — explain why and suggest a next step. When output exceeds the limit it is truncated to keep the most recent output, and the full transcript is saved to a temp file whose path is returned (open it with the read tool).",
       inputSchema: z.object({
         command: z
           .string()
@@ -230,7 +234,7 @@ export function createAgentTools(
     }),
 
     read: tool({
-      description: `Read the contents of a text file. Output is truncated to ${FILE_READ_MAX_LINES} lines or ${FILE_READ_MAX_BYTES / 1024}KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.`,
+      description: `Read the contents of a text file. Prefer this over cat/sed/head/tail in Bash. Output is truncated to ${FILE_READ_MAX_LINES} lines or ${FILE_READ_MAX_BYTES / 1024}KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.`,
       inputSchema: z.object({
         path: z
           .string()
@@ -255,7 +259,7 @@ export function createAgentTools(
 
     write: tool({
       description:
-        "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+        "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories. Use write only for new files or complete rewrites; for targeted changes to an existing file, use edit. To run a longer script or block of code, write it to a file first and execute it with Bash rather than passing large code as a Bash argument.",
       inputSchema: z.object({
         path: z
           .string()
@@ -269,7 +273,7 @@ export function createAgentTools(
 
     edit: tool({
       description:
-        "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+        "Edit a single file using exact text replacement. Each edits[].oldText must match the original file exactly — including indentation and whitespace — and must be unique and non-overlapping; if it isn't found, or matches more than once, the edit fails, so add surrounding context to make it unique. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
       inputSchema: z.object({
         path: z
           .string()
@@ -300,7 +304,7 @@ export function createAgentTools(
 
     WebSearch: tool({
       description:
-        "Search the web for up-to-date information, news, version changes, or anything that needs external fact-checking. Backed by Tavily and/or Exa with automatic load-balancing and failover; the chosen provider is reported in the result's `provider` field.",
+        "Search the web for up-to-date information, news, version changes, or anything that needs external fact-checking. Translate search keywords to English by default. Do not answer from memory for questions that clearly depend on real-time or external information — search first; if the result snippets already answer the question, you don't need to fetch the pages. Backed by Tavily and/or Exa with automatic load-balancing and failover; the chosen provider is reported in the result's `provider` field.",
       inputSchema: webSearchInputSchema,
       execute: async (input) => {
         if (!hasAnySearchProvider(config)) {
@@ -328,7 +332,7 @@ export function createAgentTools(
 
     WebFetch: tool({
       description:
-        "Fetch and extract the main content of one or more web pages. Pass several URLs at once to fetch them concurrently; use it after you already know the URLs to read page content, verify sources, compare multiple sources, or extract key points. When you need several pages, put them all in `urls` instead of calling repeatedly. Common site URLs: Hacker News (https://news.ycombinator.com), GitHub (https://github.com), Reddit (https://www.reddit.com), ProductHunt (https://www.producthunt.com) — when the user names these, build the URL and call this tool directly without searching first. Backed by Tavily and/or Exa with automatic load-balancing and failover.",
+        "Fetch and extract the main content of one or more web pages. When you already have a specific URL, call this directly instead of searching first; prefer fetching over relying on snippets when body details, steps, code, or version specifics matter. Pass several URLs at once to fetch them concurrently — put them all in `urls` instead of calling repeatedly. Use it after you know the URLs to read page content, verify sources, compare multiple sources, or extract key points. Common site URLs: Hacker News (https://news.ycombinator.com), GitHub (https://github.com), Reddit (https://www.reddit.com), ProductHunt (https://www.producthunt.com) — when the user names these, build the URL and call this tool directly without searching first. Backed by Tavily and/or Exa with automatic load-balancing and failover.",
       inputSchema: webFetchInputSchema,
       execute: async (input) => {
         if (!hasAnySearchProvider(config)) {

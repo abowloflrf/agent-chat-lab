@@ -4,7 +4,7 @@ import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
 import Image from "next/image";
 import { memo, useMemo, useState } from "react";
 import createDOMPurify from "dompurify";
-import { Streamdown } from "streamdown";
+import { Streamdown, type Components } from "streamdown";
 import { createCodePlugin } from "@streamdown/code";
 import { createMathPlugin } from "@streamdown/math";
 import { cjk } from "@streamdown/cjk";
@@ -16,8 +16,19 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
+import {
+  Source,
+  Sources,
+  SourcesContent,
+  SourcesTrigger,
+} from "@/components/ai-elements/source";
+import { InlineCitationBadge } from "@/components/ai-elements/inline-citation";
 import { ToolCallGroup } from "@/components/tool-call-card";
 import type { AskUserQuestionOutput } from "@/lib/ai/ask-user-question";
+import {
+  collectMessageSources,
+  normalizeSourceUrl,
+} from "@/lib/ai/message-sources";
 import { formatMessageDateTime } from "@/lib/datetime";
 import { formatTokenCount } from "@/lib/format";
 import { getMessageTimestamp, parseAgentObservability } from "@/lib/observability";
@@ -406,6 +417,32 @@ export const ChatMessage = memo(function ChatMessage({
     }),
     [markdownStyles],
   );
+  // Sources collected from WebSearch/WebFetch results, shared by the source list
+  // and the inline citation badges. Only assistant messages cite sources.
+  const { sources, byUrl } = useMemo(
+    () => (isUser ? { sources: [], byUrl: new Map() } : collectMessageSources(message.parts)),
+    [isUser, message.parts],
+  );
+  // Override Streamdown's `a`: when the href matches a collected source, render
+  // a citation badge; otherwise fall back to a themed link.
+  const citationComponents = useMemo<Components>(
+    () => ({
+      a: ({ node, href, children, ...props }) => {
+        // `node` is the parser's hast node; drop it so it isn't forwarded to the DOM.
+        void node;
+        const source = href ? byUrl.get(normalizeSourceUrl(href)) : undefined;
+        if (source) {
+          return <InlineCitationBadge source={source} />;
+        }
+        return (
+          <a href={href} target="_blank" rel="noreferrer" className={markdownStyles.link} {...props}>
+            {children}
+          </a>
+        );
+      },
+    }),
+    [byUrl, markdownStyles.link],
+  );
   const messageTimestamp = getMessageTimestamp(message.metadata);
   const assistantStats = !isUser ? getAssistantStats(observability) : null;
   const rawText = message.parts
@@ -456,7 +493,10 @@ export const ChatMessage = memo(function ChatMessage({
                         : "border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.72)] text-[#2b231b]"
                     }`}
                   >
-                    <Streamdown plugins={markdownPlugins}>
+                    <Streamdown
+                      plugins={markdownPlugins}
+                      components={isUser ? undefined : citationComponents}
+                    >
                       {part.text}
                     </Streamdown>
                   </div>
@@ -490,6 +530,22 @@ export const ChatMessage = memo(function ChatMessage({
               );
             })}
         </div>
+
+        {!isUser && sources.length > 0 ? (
+          <Sources className="mt-3">
+            <SourcesTrigger count={sources.length} />
+            <SourcesContent>
+              {sources.map((source) => (
+                <Source
+                  key={source.url}
+                  href={source.url}
+                  title={source.title ?? undefined}
+                  favicon={source.favicon}
+                />
+              ))}
+            </SourcesContent>
+          </Sources>
+        ) : null}
 
         {rawText ? (
           <div

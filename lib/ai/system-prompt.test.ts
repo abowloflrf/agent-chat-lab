@@ -3,6 +3,7 @@ import {
   buildMcpContextPrompt,
   buildSkillContextPrompt,
   buildTimeContextPrompt,
+  buildWebSearchContextPrompt,
   systemPrompt,
   systemPromptSections,
 } from "@/lib/ai/system-prompt";
@@ -42,11 +43,11 @@ describe("buildMcpContextPrompt", () => {
     ).toBe("");
   });
 
-  it("renders a line per server joining tools with a Chinese comma", () => {
+  it("renders a line per server joining tools with a comma", () => {
     const result = buildMcpContextPrompt([
       { serverName: "alpha", toolNames: ["one", "two"] },
     ]);
-    expect(result).toContain("- alpha: one、two");
+    expect(result).toContain("- alpha: one, two");
   });
 
   it("renders a single tool without any separator", () => {
@@ -54,7 +55,6 @@ describe("buildMcpContextPrompt", () => {
       { serverName: "solo", toolNames: ["only"] },
     ]);
     expect(result).toContain("- solo: only");
-    expect(result).not.toContain("、");
   });
 
   it("filters out servers that have no tools but keeps the rest", () => {
@@ -62,7 +62,7 @@ describe("buildMcpContextPrompt", () => {
       { serverName: "empty", toolNames: [] },
       { serverName: "full", toolNames: ["a", "b"] },
     ]);
-    expect(result).toContain("- full: a、b");
+    expect(result).toContain("- full: a, b");
     expect(result).not.toContain("empty");
   });
 
@@ -74,7 +74,7 @@ describe("buildMcpContextPrompt", () => {
     const lines = result
       .split("\n")
       .filter((line) => line.startsWith("- "));
-    expect(lines).toEqual(["- first: x", "- second: y、z"]);
+    expect(lines).toEqual(["- first: x", "- second: y, z"]);
   });
 
   it("drops an empty server sitting between two non-empty servers while preserving order", () => {
@@ -90,11 +90,11 @@ describe("buildMcpContextPrompt", () => {
     expect(result).not.toContain("mid");
   });
 
-  it("joins three or more tools with the Chinese comma", () => {
+  it("joins three or more tools with commas", () => {
     const result = buildMcpContextPrompt([
       { serverName: "s", toolNames: ["a", "b", "c"] },
     ]);
-    expect(result).toContain("- s: a、b、c");
+    expect(result).toContain("- s: a, b, c");
   });
 
   it("renders exactly the header line, one tool line, and the disclaimer line", () => {
@@ -102,9 +102,9 @@ describe("buildMcpContextPrompt", () => {
       { serverName: "alpha", toolNames: ["one", "two"] },
     ]);
     expect(result).toBe(
-      "本轮额外提供以下 MCP 工具，与内置工具同等，可直接调用：\n" +
-        "- alpha: one、two\n" +
-        "工具结果存疑时说明局限，不编造内容。",
+      "The following MCP tools are additionally available this turn; they are equivalent to the built-in tools and can be called directly:\n" +
+        "- alpha: one, two\n" +
+        "When tool results are doubtful, state the limitation and do not fabricate.",
     );
   });
 
@@ -112,8 +112,12 @@ describe("buildMcpContextPrompt", () => {
     const result = buildMcpContextPrompt([
       { serverName: "alpha", toolNames: ["one"] },
     ]);
-    expect(result).toContain("本轮额外提供以下 MCP 工具");
-    expect(result).toContain("工具结果存疑时说明局限，不编造内容。");
+    expect(result).toContain(
+      "The following MCP tools are additionally available this turn",
+    );
+    expect(result).toContain(
+      "When tool results are doubtful, state the limitation and do not fabricate.",
+    );
   });
 
   it("returns a trimmed string (no leading/trailing whitespace)", () => {
@@ -208,16 +212,44 @@ describe("buildSkillContextPrompt", () => {
     expect(result.endsWith("</available_skills>")).toBe(true);
   });
 
-  // KNOWN GAP: skill name/description are interpolated raw into the XML-ish
-  // block with NO escaping. A description containing "</description>" (or any
-  // angle brackets) is injected verbatim and corrupts the structure — a prompt
-  // structure / injection hazard. This pins the current (unescaped) behavior;
-  // if escaping is added, update this assertion.
-  it("interpolates skill description verbatim without escaping angle brackets", () => {
+  // Angle brackets and ampersands in name/description are escaped so a crafted
+  // description cannot break out of (or forge) the <skill> block.
+  it("escapes angle brackets in a skill description to prevent block corruption", () => {
     const result = buildSkillContextPrompt([
       { name: "x", description: "a </description> b" },
     ]);
-    expect(result).toContain("<description>a </description> b</description>");
+    expect(result).toContain("<description>a &lt;/description&gt; b</description>");
+    expect(result).not.toContain("a </description> b");
+  });
+
+  it("escapes angle brackets and ampersands in a skill name", () => {
+    const result = buildSkillContextPrompt([
+      { name: "a<b>&c", description: "d" },
+    ]);
+    expect(result).toContain("<name>a&lt;b&gt;&amp;c</name>");
+  });
+});
+
+describe("buildWebSearchContextPrompt", () => {
+  it("returns a non-empty, trimmed string", () => {
+    const result = buildWebSearchContextPrompt();
+    expect(result.length).toBeGreaterThan(0);
+    expect(result).toBe(result.trim());
+  });
+
+  it("documents the inline citation marker format and the exact-URL rule", () => {
+    const result = buildWebSearchContextPrompt();
+    expect(result).toContain("[n](realURL)");
+    expect(result).toContain(
+      "The URL must be exactly the url returned by the tool",
+    );
+  });
+
+  it("scopes the rule to turns where WebSearch or WebFetch was used", () => {
+    const result = buildWebSearchContextPrompt();
+    expect(result).toContain(
+      "applies only when WebSearch or WebFetch was used this turn",
+    );
   });
 });
 
@@ -225,33 +257,38 @@ describe("buildTimeContextPrompt", () => {
   it("includes both the datetime and ISO strings passed in", () => {
     const dt = "2026-06-19 14:30:00";
     const iso = "2026-06-19T06:30:00.000Z";
-    const result = buildTimeContextPrompt(dt, iso);
+    const result = buildTimeContextPrompt(dt, iso, "Asia/Shanghai");
     expect(result).toContain(dt);
     expect(result).toContain(iso);
   });
 
-  it("labels the system time with the Asia/Shanghai zone", () => {
-    const result = buildTimeContextPrompt("now", "iso");
-    expect(result).toContain("当前系统时间（Asia/Shanghai）: now");
-    expect(result).toContain("当前 ISO 时间: iso");
+  it("labels the system time with the given time zone", () => {
+    const result = buildTimeContextPrompt("now", "iso", "Asia/Shanghai");
+    expect(result).toContain("Current system time (Asia/Shanghai): now");
+    expect(result).toContain("Current ISO time: iso");
+  });
+
+  it("reflects whichever time zone is passed in", () => {
+    const result = buildTimeContextPrompt("now", "iso", "UTC");
+    expect(result).toContain("Current system time (UTC): now");
   });
 
   it("returns a trimmed string (no leading/trailing whitespace)", () => {
-    const result = buildTimeContextPrompt("now", "iso");
+    const result = buildTimeContextPrompt("now", "iso", "UTC");
     expect(result).toBe(result.trim());
   });
 
   it("handles empty string inputs without throwing", () => {
-    const result = buildTimeContextPrompt("", "");
-    expect(result).toContain("当前系统时间（Asia/Shanghai）: ");
-    expect(result).toContain("当前 ISO 时间: ");
+    const result = buildTimeContextPrompt("", "", "UTC");
+    expect(result).toContain("Current system time (UTC): ");
+    expect(result).toContain("Current ISO time: ");
   });
 
   it("starts with the time-context header and includes the relative-time guidance line", () => {
-    const result = buildTimeContextPrompt("now", "iso");
-    expect(result.startsWith("时间补充：")).toBe(true);
+    const result = buildTimeContextPrompt("now", "iso", "UTC");
+    expect(result.startsWith("Time context:")).toBe(true);
     expect(result).toContain(
-      '回答"今天""昨天""明天""本周""最近"等相对时间问题时，以这里的时间为准',
+      'When answering relative-time questions such as "today", "yesterday", "tomorrow", "this week", or "recently", use the time given here',
     );
   });
 });

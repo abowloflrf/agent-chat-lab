@@ -13,7 +13,7 @@
 
 ### P1 Agent 能力补齐
 - [ ] Resumable Streaming：关闭页面后 Agent 继续运行，重新打开自动重连（设计方案见 [docs/resumable-streaming-plan.md](docs/resumable-streaming-plan.md)）
-- [ ] 将 system prompt 主体改为英文，并持续参考 Codex / OpenCode / Claude Code 的 prompt 迭代工具使用策略、约束和长期任务处理规则
+- [ ] 持续参考 Codex / OpenCode / Claude Code 的 prompt，迭代工具使用策略、约束和长期任务处理规则
 - [ ] 新建对话时支持首条消息配置“纯对话模式”：关闭后续整个会话的 tool 调用，默认关闭该选项
 - [ ] 将 Bash 从“单条非交互命令”扩展为支持管道、重定向、多命令串联
 - [ ] 文件上传与分析（图片、PDF、代码文件等多模态输入）

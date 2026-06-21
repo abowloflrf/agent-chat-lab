@@ -2,6 +2,11 @@
 
 本文件用于记录已完成功能、已落地优化和重要文档整理，不再把这些内容放进 `TODO.md`。
 
+## 2026-06-21
+- 联网回复新增来源列表与正文行内引用角标（hover 查看来源）
+- system prompt 主体改为英文
+- 工具使用规约下沉到各工具描述、引用规则按需注入，剩余工具描述统一改英文，并修复 Skill 列表注入隐患
+
 ## 2026-06-20
 - 推理卡改用 Vercel AI Elements `Reasoning`，新增思考耗时显示，推理正文支持 markdown 渲染
 - Markdown 渲染改用 Vercel Streamdown（流式输出更稳，统一代码块/数学/中文渲染，新增 Mermaid 图表与表格复制/下载/全屏），聊天自动贴底改用 use-stick-to-bottom

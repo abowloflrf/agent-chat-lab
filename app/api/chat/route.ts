@@ -17,9 +17,11 @@ import {
   buildMcpContextPrompt,
   buildSkillContextPrompt,
   buildTimeContextPrompt,
+  buildWebSearchContextPrompt,
   systemPrompt,
 } from "@/lib/ai/system-prompt";
 import { createAgentTools } from "@/lib/ai/tools";
+import { hasAnySearchProvider } from "@/lib/ai/web-search";
 import { repairToolCall } from "@/lib/ai/repair-tool-call";
 import { connectMcpServers, type McpServerToolInfo } from "@/lib/ai/mcp";
 import { discoverSkills, type SkillInfo } from "@/lib/ai/skills";
@@ -329,6 +331,7 @@ function buildRuntimeSystemPrompt(
   messages: ChatUIMessage[],
   mcpServers: McpServerToolInfo[],
   skills: SkillInfo[],
+  webSearchAvailable: boolean,
 ) {
   // Pin time to the conversation's first message so the entire system
   // prompt stays identical for every request in the same session,
@@ -340,12 +343,32 @@ function buildRuntimeSystemPrompt(
       ? new Date(firstMessageCreatedAt)
       : new Date();
 
+  // Prefer the TZ env var (e.g. injected via docker-compose); otherwise fall
+  // back to the runtime's resolved zone. Ignore an invalid TZ value.
+  const runtimeTimeZone =
+    new Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const envTimeZone = process.env.TZ?.trim();
+  let timeZone = runtimeTimeZone;
+  if (envTimeZone) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: envTimeZone });
+      timeZone = envTimeZone;
+    } catch {
+      // Invalid TZ value; keep the runtime zone.
+    }
+  }
+
   const currentDateTime = new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "full",
     timeStyle: "long",
-    timeZone: "Asia/Shanghai",
+    timeZone,
   }).format(pinnedNow);
   const promptSections = [systemPrompt];
+
+  // Citation guidance is only relevant when the web tools can actually run.
+  if (webSearchAvailable) {
+    promptSections.push(buildWebSearchContextPrompt());
+  }
 
   const skillSection = buildSkillContextPrompt(skills);
   if (skillSection) {
@@ -357,7 +380,9 @@ function buildRuntimeSystemPrompt(
     promptSections.push(mcpSection);
   }
 
-  promptSections.push(buildTimeContextPrompt(currentDateTime, pinnedNow.toISOString()));
+  promptSections.push(
+    buildTimeContextPrompt(currentDateTime, pinnedNow.toISOString(), timeZone),
+  );
 
   return promptSections.join("\n\n").trim();
 }
@@ -578,6 +603,7 @@ export async function POST(request: Request) {
     messagesForRequest,
     advertisedMcpServers,
     enabledSkills,
+    hasAnySearchProvider(providerConfig),
   );
 
   const requestStartedAt = Date.now();
