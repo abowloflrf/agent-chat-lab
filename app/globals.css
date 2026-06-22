@@ -249,6 +249,15 @@ a,
   background: var(--selection-bg);
 }
 
+/* The user bubble runs reversed polarity (a light bubble in the dark theme), so
+   the page-wide translucent selection is nearly invisible on it. Invert selection
+   inside the bubble using its own fg/bg tokens so the highlighted range is clear
+   on every theme. */
+[data-role="user"] ::selection {
+  background: var(--msg-user-fg);
+  color: var(--msg-user-bg);
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

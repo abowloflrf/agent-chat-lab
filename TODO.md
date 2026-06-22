@@ -15,7 +15,6 @@
 - [ ] Resumable Streaming：关闭页面后 Agent 继续运行，重新打开自动重连（设计方案见 [docs/resumable-streaming-plan.md](docs/resumable-streaming-plan.md)）
 - [ ] 持续参考 Codex / OpenCode / Claude Code 的 prompt，迭代工具使用策略、约束和长期任务处理规则
 - [ ] 新建对话时支持首条消息配置“纯对话模式”：关闭后续整个会话的 tool 调用，默认关闭该选项
-- [ ] 将 Bash 从“单条非交互命令”扩展为支持管道、重定向、多命令串联
 - [ ] 文件上传与分析（图片、PDF、代码文件等多模态输入）
 - [ ] 设计并实现跨会话 memory 系统：沉淀用户偏好、长期上下文和历史决策，并调研 file-based 与 SQLite 两种实现路径
 - [ ] 支持在 web 设置页创建 / 编辑 / 删除 Skill（当前仅支持检索文件系统中的 Skill 并逐个开关，安装需在服务器操作）
@@ -32,7 +31,6 @@
 - [ ] 支持指定删除某条消息
 - [ ] 允许编辑用户已发送的某条消息，并基于编辑后的内容重新发送
 - [ ] 完善 artifacts 误收录预防策略（忽略规则、输出目录约束、扫描开关等）
-- [ ] 会话详情顶部状态栏支持跨 Safari / Chrome 一致的轻量毛玻璃效果，且无明显分层横条
 
 ### P2 架构与产品扩展
 - [ ] 逐步调研 AI Elements 组件替换 / 引入新功能（清单与优先级见 [docs/ai-elements-adoption.md](docs/ai-elements-adoption.md)）

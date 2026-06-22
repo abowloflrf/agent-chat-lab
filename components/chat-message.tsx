@@ -432,13 +432,19 @@ export const ChatMessage = memo(function ChatMessage({
     [isUser, message.parts],
   );
   // Override Streamdown's `a`: when the href matches a collected source, render
-  // a citation badge; otherwise fall back to a themed link.
+  // a citation badge; otherwise fall back to a themed link. Used for both roles:
+  // user messages have no sources (byUrl empty) so they always get the themed
+  // link, which keeps link color readable on the filled bubble — Streamdown's
+  // default `text-primary` collides with the light user bubble in the dark theme.
   const citationComponents = useMemo<Components>(
     () => ({
       a: ({ node, href, children, ...props }) => {
         // `node` is the parser's hast node; drop it so it isn't forwarded to the DOM.
         void node;
-        const source = href ? byUrl.get(normalizeSourceUrl(href)) : undefined;
+        // A bare auto-linked URL renders its href as the visible text; only show a
+        // citation chip for real reference links (custom label like `[1]`).
+        const isBareUrl = typeof children === "string" && /^https?:\/\//i.test(children);
+        const source = href && !isBareUrl ? byUrl.get(normalizeSourceUrl(href)) : undefined;
         if (source) {
           return <InlineCitationBadge source={source} />;
         }
@@ -501,7 +507,7 @@ export const ChatMessage = memo(function ChatMessage({
                   >
                     <Streamdown
                       plugins={markdownPlugins}
-                      components={isUser ? undefined : citationComponents}
+                      components={citationComponents}
                     >
                       {part.text}
                     </Streamdown>
