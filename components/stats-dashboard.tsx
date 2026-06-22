@@ -84,8 +84,8 @@ export function StatsDashboard() {
     <div>
       <div className="mb-5 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">用量统计</p>
-          <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">用量统计</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             按天的 Token 消耗趋势、模型用量分布与性能洞察。
           </p>
         </div>
@@ -93,24 +93,24 @@ export function StatsDashboard() {
           type="button"
           onClick={() => void load("refresh")}
           disabled={refreshing || loadState === "loading"}
-          className="shrink-0 rounded-full bg-[#171717] px-4 py-1.5 text-xs font-medium text-white transition hover:bg-[#2b241d] disabled:opacity-50"
+          className="shrink-0 rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-[var(--accent-strong)] disabled:opacity-50"
         >
           {refreshing ? "刷新中…" : "刷新"}
         </button>
       </div>
 
       {loadState === "loading" ? (
-        <div className="py-12 text-center text-sm text-[#8a8176]">加载用量统计中…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">加载用量统计中…</div>
       ) : loadState === "error" ? (
         <div className="accent-line py-12 pl-4">
-          <p className="text-lg font-semibold tracking-[-0.02em] text-[#352d25]">
+          <p className="text-lg font-semibold tracking-[-0.02em] text-foreground">
             加载用量统计失败
           </p>
-          <p className="mt-2 text-sm leading-6 text-[#6e665d]">请检查网络后重试。</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">请检查网络后重试。</p>
           <button
             type="button"
             onClick={() => void load("initial")}
-            className="mt-4 rounded-full bg-[#171717] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#2b241d]"
+            className="mt-4 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-[var(--accent-strong)]"
           >
             重试
           </button>

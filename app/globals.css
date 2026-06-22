@@ -2,6 +2,11 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Streamdown/Shiki uses Tailwind `dark:` utilities for the dark half of dual
+   themes. This app stores theme state on <html data-theme="..."> instead of a
+   `.dark` class, so bind `dark:` to the persisted dark theme explicitly. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* Let Tailwind scan Streamdown's bundled utility classes (code block UI etc.). */
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/mermaid/dist/*.js";
@@ -20,7 +25,6 @@
 :root {
   --background: #f3efe7;
   --foreground: #171717;
-  --muted: #7a746b;
   --border: rgba(23, 23, 23, 0.12);
   --accent: #c96a2b;
   --accent-strong: #a44d16;
@@ -34,6 +38,140 @@
   --muted-foreground: #8c7767;
   --surface-muted: rgba(201, 106, 43, 0.1);
   --primary-foreground: #fff8f2;
+  /* Large-surface tokens (M1) so theme switching covers them too. */
+  --selection-bg: rgba(201, 106, 43, 0.2);
+  --scrollbar-thumb: #d4d4d4;
+  --scrollbar-thumb-hover: #a3a3a3;
+  --glow-accent: rgba(201, 106, 43, 0.18);
+  --glow-edge: rgba(23, 23, 23, 0.08);
+  --glow-top: rgba(255, 252, 247, 0.35);
+  --grid-line: rgba(23, 23, 23, 0.028);
+  /* Dark side panel (sidebar): foreground colors on the dark surface. */
+  --panel-foreground: #f6f0e8;
+  --panel-muted: #cabfb2;
+  /* Raised pill inside the dark panel (New chat / search field). */
+  --panel-raised: #f3e5d7;
+  --panel-raised-foreground: #2d2219;
+  --panel-raised-muted: #7a6654;
+  --panel-raised-hover: #fbf2e8;
+  /* Chat messages: user bubble + assistant inline code chip. msg-user-fg/muted
+     let the bubble flip polarity per theme (e.g. dark text on a light bubble). */
+  --msg-user-bg: #4a3328;
+  --msg-user-fg: #f6f0e8;
+  --msg-user-muted: #cabfb2;
+  --code-inline-bg: #f1e7db;
+  --code-inline-fg: #6b3718;
+  /* Status family (danger/warning/success): one coordinated semantic set that
+     replaces ~30 scattered status literals. Defined here for warm AND paper
+     (both light); only dark overrides below. Each: strong (text/icon/solid fill)
+     + soft surface (bg); danger/warning add a border for their banners. */
+  --danger: #9a3818;
+  --danger-surface: #fdeee9;
+  --danger-border: #e8b5a7;
+  --warning: #8a560f;
+  --warning-surface: #fff4e3;
+  --warning-border: #ead4ba;
+  --success: #36643a;
+  --success-surface: #e7f4e5;
+  /* Liquid-glass shadow stack (composer/header/citation): warm-white projected
+     glow + bright top highlight on light themes. Dark flips glow to a dark
+     shadow and dims the highlights (see below). */
+  --glass-glow: rgba(255, 251, 245, 0.97);
+  --glass-highlight: rgba(255, 255, 255, 0.8);
+  --glass-edge: rgba(255, 255, 255, 0.12);
+}
+
+/* Color themes: each block overrides the same token set with different values.
+   warm = :root default (no block needed). data-theme is set by the anti-flash
+   script in app/layout.tsx before first paint, persisted via lib/theme.ts. */
+/* paper = a clean, neutral black/white/gray theme. No hue: accent is near-black,
+   surfaces are neutral grays, the side panel stays dark for contrast. Status
+   colors are inherited from :root (they must stay colored to carry meaning). */
+[data-theme="paper"] {
+  --background: #f6f6f6;
+  --foreground: #1a1a1a;
+  --border: rgba(0, 0, 0, 0.1);
+  --accent: #0a0a0a;
+  --accent-strong: #000000;
+  --panel: rgba(255, 255, 255, 0.85);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --panel-strong: #161616;
+  --panel-soft: rgba(26, 26, 26, 0.9);
+  --sidebar: rgba(247, 247, 247, 0.96);
+  --muted-foreground: #6e6e6e;
+  --surface-muted: rgba(0, 0, 0, 0.05);
+  --primary-foreground: #ffffff;
+  --selection-bg: rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb: #cfcfcf;
+  --scrollbar-thumb-hover: #a6a6a6;
+  --glow-accent: rgba(0, 0, 0, 0.025);
+  --glow-edge: rgba(0, 0, 0, 0.04);
+  --glow-top: rgba(255, 255, 255, 0.5);
+  --grid-line: rgba(0, 0, 0, 0.025);
+  --panel-foreground: #f4f4f4;
+  --panel-muted: #a6a6a6;
+  --panel-raised: #ededed;
+  --panel-raised-foreground: #1a1a1a;
+  --panel-raised-muted: #5e5e5e;
+  --panel-raised-hover: #f5f5f5;
+  --msg-user-bg: #262626;
+  --msg-user-fg: #f4f4f4;
+  --msg-user-muted: #a6a6a6;
+  --code-inline-bg: #ececec;
+  --code-inline-fg: #2b2b2b;
+}
+
+/* dark = a generic, near-black dark mode tuned for OLED: pure-black page, neutral
+   gray/white accents, no hue in the chrome. Panels sit a few % above black for
+   elevation. Status colors below stay colored so they keep their meaning. */
+[data-theme="dark"] {
+  --background: #000000;
+  --foreground: #f2f2f2;
+  --border: rgba(255, 255, 255, 0.1);
+  --accent: #ededed;
+  --accent-strong: #ffffff;
+  --panel: rgba(20, 20, 20, 0.8);
+  --glass-bg: rgba(22, 22, 22, 0.6);
+  --panel-strong: #050505;
+  --panel-soft: rgba(10, 10, 10, 0.92);
+  --sidebar: rgba(6, 6, 6, 0.96);
+  --muted-foreground: #8f8f8f;
+  --surface-muted: rgba(255, 255, 255, 0.07);
+  --primary-foreground: #000000;
+  --selection-bg: rgba(255, 255, 255, 0.18);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.16);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+  --glow-accent: rgba(255, 255, 255, 0.02);
+  --glow-edge: rgba(0, 0, 0, 0.5);
+  --glow-top: rgba(255, 255, 255, 0.015);
+  --grid-line: rgba(255, 255, 255, 0.022);
+  --panel-foreground: #f2f2f2;
+  --panel-muted: #8f8f8f;
+  --panel-raised: #1a1a1a;
+  --panel-raised-foreground: #f2f2f2;
+  --panel-raised-muted: #8f8f8f;
+  --panel-raised-hover: #242424;
+  /* User bubble flips light so it clearly stands out on the near-black page. */
+  --msg-user-bg: #ededed;
+  --msg-user-fg: #1a1a1a;
+  --msg-user-muted: #5e5e5e;
+  --code-inline-bg: rgba(255, 255, 255, 0.1);
+  --code-inline-fg: #e5e5e5;
+  /* Status: lighter/more-saturated strong hues for contrast on the dark surface;
+     surfaces and borders are translucent tints of the strong hue. */
+  --danger: #db5544;
+  --danger-surface: rgba(219, 85, 68, 0.16);
+  --danger-border: rgba(219, 85, 68, 0.34);
+  --warning: #e6a23c;
+  --warning-surface: rgba(230, 162, 60, 0.15);
+  --warning-border: rgba(230, 162, 60, 0.32);
+  --success: #6fbf73;
+  --success-surface: rgba(111, 191, 115, 0.15);
+  /* Glass: no white halo on near-black — glow becomes a soft dark shadow, the
+     top highlight/edge drop to a faint rim so the glass still reads. */
+  --glass-glow: rgba(0, 0, 0, 0.5);
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --glass-edge: rgba(255, 255, 255, 0.05);
 }
 
 @theme inline {
@@ -84,6 +222,17 @@ body {
   }
 }
 
+/* Streamdown's table fullscreen preview is portaled to <body>. In iPhone PWA
+   standalone mode with black-translucent status bar, fixed inset overlays can
+   start underneath the status bar; pad the overlay's content box into the safe
+   area so the copy/download/close controls stay tappable. */
+[data-streamdown="table-fullscreen"] {
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+
 button,
 input,
 textarea {
@@ -97,7 +246,7 @@ a,
 }
 
 ::selection {
-  background: rgba(201, 106, 43, 0.2);
+  background: var(--selection-bg);
 }
 
 ::-webkit-scrollbar {
@@ -110,12 +259,12 @@ a,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d4d4d4;
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a3a3a3;
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* 放进 @layer base：未分层的规则会盖过 Tailwind 工具类（@layer utilities），
@@ -134,9 +283,9 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at top left, rgba(201, 106, 43, 0.18), transparent 30%),
-    radial-gradient(circle at 85% 12%, rgba(23, 23, 23, 0.08), transparent 24%),
-    linear-gradient(180deg, rgba(255, 252, 247, 0.35), transparent 38%);
+    radial-gradient(circle at top left, var(--glow-accent), transparent 30%),
+    radial-gradient(circle at 85% 12%, var(--glow-edge), transparent 24%),
+    linear-gradient(180deg, var(--glow-top), transparent 38%);
   z-index: -2;
 }
 
@@ -146,8 +295,8 @@ body::after {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(23, 23, 23, 0.028) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 23, 23, 0.028) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 32px 32px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.3), transparent 78%);
   z-index: -1;
@@ -173,10 +322,8 @@ body::after {
 }
 
 .dark-panel {
-  background:
-    linear-gradient(180deg, rgba(34, 29, 22, 0.96), rgba(22, 19, 15, 0.98)),
-    var(--panel-soft);
-  color: #f6f0e8;
+  background: linear-gradient(180deg, var(--panel-soft), var(--panel-strong));
+  color: var(--panel-foreground);
 }
 
 .accent-line {
@@ -259,10 +406,10 @@ body::after {
 
 @keyframes pulse-ring {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(201, 106, 43, 0.4);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(201, 106, 43, 0);
+    box-shadow: 0 0 0 6px transparent;
   }
 }
 

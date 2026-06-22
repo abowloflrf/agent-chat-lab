@@ -503,9 +503,9 @@ export function ConversationList({
     <div ref={listRootRef} className="flex h-full flex-col">
       <div className="flex items-center gap-2">
         {isSearchOpen ? (
-          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-[#f0dfcf]/14 bg-[#f3e5d7] px-3 py-2 text-[#2d2219]">
+          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-black/5 bg-[var(--panel-raised)] px-3 py-2 text-[var(--panel-raised-foreground)]">
             <svg
-              className="h-3.5 w-3.5 shrink-0 text-[#7a6654]"
+              className="h-3.5 w-3.5 shrink-0 text-[var(--panel-raised-muted)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -523,7 +523,7 @@ export function ConversationList({
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="搜索历史会话"
-              className="w-full min-w-0 bg-transparent text-[11px] font-medium tracking-[0.12em] text-[#2d2219] uppercase placeholder:text-[#7a6654] focus:outline-none"
+              className="w-full min-w-0 bg-transparent text-[11px] font-medium tracking-[0.12em] text-[var(--panel-raised-foreground)] uppercase placeholder:text-[var(--panel-raised-muted)] focus:outline-none"
             />
           </label>
         ) : (
@@ -531,7 +531,7 @@ export function ConversationList({
             type="button"
             onClick={onNewConversation}
             disabled={isCreatingConversation}
-            className="flex flex-1 cursor-pointer items-center justify-center rounded-full border border-[#f0dfcf]/14 bg-[#f3e5d7] px-3 py-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#2d2219] transition duration-200 hover:-translate-y-px hover:border-[#f3dfcf]/28 hover:bg-[#fbf2e8] disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex flex-1 cursor-pointer items-center justify-center rounded-full border border-black/5 bg-[var(--panel-raised)] px-3 py-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--panel-raised-foreground)] transition duration-200 hover:-translate-y-px hover:border-black/10 hover:bg-[var(--panel-raised-hover)] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/80 dark:bg-foreground dark:text-primary-foreground dark:hover:border-white dark:hover:bg-[var(--accent-strong)]"
             suppressHydrationWarning
           >
             {isCreatingConversation ? "Creating..." : "NEW CHAT"}
@@ -543,8 +543,8 @@ export function ConversationList({
           onClick={toggleSearch}
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition duration-200 ${
             isSearchOpen
-              ? "border-[#f3dfcf]/28 bg-[#f3e5d7] text-[#2d2219]"
-              : "border-white/10 bg-white/[0.04] text-[#dacdbf] hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              ? "border-black/10 bg-[var(--panel-raised)] text-[var(--panel-raised-foreground)]"
+              : "border-white/10 bg-white/[0.04] text-[var(--panel-muted)] hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
           }`}
           title={isSearchOpen ? "关闭搜索" : "搜索历史会话"}
           aria-label={isSearchOpen ? "关闭搜索" : "搜索历史会话"}
@@ -567,11 +567,11 @@ export function ConversationList({
 
       <div className="scrollbar-hidden mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
         {isLoading ? (
-          <div className="border-t border-white/8 py-4 text-sm text-[#a99b8a]">
+          <div className="border-t border-white/8 py-4 text-sm text-[var(--panel-muted)]">
             正在读取会话...
           </div>
         ) : conversations.length === 0 ? (
-          <div className="border-t border-white/8 py-4 text-sm text-[#a99b8a]">
+          <div className="border-t border-white/8 py-4 text-sm text-[var(--panel-muted)]">
             {normalizedSearchQuery
               ? "没有匹配的历史会话，试试别的标题关键字。"
               : "还没有历史会话，直接从右侧发起第一轮对话。"}
@@ -597,7 +597,7 @@ export function ConversationList({
                         <div className="flex items-start gap-2">
                           <span
                             className={`mt-1.5 h-2 w-2 shrink-0 rounded-full transition ${
-                              active ? "bg-[#d28042]" : "bg-white/20"
+                              active ? "bg-[var(--accent)]" : "bg-white/20"
                             }`}
                           />
                           <div className="min-w-0 flex-1">
@@ -618,12 +618,12 @@ export function ConversationList({
                                       handleRenameCancel(event);
                                     }
                                   }}
-                                  className="min-w-0 flex-1 rounded-md border border-[#f3dfcf]/16 bg-black/15 px-2 py-1 text-sm text-[#fff6ee] outline-none transition focus:border-[#d98a52]"
+                                  className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/15 px-2 py-1 text-sm text-[var(--panel-foreground)] outline-none transition focus:border-[var(--accent)]"
                                 />
                                 <button
                                   type="submit"
                                   disabled={isBusy}
-                                  className="rounded-md border border-[#d98a52]/35 px-2 py-1 text-[11px] uppercase tracking-[0.14em] text-[#f5d7c0] transition hover:border-[#d98a52] hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="rounded-md border border-[var(--accent)] px-2 py-1 text-[11px] uppercase tracking-[0.14em] text-[var(--panel-foreground)] transition hover:border-[var(--accent-strong)] hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   保存
                                 </button>
@@ -632,8 +632,8 @@ export function ConversationList({
                               <p
                                 className={`truncate text-sm transition ${
                                   active
-                                    ? "text-[#fff6ee]"
-                                    : "text-[#dacdbf] group-hover:text-white"
+                                    ? "text-[var(--panel-foreground)]"
+                                    : "text-[var(--panel-muted)] group-hover:text-white"
                                 }`}
                               >
                                 {conversation.title || DEFAULT_CONVERSATION_TITLE}
@@ -641,7 +641,7 @@ export function ConversationList({
                             )}
                           </div>
                         </div>
-                        <div className="mt-1.5 flex items-center gap-3 pl-4 text-[11px] text-[#9f9180]">
+                        <div className="mt-1.5 flex items-center gap-3 pl-4 text-[11px] text-[var(--panel-muted)]">
                           <span>{formatTime(conversation.lastMessageAt)}</span>
                           <span className="font-mono">{conversation.id.slice(0, 6)}</span>
                           {isBusy ? <span>处理中...</span> : null}
@@ -658,7 +658,7 @@ export function ConversationList({
                               current === conversation.id ? null : conversation.id,
                             );
                           }}
-                          className={`rounded-full p-1.5 text-[#9f9180] transition hover:bg-white/8 hover:text-white ${
+                          className={`rounded-full p-1.5 text-[var(--panel-muted)] transition hover:bg-white/8 hover:text-white ${
                             isMenuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                           }`}
                           title="更多操作"
@@ -678,26 +678,26 @@ export function ConversationList({
                         {isMenuOpen ? (
                           <div
                             onClick={(event) => event.stopPropagation()}
-                            className="absolute right-0 top-9 z-20 w-40 rounded-xl border border-white/10 bg-[#1b1511]/95 p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.35)] backdrop-blur"
+                            className="absolute right-0 top-9 z-20 w-40 rounded-xl border border-white/10 bg-[var(--panel-soft)] p-1.5 shadow-2xl shadow-black/30 backdrop-blur"
                           >
                             <button
                               type="button"
                               onClick={(event) => void handleDelete(event, conversation.id)}
-                              className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-[#ffd8ca] transition hover:bg-[#5c2418]"
+                              className="flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] text-[var(--danger)] transition hover:bg-white/[0.07]"
                             >
                               删除会话
                             </button>
                             <button
                               type="button"
                               onClick={(event) => handleRenameStart(event, conversation)}
-                              className="mt-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-[#efe1d3] transition hover:bg-white/8"
+                              className="mt-1 flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] text-[var(--panel-muted)] transition hover:bg-white/[0.07] hover:text-[var(--panel-foreground)]"
                             >
                               重命名
                             </button>
                             <button
                               type="button"
                               onClick={(event) => void handleRegenerateTitle(event, conversation.id)}
-                              className="mt-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-[#efe1d3] transition hover:bg-white/8"
+                              className="mt-1 flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] text-[var(--panel-muted)] transition hover:bg-white/[0.07] hover:text-[var(--panel-foreground)]"
                             >
                               重新生成标题
                             </button>
@@ -716,7 +716,7 @@ export function ConversationList({
                   type="button"
                   onClick={handleLoadMore}
                   disabled={isLoadingMore}
-                  className="w-full rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] font-medium uppercase tracking-[0.16em] text-[#dacdbf] transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                  className="w-full rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--panel-muted)] transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
                 >
                   {isLoadingMore ? "正在加载..." : "查看更多"}
                 </button>

@@ -81,7 +81,7 @@ type ToolLikePart = ToolUIPart | DynamicToolUIPart;
 
 export const TITLE_PROMPT_MAX_USER_CHARS = 2_000;
 export const TITLE_PROMPT_MAX_ASSISTANT_CHARS = 1_200;
-const TITLE_MAX_OUTPUT_TOKENS = 100;
+const TITLE_MAX_OUTPUT_TOKENS = 500;
 
 function parseJson<T>(value: string | null, fallback: T): T {
   if (!value) {

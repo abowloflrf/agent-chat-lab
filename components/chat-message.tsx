@@ -33,65 +33,73 @@ import { formatMessageDateTime } from "@/lib/datetime";
 import { formatTokenCount } from "@/lib/format";
 import { getMessageTimestamp, parseAgentObservability } from "@/lib/observability";
 
-// Light-only app: force the same Shiki theme for both light/dark slots so code
-// blocks match the previous github-light highlighting.
-const codePlugin = createCodePlugin({ themes: ["github-light", "github-light"] });
+// Streamdown/Shiki emits both light and dark token colors. The global Tailwind
+// `dark:` variant is bound to html[data-theme="dark"], so fenced code blocks
+// automatically switch to github-dark when the app theme is dark.
+const codePlugin = createCodePlugin({ themes: ["github-light", "github-dark"] });
 // remark-math (previous renderer) parsed single-dollar inline math by default;
 // keep that behaviour, since the Streamdown math plugin defaults it off.
 const mathPlugin = createMathPlugin({ singleDollarTextMath: true });
 
+// User prose sits on the filled message bubble and uses the msg-user-* tokens so
+// it flips polarity per theme (light-on-dark bubble in warm/paper, dark-on-light
+// bubble in the OLED dark theme); overlays derive from --msg-user-fg via color-mix
+// so they invert with it. Assistant prose sits on the page background and uses the
+// standard foreground/muted/primary tokens.
+// Fenced code blocks use Shiki dual themes and follow the app's data-theme.
+// Tables/inline code aren't Shiki, so they theme through CSS tokens.
 const markdownTextStyles = {
   user: {
-    prose: "space-y-4 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-[#fff8f2]",
-    heading: "font-semibold tracking-[-0.02em] text-[#fffdf9]",
-    paragraph: "whitespace-pre-wrap text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-[#fff8f2]",
-    list: "space-y-2 pl-5 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 marker:text-[#f1d2bb]",
+    prose: "space-y-4 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-[var(--msg-user-fg)]",
+    heading: "font-semibold tracking-[-0.02em] text-[var(--msg-user-fg)]",
+    paragraph: "whitespace-pre-wrap text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-[var(--msg-user-fg)]",
+    list: "space-y-2 pl-5 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 marker:text-[var(--msg-user-muted)]",
     blockquote:
-      "border-l-2 border-white/18 pl-4 italic text-[#f6ded0]",
-    rule: "border-white/10",
-    strong: "font-semibold text-[#fffdf9]",
-    emphasis: "italic text-[#f6ded0]",
-    inlineCode: "rounded bg-white/10 px-1.5 py-0.5 font-mono text-xs text-[#fff8f2]",
-    codeFrame: "my-4 overflow-hidden rounded-[14px] border border-white/10 bg-[rgba(255,248,241,0.08)]",
+      "border-l-2 border-[color-mix(in_srgb,var(--msg-user-fg)_18%,transparent)] pl-4 italic text-[var(--msg-user-muted)]",
+    rule: "border-[color-mix(in_srgb,var(--msg-user-fg)_10%,transparent)]",
+    strong: "font-semibold text-[var(--msg-user-fg)]",
+    emphasis: "italic text-[var(--msg-user-muted)]",
+    inlineCode: "rounded bg-[color-mix(in_srgb,var(--msg-user-fg)_10%,transparent)] px-1.5 py-0.5 font-mono text-xs text-[var(--msg-user-fg)]",
+    codeFrame: "my-4 overflow-hidden rounded-[14px] border border-[color-mix(in_srgb,var(--msg-user-fg)_10%,transparent)] bg-[color-mix(in_srgb,var(--msg-user-fg)_8%,transparent)]",
     codeHeader:
-      "flex items-center justify-between border-b border-white/10 bg-[rgba(255,255,255,0.04)] px-3 py-1.5",
-    codeLabel: "font-mono text-[10px] uppercase tracking-[0.14em] text-[#d8c1b2]",
-    pre: "overflow-x-auto px-3 py-2 text-[#fff6ef] leading-[1.4]",
-    codeInPre: "bg-transparent px-0 py-0 font-mono text-[13px] leading-[1.4] text-[#fff6ef]",
-    link: "font-medium text-[#ffe0cc] underline decoration-white/30 underline-offset-4 transition hover:text-white",
+      "flex items-center justify-between border-b border-[color-mix(in_srgb,var(--msg-user-fg)_10%,transparent)] bg-[color-mix(in_srgb,var(--msg-user-fg)_4%,transparent)] px-3 py-1.5",
+    codeLabel: "font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--msg-user-muted)]",
+    pre: "overflow-x-auto px-3 py-2 text-[var(--msg-user-fg)] leading-[1.4]",
+    codeInPre: "bg-transparent px-0 py-0 font-mono text-[13px] leading-[1.4] text-[var(--msg-user-fg)]",
+    link: "font-medium text-[var(--msg-user-fg)] underline decoration-[color-mix(in_srgb,var(--msg-user-fg)_30%,transparent)] underline-offset-4 transition hover:opacity-70",
     tableWrap:
-      "my-4 overflow-x-auto rounded-[14px] border border-white/10 bg-[rgba(255,255,255,0.04)]",
-    table: "min-w-full border-collapse text-left text-[13px] leading-6 text-[#fff4eb]",
-    th: "border-b border-white/10 bg-[rgba(255,255,255,0.05)] px-4 py-2.5 font-medium tracking-[0.02em] text-[#fffdf9]",
-    td: "border-t border-white/8 px-4 py-2.5 align-top text-[#f7e5d8]",
-    tableRow: "odd:bg-[rgba(255,255,255,0.025)]",
+      "my-4 overflow-x-auto rounded-[14px] border border-[color-mix(in_srgb,var(--msg-user-fg)_10%,transparent)] bg-[color-mix(in_srgb,var(--msg-user-fg)_4%,transparent)]",
+    table: "min-w-full border-collapse text-left text-[13px] leading-6 text-[var(--msg-user-fg)]",
+    th: "border-b border-[color-mix(in_srgb,var(--msg-user-fg)_10%,transparent)] bg-[color-mix(in_srgb,var(--msg-user-fg)_5%,transparent)] px-4 py-2.5 font-medium tracking-[0.02em] text-[var(--msg-user-fg)]",
+    td: "border-t border-[color-mix(in_srgb,var(--msg-user-fg)_8%,transparent)] px-4 py-2.5 align-top text-[var(--msg-user-muted)]",
+    tableRow: "odd:bg-[color-mix(in_srgb,var(--msg-user-fg)_2.5%,transparent)]",
   },
   assistant: {
-    prose: "space-y-4 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-[#2b231b]",
-    heading: "font-semibold tracking-[-0.02em] text-[#1f1711]",
-    paragraph: "whitespace-pre-wrap text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-[#2b231b]",
-    list: "space-y-2 pl-5 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 marker:text-[#b76837]",
+    prose: "space-y-4 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-foreground",
+    heading: "font-semibold tracking-[-0.02em] text-foreground",
+    paragraph: "whitespace-pre-wrap text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 text-foreground",
+    list: "space-y-2 pl-5 text-[14px] leading-[1.625] sm:text-[15px] sm:leading-7 marker:text-primary",
     blockquote:
-      "border-l-2 border-[rgba(201,106,43,0.28)] pl-4 italic text-[#6a5442]",
-    rule: "border-[rgba(23,23,23,0.08)]",
-    strong: "font-semibold text-[#1f1711]",
-    emphasis: "italic text-[#725746]",
+      "border-l-2 border-[var(--accent)] pl-4 italic text-muted-foreground",
+    rule: "border-border",
+    strong: "font-semibold text-foreground",
+    emphasis: "italic text-muted-foreground",
     inlineCode:
-      "rounded bg-[#f1e7db] px-1.5 py-0.5 font-mono text-xs text-[#6b3718]",
+      "rounded bg-[var(--code-inline-bg)] px-1.5 py-0.5 font-mono text-xs text-[var(--code-inline-fg)]",
     codeFrame:
-      "my-4 overflow-hidden rounded-[14px] border border-[rgba(23,23,23,0.08)] bg-[rgba(250,246,240,0.96)]",
+      "my-4 overflow-hidden rounded-[14px] border border-border bg-[var(--panel)]",
     codeHeader:
-      "flex items-center justify-between border-b border-[rgba(23,23,23,0.06)] bg-[rgba(255,255,255,0.65)] px-3 py-1.5",
-    codeLabel: "font-mono text-[10px] uppercase tracking-[0.14em] text-[#8c7767]",
-    pre: "overflow-x-auto px-3 py-2 text-[#332922] leading-[1.4]",
-    codeInPre: "bg-transparent px-0 py-0 font-mono text-[13px] leading-[1.4] text-[#332922]",
-    link: "font-medium text-[#9c5626] underline decoration-[#d7b195] underline-offset-4 transition hover:text-[#7f4218]",
+      "flex items-center justify-between border-b border-border bg-[var(--glass-bg)] px-3 py-1.5",
+    codeLabel: "font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground",
+    pre: "overflow-x-auto px-3 py-2 text-foreground leading-[1.4]",
+    codeInPre: "bg-transparent px-0 py-0 font-mono text-[13px] leading-[1.4] text-foreground",
+    link: "font-medium text-primary underline decoration-[var(--accent)] underline-offset-4 transition hover:text-[var(--accent-strong)]",
     tableWrap:
-      "my-4 overflow-x-auto rounded-[14px] border border-[rgba(23,23,23,0.08)] bg-[rgba(250,246,240,0.88)]",
-    table: "min-w-full border-collapse text-left text-[13px] leading-6 text-[#332922]",
-    th: "border-b border-[rgba(23,23,23,0.08)] bg-[rgba(243,231,219,0.72)] px-4 py-2.5 font-medium tracking-[0.02em] text-[#3b2f25]",
-    td: "border-t border-[rgba(23,23,23,0.06)] px-4 py-2.5 align-top text-[#55483d]",
-    tableRow: "odd:bg-[rgba(255,255,255,0.35)]",
+      "my-4 overflow-x-auto rounded-[14px] border border-border bg-[var(--panel)]",
+    table: "min-w-full border-collapse text-left text-[13px] leading-6 text-foreground",
+    th: "border-b border-border bg-[var(--surface-muted)] px-4 py-2.5 font-medium tracking-[0.02em] text-foreground",
+    td: "border-t border-border px-4 py-2.5 align-top text-muted-foreground",
+    tableRow: "odd:bg-[var(--surface-muted)]",
   },
 } as const;
 
@@ -313,14 +321,14 @@ function SvgPreview({
     <div className={styles.codeFrame}>
       <div className={styles.codeHeader}>
         <span className={styles.codeLabel}>SVG</span>
-        <div className="flex items-center gap-2 text-[10px] text-[#8c7767]">
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
           <button
             type="button"
             onClick={() => setShowSource((v) => !v)}
             className={`inline-flex h-5 items-center rounded-full border px-2 transition ${
               showSource
-                ? "border-[rgba(156,86,38,0.28)] bg-[rgba(156,86,38,0.08)] text-[#9c5626]"
-                : "border-[rgba(23,23,23,0.08)] text-[#8c7767] hover:text-[#9c5626]"
+                ? "border-border bg-[var(--surface-muted)] text-primary"
+                : "border-border text-muted-foreground hover:text-primary"
             }`}
           >
             <span className="font-medium leading-none">
@@ -330,7 +338,7 @@ function SvgPreview({
           <button
             type="button"
             onClick={() => void handleCopy()}
-            className="inline-flex h-5 w-5 items-center justify-center transition hover:text-[#9c5626]"
+            className="inline-flex h-5 w-5 items-center justify-center transition hover:text-primary"
             aria-label="复制 SVG"
             title={copied ? "已复制" : "复制 SVG"}
           >
@@ -487,8 +495,8 @@ export const ChatMessage = memo(function ChatMessage({
                     key={`${message.id}-text-${block.index}`}
                     className={
                       isUser
-                        ? "w-fit max-w-full rounded-[16px] bg-[#4a3328] px-4 py-3 text-[14px] leading-[1.625] text-[#fff8f2] shadow-[0_16px_40px_rgba(74,51,40,0.14)] sm:text-[15px] sm:leading-7"
-                        : "text-[14px] leading-[1.625] text-[#2b231b] sm:text-[15px] sm:leading-7"
+                        ? "w-fit max-w-full rounded-[16px] bg-[var(--msg-user-bg)] px-4 py-3 text-[14px] leading-[1.625] text-[var(--msg-user-fg)] shadow-[0_16px_40px_rgba(74,51,40,0.14)] sm:text-[15px] sm:leading-7"
+                        : "text-[14px] leading-[1.625] text-foreground sm:text-[15px] sm:leading-7"
                     }
                   >
                     <Streamdown
@@ -553,9 +561,9 @@ export const ChatMessage = memo(function ChatMessage({
           >
             <div className={`flex items-center gap-1 ${isUser ? "" : "ml-auto"}`}>
               {!isUser && assistantStats ? (
-                <div className="pointer-events-none mr-2 flex items-center gap-1.5 text-[11px] text-[#8f8172] opacity-0 transition-opacity duration-150 group-hover/message:opacity-100">
+                <div className="pointer-events-none mr-2 flex items-center gap-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/message:opacity-100">
                   {assistantStats.modelId ? (
-                    <span className="rounded border border-[rgba(201,106,43,0.2)] bg-[rgba(201,106,43,0.06)] px-1.5 py-0.5 font-mono text-[10px] text-[#9c5626]">
+                    <span className="rounded border border-border bg-[var(--surface-muted)] px-1.5 py-0.5 font-mono text-[10px] text-primary">
                       {assistantStats.modelId}
                     </span>
                   ) : null}
@@ -577,7 +585,7 @@ export const ChatMessage = memo(function ChatMessage({
               {messageTimestamp ? (
                 <div
                   className={`pointer-events-none mr-1 text-[11px] transition-opacity duration-150 group-hover/message:opacity-100 ${
-                    isUser ? "text-[#8c7d70] opacity-0" : "text-[#8f8172] opacity-0"
+                    isUser ? "text-muted-foreground opacity-0" : "text-muted-foreground opacity-0"
                   }`}
                 >
                   {isUser ? "发送于" : "回复于"} {formatMessageDateTime(messageTimestamp)}
@@ -591,8 +599,8 @@ export const ChatMessage = memo(function ChatMessage({
                 title={copied ? "已复制" : "复制原始消息内容"}
                 className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition ${
                   isUser
-                    ? "text-[#8c7d70] hover:text-[#4a3328]"
-                    : "text-[#8f8172] hover:text-[#9c5626]"
+                    ? "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-primary"
                 }`}
               >
                 {copied ? (
@@ -645,7 +653,7 @@ export const ChatMessage = memo(function ChatMessage({
                   onClick={() => onRegenerate?.(message.id)}
                   aria-label="从这条回复重新生成"
                   title="从这条回复重新生成"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#8f8172] transition hover:text-[#9c5626]"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition hover:text-primary"
                 >
                   <svg
                     aria-hidden="true"

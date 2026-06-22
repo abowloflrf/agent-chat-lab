@@ -42,8 +42,8 @@ export function TodoToolbar({
               onClick={() => onFilterChange(value)}
               className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${
                 filter === value
-                  ? "bg-[#171717] text-white"
-                  : "bg-[rgba(23,23,23,0.06)] text-[#5c544a] hover:bg-[rgba(23,23,23,0.1)]"
+                  ? "bg-foreground text-primary-foreground"
+                  : "bg-[var(--border)] text-muted-foreground hover:bg-[var(--border)]"
               }`}
             >
               {statusLabels[value]} {counts[value]}
@@ -57,14 +57,14 @@ export function TodoToolbar({
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder="搜索待办..."
-            className="w-full rounded-lg border border-[rgba(23,23,23,0.1)] bg-[rgba(255,255,255,0.72)] px-3 py-1.5 pr-8 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white"
+            className="w-full rounded-lg border border-border bg-[var(--glass-bg)] px-3 py-1.5 pr-8 text-sm text-foreground outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)] focus:bg-background"
           />
           {query ? (
             <button
               type="button"
               onClick={() => onQueryChange("")}
               aria-label="清空搜索"
-              className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-[#8a8176] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#5c544a]"
+              className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-[var(--muted-foreground)] transition hover:bg-[var(--border)] hover:text-muted-foreground"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -77,20 +77,20 @@ export function TodoToolbar({
         <button
           type="button"
           onClick={onCreate}
-          className="shrink-0 rounded-full bg-[#171717] px-4 py-1.5 text-sm font-medium text-white transition hover:bg-[#2b241d]"
+          className="shrink-0 rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-primary-foreground transition hover:bg-[var(--accent-strong)]"
         >
           新建待办
         </button>
       </div>
 
       {saveError ? (
-        <div className="flex items-center gap-3 rounded-xl border border-[#e8b4a4] bg-[#fff1ec] px-3 py-2 text-sm text-[#9a3818]">
+        <div className="flex items-center gap-3 rounded-xl border border-[var(--danger-border)] bg-[var(--danger-surface)] px-3 py-2 text-sm text-[var(--danger)]">
           <span className="min-w-0 flex-1">{saveError.message}</span>
           {saveError.kind === "draft" ? (
             <button
               type="button"
               onClick={onRetrySave}
-              className="shrink-0 rounded-full border border-[#e8b4a4] px-2.5 py-1 text-xs font-medium transition hover:bg-[#ffe3da]"
+              className="shrink-0 rounded-full border border-[var(--danger-border)] px-2.5 py-1 text-xs font-medium transition hover:bg-[var(--danger-surface)]"
             >
               重试
             </button>
@@ -99,7 +99,7 @@ export function TodoToolbar({
             type="button"
             onClick={onDismissError}
             aria-label="忽略错误"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition hover:bg-[#ffe3da]"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition hover:bg-[var(--danger-surface)]"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18" />

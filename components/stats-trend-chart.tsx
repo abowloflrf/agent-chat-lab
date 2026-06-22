@@ -60,13 +60,13 @@ function ChartTooltip(props: {
   const total = items.reduce((sum, entry) => sum + (entry.value ?? 0), 0);
 
   return (
-    <div className="rounded-lg border border-[rgba(23,23,23,0.1)] bg-white px-3 py-2 text-[11px] shadow-lg">
-      <p className="mb-1.5 font-mono font-medium text-[#352d25]">
+    <div className="rounded-lg border border-border bg-background px-3 py-2 text-[11px] shadow-lg">
+      <p className="mb-1.5 font-mono font-medium text-foreground">
         {label} · 共 {formatTokenCount(total)}
       </p>
       <div className="space-y-0.5">
         {items.map((entry) => (
-          <p key={String(entry.dataKey)} className="flex items-center gap-1.5 text-[#6d6257]">
+          <p key={String(entry.dataKey)} className="flex items-center gap-1.5 text-muted-foreground">
             <span
               className="h-2 w-2 shrink-0 rounded-[2px]"
               style={{ backgroundColor: entry.color }}
@@ -162,9 +162,9 @@ export function StatsTrendChart({ refreshToken }: StatsTrendChartProps) {
   const hasData = modelIds.length > 0;
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-[rgba(23,23,23,0.08)] bg-[rgba(248,242,235,0.8)]">
-      <div className="flex items-center justify-between gap-3 border-b border-[rgba(23,23,23,0.08)] px-4 py-3">
-        <h2 className="text-[11px] uppercase tracking-[0.15em] text-[#8e8070]">
+    <div className="overflow-hidden rounded-[14px] border border-border bg-[var(--panel)]">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <h2 className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">
           Token 消耗趋势
         </h2>
         <div className="flex gap-1.5">
@@ -175,8 +175,8 @@ export function StatsTrendChart({ refreshToken }: StatsTrendChartProps) {
               onClick={() => selectRange(range.days)}
               className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
                 rangeDays === range.days
-                  ? "bg-[#171717] text-white"
-                  : "bg-[rgba(23,23,23,0.06)] text-[#5c544a] hover:bg-[rgba(23,23,23,0.1)]"
+                  ? "bg-foreground text-primary-foreground"
+                  : "bg-[var(--surface-muted)] text-muted-foreground hover:bg-muted"
               }`}
             >
               {range.label}
@@ -187,11 +187,11 @@ export function StatsTrendChart({ refreshToken }: StatsTrendChartProps) {
 
       <div className="px-2 py-4 sm:px-4">
         {loading ? (
-          <div className="flex h-[260px] items-center justify-center text-sm text-[#9a8d7d]">
+          <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
             加载趋势中…
           </div>
         ) : !hasData ? (
-          <div className="flex h-[260px] items-center justify-center text-sm text-[#9a8d7d]">
+          <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
             该时间范围内暂无数据。
           </div>
         ) : (
@@ -199,12 +199,12 @@ export function StatsTrendChart({ refreshToken }: StatsTrendChartProps) {
             <div className="h-[260px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(23,23,23,0.06)" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--grid-line)" />
                   <XAxis
                     dataKey="label"
                     tickLine={false}
-                    axisLine={{ stroke: "rgba(23,23,23,0.1)" }}
-                    tick={{ fontSize: 11, fill: "#a0937f", fontFamily: MONO_FONT }}
+                    axisLine={{ stroke: "var(--border)" }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: MONO_FONT }}
                     minTickGap={16}
                   />
                   <YAxis
@@ -212,10 +212,10 @@ export function StatsTrendChart({ refreshToken }: StatsTrendChartProps) {
                     axisLine={false}
                     width={44}
                     tickFormatter={(value: number) => formatCompactTokens(value)}
-                    tick={{ fontSize: 11, fill: "#a0937f", fontFamily: MONO_FONT }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: MONO_FONT }}
                   />
                   <Tooltip
-                    cursor={{ fill: "rgba(201,106,43,0.06)" }}
+                    cursor={{ fill: "var(--surface-muted)" }}
                     content={<ChartTooltip />}
                   />
                   {modelIds.map((modelId) => (
@@ -235,7 +235,7 @@ export function StatsTrendChart({ refreshToken }: StatsTrendChartProps) {
               {modelIds.map((modelId) => (
                 <span
                   key={modelId}
-                  className="inline-flex items-center gap-1.5 text-[11px] text-[#6d6257]"
+                  className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
                 >
                   <span
                     className="h-2.5 w-2.5 rounded-[3px]"

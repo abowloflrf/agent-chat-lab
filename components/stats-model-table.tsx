@@ -7,20 +7,20 @@ type StatsModelTableProps = {
 
 export function StatsModelTable({ models }: StatsModelTableProps) {
   return (
-    <div className="overflow-hidden rounded-[14px] border border-[rgba(23,23,23,0.08)] bg-[rgba(248,242,235,0.8)]">
-      <div className="border-b border-[rgba(23,23,23,0.08)] px-4 py-3">
-        <h2 className="text-[11px] uppercase tracking-[0.15em] text-[#8e8070]">
+    <div className="overflow-hidden rounded-[14px] border border-border bg-[var(--panel)]">
+      <div className="border-b border-border px-4 py-3">
+        <h2 className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">
           模型用量明细
         </h2>
       </div>
 
       {models.length === 0 ? (
-        <p className="px-4 py-8 text-center text-sm text-[#9a8d7d]">暂无模型用量数据。</p>
+        <p className="px-4 py-8 text-center text-sm text-muted-foreground">暂无模型用量数据。</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-[13px]">
             <thead>
-              <tr className="text-left text-[11px] uppercase tracking-[0.12em] text-[#a0937f]">
+              <tr className="text-left text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                 <th className="px-4 py-2 font-medium">模型 / 供应商</th>
                 <th className="px-3 py-2 text-right font-medium">调用</th>
                 <th className="px-3 py-2 text-right font-medium">输入</th>
@@ -44,33 +44,33 @@ export function StatsModelTable({ models }: StatsModelTableProps) {
                 return (
                   <tr
                     key={`${model.provider}/${model.modelId}`}
-                    className="border-t border-[rgba(23,23,23,0.06)]"
+                    className="border-t border-border"
                   >
                     <td className="px-4 py-2.5">
-                      <span className="block font-mono text-[12px] text-[#352d25]">
+                      <span className="block font-mono text-[12px] text-foreground">
                         {model.modelId}
                       </span>
-                      <span className="block font-mono text-[11px] text-[#a0937f]">
+                      <span className="block font-mono text-[11px] text-muted-foreground">
                         {model.provider}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
+                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-foreground">
                       {model.steps}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
+                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-foreground">
                       {formatCompactTokens(model.inputTokens)}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
+                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-foreground">
                       {formatCompactTokens(model.outputTokens)}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-[#9c5626]">
+                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-[var(--accent)]">
                       {formatCacheHitRate(hitRate)}
                       {hitRate === null ? "" : "%"}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
+                    <td className="px-3 py-2.5 text-right font-mono tabular-nums text-foreground">
                       {formatDurationMs(model.avgDurationMs)}
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
+                    <td className="px-4 py-2.5 text-right font-mono tabular-nums text-foreground">
                       {speed === null ? "—" : `${speed.toFixed(1)} t/s`}
                     </td>
                   </tr>

@@ -54,10 +54,10 @@ export function SessionToolSelector({
 
   // chip 三态：全选=中性灰（默认无存在感）、子集=橙色高亮+计数、全不选=灰显「关」。
   const triggerStateClass = noneSelected
-    ? "text-[#b0a496]"
+    ? "text-[var(--muted-foreground)]"
     : allSelected
-      ? "text-[#6c6156]"
-      : "text-[#9c5626]";
+      ? "text-[var(--muted-foreground)]"
+      : "text-[var(--accent)]";
 
   function toggle(id: string) {
     onChange(
@@ -78,16 +78,16 @@ export function SessionToolSelector({
           type="button"
           disabled={disabled}
           title={`本次会话的 ${label}`}
-          className={`group inline-flex h-8 items-center gap-1.5 rounded-lg px-2 transition hover:bg-[rgba(23,23,23,0.05)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50 ${triggerStateClass}`}
+          className={`group inline-flex h-8 items-center gap-1.5 rounded-lg px-2 transition hover:bg-[var(--surface-muted)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 ${triggerStateClass}`}
         >
-          <span className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-md transition-colors group-data-[state=open]:bg-[rgba(201,106,43,0.12)] group-data-[state=open]:text-[#9c5626]">
+          <span className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-md transition-colors group-data-[state=open]:bg-[var(--surface-muted)] group-data-[state=open]:text-[var(--accent)]">
             {icon}
           </span>
           <span className="hidden font-mono text-[11px] sm:inline">{label}</span>
           {noneSelected ? (
-            <span className="hidden font-mono text-[10px] text-[#b0a496] sm:inline">关</span>
+            <span className="hidden font-mono text-[10px] text-[var(--muted-foreground)] sm:inline">关</span>
           ) : allSelected ? null : (
-            <span className="hidden sm:inline-flex rounded-full bg-[rgba(201,106,43,0.12)] px-1.5 font-mono text-[10px] tabular-nums text-[#9c5626]">
+            <span className="hidden sm:inline-flex rounded-full bg-[var(--surface-muted)] px-1.5 font-mono text-[10px] tabular-nums text-[var(--accent)]">
               {selectedCount}/{total}
             </span>
           )}
@@ -100,16 +100,16 @@ export function SessionToolSelector({
           align="start"
           sideOffset={8}
           collisionPadding={12}
-          className="menu-appear z-50 w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white shadow-lg shadow-black/8 sm:w-auto sm:min-w-[260px] sm:max-w-[340px]"
+          className="menu-appear z-50 w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)] shadow-lg shadow-black/8 sm:w-auto sm:min-w-[260px] sm:max-w-[340px]"
         >
-          <div className="flex items-center justify-between gap-2 border-b border-[rgba(23,23,23,0.06)] px-3 py-2">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-[#978b7e]">
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
               本次会话 · {label}
             </span>
             <button
               type="button"
               onClick={toggleAll}
-              className="rounded-md px-1.5 py-0.5 text-[11px] text-[#6c6156] transition hover:bg-[rgba(201,106,43,0.08)] hover:text-[#9c5626]"
+              className="rounded-md px-1.5 py-0.5 text-[11px] text-[var(--muted-foreground)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--accent)]"
             >
               {allSelected ? "全部关闭" : "全部开启"}
             </button>
@@ -125,13 +125,13 @@ export function SessionToolSelector({
                   type="button"
                   aria-pressed={checked}
                   onClick={() => toggle(item.id)}
-                  className="flex w-full items-start gap-2.5 px-3 py-1.5 text-left transition hover:bg-[rgba(201,106,43,0.06)]"
+                  className="flex w-full items-start gap-2.5 px-3 py-1.5 text-left transition hover:bg-[var(--surface-muted)]"
                 >
                   <span
                     className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
                       checked
-                        ? "border-[#9c5626] bg-[#9c5626] text-white"
-                        : "border-[rgba(23,23,23,0.22)] text-transparent"
+                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--primary-foreground)]"
+                        : "border-[var(--border)] text-transparent"
                     }`}
                   >
                     <svg
@@ -152,13 +152,13 @@ export function SessionToolSelector({
                   <span className="min-w-0 flex-1">
                     <span
                       className={`block truncate font-mono text-[12px] ${
-                        checked ? "text-[#352d25]" : "text-[#6c6156]"
+                        checked ? "text-[var(--foreground)]" : "text-[var(--muted-foreground)]"
                       }`}
                     >
                       {item.name}
                     </span>
                     {item.secondary ? (
-                      <span className="mt-0.5 block line-clamp-2 text-[11px] leading-4 text-[#9e9285]">
+                      <span className="mt-0.5 block line-clamp-2 text-[11px] leading-4 text-[var(--muted-foreground)]">
                         {item.secondary}
                       </span>
                     ) : null}
@@ -169,11 +169,11 @@ export function SessionToolSelector({
           </div>
 
           {noneSelected && emptyHint ? (
-            <div className="border-t border-[rgba(23,23,23,0.06)] px-3 py-2 text-[11px] leading-4 text-[#9e9285]">
+            <div className="border-t border-[var(--border)] px-3 py-2 text-[11px] leading-4 text-[var(--muted-foreground)]">
               {emptyHint}
             </div>
           ) : (
-            <div className="border-t border-[rgba(23,23,23,0.06)] px-3 py-1.5 text-[10px] leading-4 text-[#b0a496]">
+            <div className="border-t border-[var(--border)] px-3 py-1.5 text-[10px] leading-4 text-[var(--muted-foreground)]">
               未勾选的项本次对话不会加载
             </div>
           )}

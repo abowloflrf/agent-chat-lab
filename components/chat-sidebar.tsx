@@ -31,11 +31,11 @@ export function ChatSidebar({
 }) {
   return (
     <aside
-      className={`dark-panel rise-in fixed inset-y-0 left-0 z-50 overflow-hidden transition-transform duration-200 lg:relative lg:z-auto lg:translate-x-0 ${
+      className={`dark-panel border-r border-white/10 rise-in fixed inset-y-0 left-0 z-50 overflow-hidden transition-transform duration-200 ease-out will-change-transform lg:relative lg:z-auto lg:translate-x-0 ${
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       }`}
     >
-      <div className="relative flex h-full w-[280px] flex-col border-r border-white/10 p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:w-[300px]">
+      <div className="relative flex h-full w-[280px] flex-col p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:w-[300px]">
         <div className="border-b border-white/8 pb-4">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
@@ -47,7 +47,7 @@ export function ChatSidebar({
                 onClick={onToggleCollapsed}
                 title="收起侧边栏"
                 aria-label="收起侧边栏"
-                className="hidden h-8 w-8 items-center justify-center rounded-md text-[#cabfb2] transition hover:bg-white/10 hover:text-white lg:flex"
+                className="hidden h-8 w-8 items-center justify-center rounded-md text-[var(--panel-muted)] transition hover:bg-white/10 hover:text-white lg:flex"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -59,7 +59,7 @@ export function ChatSidebar({
                 type="button"
                 onClick={onCloseSidebar}
                 aria-label="关闭侧边栏"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-[#cabfb2] transition hover:bg-white/10 hover:text-white lg:hidden"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--panel-muted)] transition hover:bg-white/10 hover:text-white lg:hidden"
               >
                 ✕
               </button>

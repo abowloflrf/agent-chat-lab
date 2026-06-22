@@ -71,13 +71,13 @@ export function ModuleSwitcher() {
     <div className="relative space-y-2.5">
       <Link
         href="/"
-        className="group block transition hover:text-[#ffd8bd]"
+        className="group block transition hover:text-[var(--panel-foreground)]"
         aria-label="返回 Chat 首页"
       >
-        <span className="block text-[11px] uppercase tracking-[0.28em] text-[#c4b6a4] transition group-hover:text-[#ead7c5]">
+        <span className="block text-[11px] uppercase tracking-[0.28em] text-[var(--panel-muted)] transition group-hover:text-[var(--panel-foreground)]">
           Agent Chat Lab
         </span>
-        <span className="mt-2 block text-[28px] font-semibold leading-[0.95] tracking-[-0.04em] text-[#fff7ef] transition group-hover:text-[#ffd8bd]">
+        <span className="mt-2 block text-[28px] font-semibold leading-[0.95] tracking-[-0.04em] text-[var(--panel-foreground)] transition group-hover:text-[var(--panel-foreground)]">
           Agent
           <br />
           Chat Lab
@@ -88,19 +88,19 @@ export function ModuleSwitcher() {
         <button
           type="button"
           onClick={() => setOpen((current) => !current)}
-          className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-left transition hover:border-[#d98a52]/70 hover:bg-white/[0.08]"
+          className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-left transition hover:border-[var(--accent)]/70 hover:bg-white/[0.08]"
           aria-expanded={open}
         >
-          <span className="truncate text-[13px] font-medium text-[#fff7ef]">
+          <span className="truncate text-[13px] font-medium text-[var(--panel-foreground)]">
             {activeModule.label}
           </span>
-          <span className={`text-xs text-[#d8c9b7] transition ${open ? "rotate-180" : ""}`}>
+          <span className={`text-xs text-[var(--panel-muted)] transition ${open ? "rotate-180" : ""}`}>
             ▾
           </span>
         </button>
 
         {open ? (
-          <div className="absolute left-0 top-[calc(100%+0.35rem)] z-20 min-w-36 rounded-xl border border-white/10 bg-[#221d16]/95 p-1.5 shadow-2xl shadow-black/30 backdrop-blur">
+          <div className="absolute left-0 top-[calc(100%+0.35rem)] z-20 min-w-36 rounded-xl border border-white/10 bg-[var(--panel-soft)] p-1.5 shadow-2xl shadow-black/30 backdrop-blur">
             {modules.map((item) => {
               const active = item.label === activeModule.label;
 
@@ -111,12 +111,12 @@ export function ModuleSwitcher() {
                   onClick={() => setOpen(false)}
                   className={`mb-1 last:mb-0 flex items-center justify-between gap-3 rounded-lg px-3 py-1.5 text-[13px] transition ${
                     active
-                      ? "bg-white/10 text-[#fff7ef]"
-                      : "text-[#d8c9b7] hover:bg-white/[0.07] hover:text-[#fff7ef]"
+                      ? "bg-white/10 text-[var(--panel-foreground)]"
+                      : "text-[var(--panel-muted)] hover:bg-white/[0.07] hover:text-[var(--panel-foreground)]"
                   }`}
                 >
                   <span className="font-medium">{item.label}</span>
-                  {active ? <span className="text-xs text-[#d98a52]">●</span> : null}
+                  {active ? <span className="text-xs text-[var(--accent)]">●</span> : null}
                 </Link>
               );
             })}

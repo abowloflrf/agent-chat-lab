@@ -90,7 +90,7 @@ export function TodoDrawer({
     <div aria-hidden={!open} className={open ? "" : "pointer-events-none"}>
       <div
         onClick={onClose}
-        className={`fixed inset-0 z-40 bg-[#171717]/30 backdrop-blur-[2px] transition-opacity duration-300 ${
+        className={`fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] transition-opacity duration-300 ${
           open ? "opacity-100" : "opacity-0"
         }`}
       />
@@ -100,11 +100,11 @@ export function TodoDrawer({
         aria-modal="true"
         aria-label={mode === "create" ? "新建待办" : "编辑待办"}
         inert={!open}
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#fffaf4] shadow-[-24px_0_60px_-30px_rgba(23,23,23,0.35)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[min(800px,92vw)] lg:w-[min(960px,88vw)] sm:border-l sm:border-[rgba(23,23,23,0.08)] ${
+        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-background shadow-[-24px_0_60px_-30px_rgba(23,23,23,0.35)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[min(800px,92vw)] lg:w-[min(960px,88vw)] sm:border-l sm:border-border ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between gap-2 border-b border-[rgba(23,23,23,0.08)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
             {mode === "edit" ? (
               <button
@@ -116,7 +116,7 @@ export function TodoDrawer({
                 {statusLabels[draft.status]}
               </button>
             ) : (
-              <span className="text-[11px] uppercase tracking-[0.28em] text-[#8a8176]">
+              <span className="text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
                 新建待办
               </span>
             )}
@@ -125,7 +125,7 @@ export function TodoDrawer({
               onClick={onCyclePriority}
               title={`优先级：${priorityLabels[draft.priority]}（点击切换）`}
               aria-label={`优先级：${priorityLabels[draft.priority]}，点击切换`}
-              className={`flex h-7 w-8 items-center justify-center rounded-md text-[12px] font-bold transition hover:bg-[rgba(23,23,23,0.06)] ${priorityMarkStyles[draft.priority]}`}
+              className={`flex h-7 w-8 items-center justify-center rounded-md text-[12px] font-bold transition hover:bg-muted ${priorityMarkStyles[draft.priority]}`}
             >
               {priorityMark(draft.priority) || "—"}
             </button>
@@ -135,7 +135,7 @@ export function TodoDrawer({
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-[#8a8176] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#5c544a]"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -150,10 +150,10 @@ export function TodoDrawer({
             value={draft.title}
             onChange={(event) => onTitleChange(event.target.value)}
             placeholder="例如：整理下周发布清单"
-            className="w-full border-none bg-transparent px-0 py-0 text-[clamp(1.5rem,3vw,2rem)] font-bold leading-[1.12] tracking-[-0.035em] text-[#171717] outline-none placeholder:text-[#b0a395]"
+            className="w-full border-none bg-transparent px-0 py-0 text-[clamp(1.5rem,3vw,2rem)] font-bold leading-[1.12] tracking-[-0.035em] text-foreground outline-none placeholder:text-muted-foreground"
           />
 
-          <div className="mt-5 h-px bg-[rgba(23,23,23,0.08)]" />
+          <div className="mt-5 h-px bg-[var(--border)]" />
 
           <div className="min-h-[320px] pt-5">
             <MarkdownEditor
@@ -166,9 +166,9 @@ export function TodoDrawer({
           </div>
         </div>
 
-        <div className="border-t border-[rgba(23,23,23,0.08)] bg-[rgba(255,250,244,0.94)] px-4 py-2.5 backdrop-blur sm:px-6 lg:px-8">
+        <div className="border-t border-border bg-[var(--panel)] px-4 py-2.5 backdrop-blur sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-3">
-            <p className="min-w-0 truncate text-xs text-[#908679]">
+            <p className="min-w-0 truncate text-xs text-muted-foreground">
               {updatedAtLabel ?? "新建待办"}
             </p>
             <div className="flex shrink-0 items-center gap-3">
@@ -176,10 +176,10 @@ export function TodoDrawer({
                 <span
                   className={`text-xs ${
                     saveStatus === "saved"
-                      ? "text-[#6d8c55]"
+                      ? "text-[var(--success)]"
                       : saveStatus === "error"
-                        ? "text-[#9a3818]"
-                        : "text-[#908679]"
+                        ? "text-[var(--danger)]"
+                        : "text-muted-foreground"
                   }`}
                 >
                   {saveStatus === "saved"
@@ -195,7 +195,7 @@ export function TodoDrawer({
                     type="button"
                     data-todo-delete
                     onClick={onConfirmDelete}
-                    className="rounded-full border border-[#e8b4a4] bg-[#fff1ec] px-2.5 py-1 text-[11px] font-medium text-[#9a3818] transition hover:bg-[#ffe3da]"
+                    className="rounded-full border border-[var(--danger-border)] bg-[var(--danger-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--danger)] transition hover:bg-[var(--danger-surface)]"
                   >
                     确认删除?
                   </button>
@@ -204,7 +204,7 @@ export function TodoDrawer({
                     type="button"
                     data-todo-delete
                     onClick={onRequestDelete}
-                    className="text-xs text-[#9a3818] transition hover:underline"
+                    className="text-xs text-[var(--danger)] transition hover:underline"
                   >
                     删除
                   </button>

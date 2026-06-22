@@ -1089,11 +1089,11 @@ export function ChatShell({
   }
 
   return (
-    <main className="app-shell h-full overflow-hidden text-[#171717]">
+    <main className="app-shell h-full overflow-hidden text-foreground">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}

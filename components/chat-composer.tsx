@@ -93,7 +93,7 @@ export function ChatComposer({
 }) {
   return (
     <form onSubmit={onSubmit} className="pointer-events-auto">
-      <div className="rounded-3xl border border-[rgba(23,23,23,0.08)] bg-[var(--glass-bg)] shadow-[0_18px_28px_-2px_rgba(255,251,245,0.99),0_36px_48px_-2px_rgba(255,251,245,0.94),0_8px_30px_rgba(23,23,23,0.08),inset_0_1px_0_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.12)] backdrop-blur-xl backdrop-saturate-[1.8] backdrop-brightness-105">
+      <div className="rounded-3xl border border-border bg-[var(--glass-bg)] shadow-[0_18px_28px_-2px_var(--glass-glow),0_36px_48px_-2px_var(--glass-glow),0_8px_30px_rgba(23,23,23,0.08),inset_0_1px_0_var(--glass-highlight),inset_0_0_0_1px_var(--glass-edge)] backdrop-blur-xl backdrop-saturate-[1.8] backdrop-brightness-105">
         <label className="block">
           <span className="sr-only">输入消息</span>
           <textarea
@@ -103,7 +103,7 @@ export function ChatComposer({
             onKeyDown={onKeyDown}
             placeholder="输入消息..."
             rows={MIN_TEXTAREA_ROWS}
-            className="w-full resize-none field-sizing-content overflow-y-auto bg-transparent px-3.5 pb-1.5 pt-3 text-[15px] leading-7 text-[#171717] outline-none placeholder:text-[#9f968b] lg:px-4"
+            className="w-full resize-none field-sizing-content overflow-y-auto bg-transparent px-3.5 pb-1.5 pt-3 text-[15px] leading-7 text-foreground outline-none placeholder:text-muted-foreground lg:px-4"
             style={{
               minHeight: `calc(${MIN_TEXTAREA_ROWS}lh + 1.125rem)`,
               maxHeight: `calc(${MAX_TEXTAREA_ROWS}lh + 1.125rem)`,
@@ -137,7 +137,7 @@ export function ChatComposer({
               disabled={isBusy}
               emptyHint="本次对话不会加载任何 Skill"
             />
-            <span className="ml-1 hidden truncate text-[11px] text-[#b0a496] lg:inline">
+            <span className="ml-1 hidden truncate text-[11px] text-muted-foreground lg:inline">
               Enter 发送 · Shift+Enter 换行
             </span>
           </div>
@@ -147,7 +147,7 @@ export function ChatComposer({
               onClick={() => void onStop()}
               title="停止生成"
               aria-label="停止生成"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition hover:bg-[#9c5626] animate-[pulse-ring_2s_ease-in-out_infinite]"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-primary-foreground transition hover:bg-[var(--accent-strong)] animate-[pulse-ring_2s_ease-in-out_infinite]"
             >
               <svg className="animate-[square-breathe_2s_ease-in-out_infinite]" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5" /></svg>
             </button>
@@ -157,7 +157,7 @@ export function ChatComposer({
               disabled={draft.trim().length === 0}
               title="发送消息"
               aria-label="发送消息"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white transition-colors duration-200 hover:bg-[#9c5626] disabled:cursor-not-allowed disabled:bg-[rgba(23,23,23,0.07)] disabled:text-[#b3a797]"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-primary-foreground transition-colors duration-200 hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)] disabled:text-muted-foreground"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 13V3M4 7l4-4 4 4" /></svg>
             </button>

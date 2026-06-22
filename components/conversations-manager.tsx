@@ -282,14 +282,14 @@ export function ConversationsManager() {
   const paginationBar =
     loadState === "ready" ? (
       <div className="flex items-center justify-between gap-4 text-xs">
-        <span className="tabular-nums text-[#9a8d7d]">
+        <span className="tabular-nums text-muted-foreground">
           {total === 0 ? "共 0 个会话" : `${pageStart}–${pageEnd} / 共 ${total} 个会话`}
           {queryDurationMs !== null && (
-            <span className="ml-3 text-[#b5a898]">{queryDurationMs} ms</span>
+            <span className="ml-3 text-muted-foreground">{queryDurationMs} ms</span>
           )}
         </span>
         {totalPages > 1 && (
-          <div className="flex items-center gap-2 text-[#6d6257]">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <button
               type="button"
               onClick={() => {
@@ -297,11 +297,11 @@ export function ConversationsManager() {
                 setPage((current) => Math.max(1, current - 1));
               }}
               disabled={!canGoPrevious || refreshing}
-              className="rounded-full border border-[rgba(23,23,23,0.1)] bg-white/70 px-3 py-1.5 font-medium transition hover:border-[rgba(201,106,43,0.32)] hover:text-[#352d25] disabled:cursor-not-allowed disabled:opacity-45"
+              className="rounded-full border border-border bg-[var(--glass-bg)] px-3 py-1.5 font-medium transition hover:border-[var(--accent)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
             >
               上一页
             </button>
-            <span className="min-w-[4rem] text-center font-mono tabular-nums text-[#817669]">
+            <span className="min-w-[4rem] text-center font-mono tabular-nums text-muted-foreground">
               {page} / {totalPages}
             </span>
             <button
@@ -311,7 +311,7 @@ export function ConversationsManager() {
                 setPage((current) => Math.min(totalPages, current + 1));
               }}
               disabled={!canGoNext || refreshing}
-              className="rounded-full border border-[rgba(23,23,23,0.1)] bg-white/70 px-3 py-1.5 font-medium transition hover:border-[rgba(201,106,43,0.32)] hover:text-[#352d25] disabled:cursor-not-allowed disabled:opacity-45"
+              className="rounded-full border border-border bg-[var(--glass-bg)] px-3 py-1.5 font-medium transition hover:border-[var(--accent)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
             >
               下一页
             </button>
@@ -324,8 +324,8 @@ export function ConversationsManager() {
     <div>
       <div className="mb-5 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">会话管理</p>
-          <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">会话管理</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             所有会话的用量与元信息，按最后对话时间倒序。点击行可打开对应会话。
           </p>
         </div>
@@ -333,7 +333,7 @@ export function ConversationsManager() {
           type="button"
           onClick={() => void load("refresh")}
           disabled={refreshing || loadState === "loading"}
-          className="shrink-0 rounded-full bg-[#171717] px-4 py-1.5 text-xs font-medium text-white transition hover:bg-[#2b241d] disabled:opacity-50"
+          className="shrink-0 rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-[var(--accent-strong)] disabled:opacity-50"
         >
           {refreshing ? "刷新中…" : "刷新"}
         </button>
@@ -354,11 +354,11 @@ export function ConversationsManager() {
             }, 300);
           }}
           placeholder="按标题搜索…"
-          className="h-9 w-full max-w-xs rounded-lg border border-[rgba(23,23,23,0.12)] bg-white/70 px-3 text-sm text-[#352d25] outline-none transition placeholder:text-[#a99e8f] focus:border-[rgba(201,106,43,0.45)]"
+          className="h-9 w-full max-w-xs rounded-lg border border-border bg-[var(--glass-bg)] px-3 text-sm text-foreground outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)]"
         />
         {selectedVisibleCount > 0 ? (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-[#6d6257]">已选 {selectedVisibleCount} 项</span>
+            <span className="text-xs text-muted-foreground">已选 {selectedVisibleCount} 项</span>
             <button
               type="button"
               onClick={() => {
@@ -369,10 +369,10 @@ export function ConversationsManager() {
                 }
               }}
               disabled={busy}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium text-white transition disabled:opacity-50 ${
+              className={`rounded-full px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50 ${
                 confirmingBulk
-                  ? "bg-[#7c2d12] hover:bg-[#651e0c]"
-                  : "bg-[#9a3412] hover:bg-[#7c2d12]"
+                  ? "bg-[var(--danger)]"
+                  : "bg-[var(--danger)]"
               }`}
             >
               {confirmingBulk ? `确认删除 ${selectedVisibleCount} 项？` : "删除所选"}
@@ -384,27 +384,27 @@ export function ConversationsManager() {
       {paginationBar ? <div className="mb-3">{paginationBar}</div> : null}
 
       {loadState === "loading" ? (
-        <div className="py-12 text-center text-sm text-[#8a8176]">加载会话列表中…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">加载会话列表中…</div>
       ) : loadState === "error" ? (
         <div className="accent-line py-12 pl-4">
-          <p className="text-lg font-semibold tracking-[-0.02em] text-[#352d25]">
+          <p className="text-lg font-semibold tracking-[-0.02em] text-foreground">
             加载会话列表失败
           </p>
-          <p className="mt-2 text-sm leading-6 text-[#6e665d]">请检查网络后重试。</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">请检查网络后重试。</p>
           <button
             type="button"
             onClick={() => void load("initial")}
-            className="mt-4 rounded-full bg-[#171717] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#2b241d]"
+            className="mt-4 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-[var(--accent-strong)]"
           >
             重试
           </button>
         </div>
       ) : rows.length === 0 ? (
         <div className="accent-line py-12 pl-4">
-          <p className="text-lg font-semibold tracking-[-0.02em] text-[#352d25]">
+          <p className="text-lg font-semibold tracking-[-0.02em] text-foreground">
             {query.trim() ? "没有匹配的会话" : "暂无会话"}
           </p>
-          <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {query.trim() ? "调整搜索条件后再试。" : "开始聊天后，会话会显示在这里。"}
           </p>
         </div>
@@ -413,14 +413,14 @@ export function ConversationsManager() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[840px] border-collapse text-[13px]">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-[0.1em] text-[#a0937f]">
+                <tr className="text-left text-[11px] uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
                   <th className="w-9 px-2 py-2">
                     <input
                       type="checkbox"
                       checked={allVisibleSelected}
                       onChange={toggleSelectAll}
                       aria-label="全选"
-                      className="h-3.5 w-3.5 cursor-pointer accent-[#c96a2b]"
+                      className="h-3.5 w-3.5 cursor-pointer accent-[var(--accent)]"
                     />
                   </th>
                   <th className="px-2 py-2 font-medium">标题</th>
@@ -446,8 +446,8 @@ export function ConversationsManager() {
                     <tr
                       key={row.id}
                       onClick={() => openConversation(row.id)}
-                      className={`cursor-pointer border-t border-[rgba(23,23,23,0.06)] transition hover:bg-[rgba(201,106,43,0.05)] ${
-                        isSelected ? "bg-[rgba(201,106,43,0.07)]" : ""
+                      className={`cursor-pointer border-t border-border transition hover:bg-[var(--surface-muted)] ${
+                        isSelected ? "bg-[var(--surface-muted)]" : ""
                       }`}
                     >
                     <td className="px-2 py-2.5" onClick={(event) => event.stopPropagation()}>
@@ -456,34 +456,34 @@ export function ConversationsManager() {
                         checked={isSelected}
                         onChange={() => toggleSelect(row.id)}
                         aria-label={`选择 ${title}`}
-                        className="h-3.5 w-3.5 cursor-pointer accent-[#c96a2b]"
+                        className="h-3.5 w-3.5 cursor-pointer accent-[var(--accent)]"
                       />
                     </td>
                     <td className="max-w-[260px] px-2 py-2.5">
-                      <span className="block truncate font-medium text-[#241c15]" title={title}>
+                      <span className="block truncate font-medium text-foreground" title={title}>
                         {title}
                       </span>
                     </td>
                     <td
-                      className="whitespace-nowrap px-2 py-2.5 text-[#6d6257]"
+                      className="whitespace-nowrap px-2 py-2.5 text-muted-foreground"
                       title={`最后对话 ${formatFullDateTime(lastMs)}\n创建于 ${formatFullDateTime(createdMs)}`}
                     >
                       {formatRelativeTime(row.lastMessageAt)}
                     </td>
-                    <td className="px-2 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
+                    <td className="px-2 py-2.5 text-right font-mono tabular-nums text-foreground">
                       {formatCompactTokens(row.inputTokens)}
                     </td>
-                    <td className="px-2 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
+                    <td className="px-2 py-2.5 text-right font-mono tabular-nums text-foreground">
                       {formatCompactTokens(row.outputTokens)}
                     </td>
                     <td className="px-2 py-2.5">
                       {row.cacheHitRate === null ? (
-                        <span className="block text-right font-mono tabular-nums text-[#a0937f]">
+                        <span className="block text-right font-mono tabular-nums text-[var(--muted-foreground)]">
                           {DASH}
                         </span>
                       ) : (
                         <span className="flex items-center justify-end gap-1.5">
-                          <span className="h-1 w-9 shrink-0 overflow-hidden rounded-full bg-[rgba(23,23,23,0.08)]">
+                          <span className="h-1 w-9 shrink-0 overflow-hidden rounded-full bg-[var(--border)]">
                             <span
                               className="block h-full rounded-full"
                               style={{
@@ -501,25 +501,25 @@ export function ConversationsManager() {
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
+                    <td className="px-2 py-2.5 text-right font-mono tabular-nums text-foreground">
                       {row.userTurns}
                     </td>
                     <td className="max-w-[160px] px-2 py-2.5">
                       {row.lastModelId ? (
                         <span
-                          className="inline-block max-w-full truncate rounded-full border border-[rgba(23,23,23,0.08)] bg-[rgba(248,242,235,0.8)] px-2 py-0.5 align-middle font-mono text-[11px] leading-4 text-[#6d6257]"
+                          className="inline-block max-w-full truncate rounded-full border border-border bg-[var(--panel)] px-2 py-0.5 align-middle font-mono text-[11px] leading-4 text-muted-foreground"
                           title={row.lastModelId}
                         >
                           {row.lastModelId}
                         </span>
                       ) : (
-                        <span className="font-mono text-[12px] text-[#a0937f]">{DASH}</span>
+                        <span className="font-mono text-[12px] text-[var(--muted-foreground)]">{DASH}</span>
                       )}
                     </td>
-                    <td className="px-2 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
+                    <td className="px-2 py-2.5 text-right font-mono tabular-nums text-foreground">
                       {row.contextTokens === null ? DASH : formatCompactTokens(row.contextTokens)}
                     </td>
-                    <td className="px-2 py-2.5 text-right font-mono tabular-nums text-[#53483d]">
+                    <td className="px-2 py-2.5 text-right font-mono tabular-nums text-foreground">
                       {formatDataSize(row.dataBytes)}
                     </td>
                     <td className="relative px-2 py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
@@ -529,7 +529,7 @@ export function ConversationsManager() {
                         onClick={() => setConfirmingId(row.id)}
                         disabled={busy}
                         aria-label={`删除 ${title}`}
-                        className={`rounded-md p-1 text-[#a0937f] transition hover:bg-[rgba(154,52,18,0.1)] hover:text-[#9a3412] disabled:opacity-50 ${
+                        className={`rounded-md p-1 text-[var(--muted-foreground)] transition hover:bg-[var(--danger-surface)] hover:text-[var(--danger)] disabled:opacity-50 ${
                           confirmingId === row.id ? "invisible" : ""
                         }`}
                       >
@@ -539,7 +539,7 @@ export function ConversationsManager() {
                         </svg>
                       </button>
                       {confirmingId === row.id && (
-                        <span className="absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-[rgba(23,23,23,0.12)] bg-white p-1 shadow-[0_4px_14px_rgba(23,23,23,0.14)]">
+                        <span className="absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-border bg-background p-1 shadow-[0_4px_14px_rgba(23,23,23,0.14)]">
                           <button
                             type="button"
                             onClick={() => {
@@ -547,7 +547,7 @@ export function ConversationsManager() {
                               void deleteIds([row.id]);
                             }}
                             disabled={busy}
-                            className="rounded-full bg-[#9a3412] px-2.5 py-1 text-[11px] font-medium leading-none text-white transition hover:bg-[#7c2d12] disabled:opacity-50"
+                            className="rounded-full bg-[var(--danger)] px-2.5 py-1 text-[11px] font-medium leading-none text-white transition hover:opacity-90 disabled:opacity-50"
                           >
                             确认删除
                           </button>
@@ -555,7 +555,7 @@ export function ConversationsManager() {
                             type="button"
                             onClick={() => setConfirmingId(null)}
                             aria-label="取消删除"
-                            className="rounded-full p-1 text-[#a0937f] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#53483d]"
+                            className="rounded-full p-1 text-[var(--muted-foreground)] transition hover:bg-[var(--border)] hover:text-foreground"
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <line x1="18" y1="6" x2="6" y2="18" />

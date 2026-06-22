@@ -47,7 +47,7 @@ export function ModelSelector({
         <button
           type="button"
           disabled={disabled}
-          className="group inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[#6c6156] transition hover:bg-[rgba(23,23,23,0.05)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
+          className="group inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[var(--muted-foreground)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className="max-w-[88px] truncate font-mono text-[11px] sm:max-w-[180px]">
             {displayLabel}
@@ -75,12 +75,12 @@ export function ModelSelector({
           align="start"
           sideOffset={8}
           collisionPadding={12}
-          className="menu-appear z-50 w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white shadow-lg shadow-black/8 sm:w-auto sm:min-w-[240px] sm:max-w-[320px]"
+          className="menu-appear z-50 w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)] shadow-lg shadow-black/8 sm:w-auto sm:min-w-[240px] sm:max-w-[320px]"
         >
           <div className="max-h-[60vh] overflow-y-auto py-1 sm:max-h-[280px]">
             {groups.map((group) => (
               <div key={group.providerId}>
-                <div className="px-3 pb-1 pt-2 text-[10px] uppercase tracking-[0.18em] text-[#978b7e]">
+                <div className="px-3 pb-1 pt-2 text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                   {group.providerName}
                 </div>
                 {group.models.map((model) => {
@@ -99,15 +99,15 @@ export function ModelSelector({
                             modelId: model.modelId,
                           })
                         }
-                        className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition hover:bg-[rgba(201,106,43,0.06)] ${
+                        className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition hover:bg-[var(--surface-muted)] ${
                           isSelected
-                            ? "font-medium text-[#9c5626]"
-                            : "text-[#4a4138]"
+                            ? "font-medium text-[var(--accent)]"
+                            : "text-[var(--foreground)]"
                         }`}
                       >
                         <span
                           className={`inline-flex h-4 w-4 shrink-0 items-center justify-center ${
-                            isSelected ? "text-[#9c5626]" : "text-transparent"
+                            isSelected ? "text-[var(--accent)]" : "text-transparent"
                           }`}
                         >
                           {isSelected ? (

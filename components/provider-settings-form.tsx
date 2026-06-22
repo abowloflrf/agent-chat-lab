@@ -7,6 +7,7 @@ import { builtInTools } from "@/lib/built-in-tools";
 import { ModuleSwitcher } from "@/components/module-switcher";
 import { StatsDashboard } from "@/components/stats-dashboard";
 import { ConversationsManager } from "@/components/conversations-manager";
+import { ThemeSelector } from "@/components/theme-selector";
 import {
   defaultProviderSettings,
   defaultSystemSettings,
@@ -79,8 +80,8 @@ function createMcpServer(): McpServer {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-[rgba(23,23,23,0.12)] bg-[rgba(255,255,255,0.72)] px-4 py-3 text-sm text-[#171717] outline-none transition placeholder:text-[#a39a90] focus:border-[rgba(201,106,43,0.45)] focus:bg-white";
-const labelClass = "mb-2 block text-[11px] uppercase tracking-[0.22em] text-[#8d8478]";
+  "w-full rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] px-4 py-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)] focus:bg-[var(--background)]";
+const labelClass = "mb-2 block text-[11px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]";
 
 function SecretInput({
   value,
@@ -121,7 +122,7 @@ function SecretInput({
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
-          className="rounded p-1.5 text-[#a39a90] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#6e665d]"
+          className="rounded p-1.5 text-[var(--muted-foreground)] transition hover:bg-[var(--border)] hover:text-[var(--muted-foreground)]"
           title={visible ? "隐藏" : "显示"}
         >
           {visible ? (
@@ -141,7 +142,7 @@ function SecretInput({
         <button
           type="button"
           onClick={handleCopy}
-          className="rounded p-1.5 text-[#a39a90] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#6e665d]"
+          className="rounded p-1.5 text-[var(--muted-foreground)] transition hover:bg-[var(--border)] hover:text-[var(--muted-foreground)]"
           title="复制"
         >
           {copied ? (
@@ -668,14 +669,14 @@ export function ProviderSettingsForm() {
 
   if (isLoading) {
     return (
-      <main className="app-shell flex h-full items-center justify-center text-[#171717]">
-        <p className="text-sm text-[#8a8176]">加载设置中...</p>
+      <main className="app-shell flex h-full items-center justify-center text-[var(--foreground)]">
+        <p className="text-sm text-[var(--muted-foreground)]">加载设置中...</p>
       </main>
     );
   }
 
   return (
-    <main className="app-shell h-full overflow-hidden text-[#171717]">
+    <main className="app-shell h-full overflow-hidden text-[var(--foreground)]">
       <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
         <aside className="dark-panel rise-in relative hidden h-full overflow-hidden border-r border-white/10 p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:block">
           <div className="relative flex h-full flex-col">
@@ -693,13 +694,13 @@ export function ProviderSettingsForm() {
                       href={`/settings/${item}`}
                       className={`flex w-full cursor-pointer items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
                         active
-                          ? "border-white/16 bg-white/10 text-[#fff7ef]"
-                          : "border-transparent text-[#cabfb2] hover:border-white/10 hover:bg-white/6 hover:text-[#fff7ef]"
+                          ? "border-white/16 bg-white/10 text-[var(--panel-foreground)]"
+                          : "border-transparent text-[var(--panel-muted)] hover:border-white/10 hover:bg-white/6 hover:text-[var(--panel-foreground)]"
                       }`}
                     >
                       <span
                         className={`text-sm font-medium ${
-                          active ? "text-[#fff7ef]" : "text-[#e2d7ca]"
+                          active ? "text-[var(--panel-foreground)]" : "text-[var(--panel-muted)]"
                         }`}
                       >
                         {settingsSectionLabels[item].full}
@@ -715,27 +716,27 @@ export function ProviderSettingsForm() {
 
         <section className="glass-panel rise-in flex h-full min-h-0 flex-col overflow-hidden">
           {/* Mobile header for settings */}
-          <div className="flex items-center gap-3 border-b border-[rgba(23,23,23,0.08)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
+          <div className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
             <Link
               href="/"
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)]"
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--border)]"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </Link>
-            <p className="text-lg font-semibold tracking-[-0.02em] text-[#241c15]">系统设置</p>
-            <div className="ml-auto flex gap-1">
+            <p className="text-lg font-semibold tracking-[-0.02em] text-[var(--foreground)]">系统设置</p>
+            <div className="ml-auto flex min-w-0 gap-1 overflow-x-auto scrollbar-hidden">
               {settingsSections.map((item) => {
                 const active = section === item;
                 return (
                   <Link
                     key={item}
                     href={`/settings/${item}`}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                    className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition ${
                       active
-                        ? "bg-[#171717] text-white"
-                        : "bg-[rgba(23,23,23,0.06)] text-[#5c544a]"
+                        ? "bg-foreground text-primary-foreground"
+                        : "bg-[var(--border)] text-[var(--muted-foreground)]"
                     }`}
                   >
                     {settingsSectionLabels[item].short}
@@ -745,14 +746,18 @@ export function ProviderSettingsForm() {
             </div>
           </div>
 
-          <div className="hidden border-b border-[rgba(23,23,23,0.08)] px-4 py-4 lg:block">
-            <p className="text-[11px] uppercase tracking-[0.28em] text-[#8a8176]">
+          <div className="hidden border-b border-[var(--border)] px-4 py-4 lg:block">
+            <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
               System Settings
             </p>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-            {section === "stats" ? (
+            {section === "appearance" ? (
+              <div className="mx-auto w-full max-w-5xl">
+                <ThemeSelector />
+              </div>
+            ) : section === "stats" ? (
               <div className="mx-auto w-full max-w-5xl">
                 <StatsDashboard />
               </div>
@@ -766,10 +771,10 @@ export function ProviderSettingsForm() {
                 <>
                   <section className="pt-0">
                     <div className="mb-5">
-                      <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
                         模型配置
                       </p>
-                      <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+                      <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                         管理多个供应商，每个供应商可配置多个模型。设置将持久化到服务端数据库。
                       </p>
                     </div>
@@ -786,8 +791,8 @@ export function ProviderSettingsForm() {
                             key={provider.id}
                             className={`rounded-lg border transition ${
                               isExpanded
-                                ? "border-[rgba(201,106,43,0.3)] bg-[rgba(255,255,255,0.8)]"
-                                : "border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.64)]"
+                                ? "border-[var(--accent)] bg-[var(--glass-bg)]"
+                                : "border-[var(--border)] bg-[var(--glass-bg)]"
                             }`}
                           >
                             {/* Provider header */}
@@ -795,24 +800,24 @@ export function ProviderSettingsForm() {
                               className="flex cursor-pointer items-center gap-3 px-4 py-3"
                               onClick={() => setExpandedProviderId(isExpanded ? null : provider.id)}
                             >
-                              <span className="text-xs text-[#8a8176]">{isExpanded ? "▼" : "▶"}</span>
+                              <span className="text-xs text-[var(--muted-foreground)]">{isExpanded ? "▼" : "▶"}</span>
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium text-[#241c15]">
+                                  <span className="text-sm font-medium text-[var(--foreground)]">
                                     {provider.name}
                                   </span>
                                   {provider.isDefault && (
-                                    <span className="rounded-full bg-[#9c5626]/10 px-2 py-0.5 text-[10px] font-medium text-[#9c5626]">
+                                    <span className="rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">
                                       默认
                                     </span>
                                   )}
                                   {!provider.isEnabled && (
-                                    <span className="rounded-full bg-[#8a8176]/10 px-2 py-0.5 text-[10px] text-[#8a8176]">
+                                    <span className="rounded-full bg-[var(--muted-foreground)]/10 px-2 py-0.5 text-[10px] text-[var(--muted-foreground)]">
                                       已禁用
                                     </span>
                                   )}
                                 </div>
-                                <p className="mt-0.5 truncate text-xs text-[#8a8176]">
+                                <p className="mt-0.5 truncate text-xs text-[var(--muted-foreground)]">
                                   {provider.baseUrl} · {enabledModelCount} 个已启用模型
                                 </p>
                               </div>
@@ -822,7 +827,7 @@ export function ProviderSettingsForm() {
                                   e.stopPropagation();
                                   removeProvider(provider.id);
                                 }}
-                                className="shrink-0 rounded-md px-2 py-1 text-xs text-[#8a8176] transition hover:bg-red-50 hover:text-red-600"
+                                className="shrink-0 rounded-md px-2 py-1 text-xs text-[var(--muted-foreground)] transition hover:bg-[var(--danger-surface)] hover:text-[var(--danger)]"
                                 title="删除供应商"
                               >
                                 删除
@@ -831,7 +836,7 @@ export function ProviderSettingsForm() {
 
                             {/* Expanded content */}
                             {isExpanded && (
-                              <div className="border-t border-[rgba(23,23,23,0.06)] px-4 py-4">
+                              <div className="border-t border-[var(--border)] px-4 py-4">
                                 <div className="grid gap-5">
                                   {/* Provider name */}
                                   <label className="block">
@@ -887,12 +892,12 @@ export function ProviderSettingsForm() {
 
                                   {/* Toggle row */}
                                   <div className="flex flex-wrap items-center gap-4">
-                                    <label className="flex items-center gap-2 text-sm text-[#4d4339]">
+                                    <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
                                       <input
                                         type="checkbox"
                                         checked={provider.isEnabled}
                                         onChange={(e) => updateProvider(provider.id, { isEnabled: e.target.checked })}
-                                        className="accent-[#9c5626]"
+                                        className="accent-[var(--accent)]"
                                       />
                                       启用
                                     </label>
@@ -902,8 +907,8 @@ export function ProviderSettingsForm() {
                                       disabled={provider.isDefault}
                                       className={`rounded-full border px-3 py-1 text-xs transition ${
                                         provider.isDefault
-                                          ? "border-[#9c5626]/30 bg-[#9c5626]/10 text-[#9c5626]"
-                                          : "border-[rgba(23,23,23,0.12)] text-[#6e665d] hover:border-[#9c5626]/30 hover:text-[#9c5626]"
+                                          ? "border-[var(--accent)]/30 bg-[var(--accent)]/10 text-[var(--accent)]"
+                                          : "border-[var(--border)] text-[var(--muted-foreground)] hover:border-[var(--accent)]/30 hover:text-[var(--accent)]"
                                       }`}
                                     >
                                       {provider.isDefault ? "默认供应商" : "设为默认"}
@@ -919,7 +924,7 @@ export function ProviderSettingsForm() {
                                           type="button"
                                           onClick={() => fetchModelsForProvider(provider)}
                                           disabled={!provider.baseUrl.trim() || !provider.apiKey.trim() || providerFetchState.status === "loading"}
-                                          className="text-[11px] text-[#9c5626] transition hover:text-[#a44d16] disabled:opacity-50"
+                                          className="text-[11px] text-[var(--accent)] transition hover:text-[var(--accent-strong)] disabled:opacity-50"
                                         >
                                           {providerFetchState.status === "loading" ? "拉取中..." : "从 API 拉取"}
                                         </button>
@@ -927,7 +932,7 @@ export function ProviderSettingsForm() {
                                     </div>
 
                                     {providerFetchState.status === "error" && (
-                                      <p className="mb-2 text-xs text-red-500">
+                                      <p className="mb-2 text-xs text-[var(--danger)]">
                                         {providerFetchState.error}
                                       </p>
                                     )}
@@ -963,21 +968,21 @@ export function ProviderSettingsForm() {
                                             key={model.id}
                                             className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
                                               model.isEnabled
-                                                ? "border-[rgba(23,23,23,0.08)] bg-[rgba(248,242,235,0.6)]"
-                                                : "border-[rgba(23,23,23,0.06)] bg-[rgba(248,242,235,0.3)] opacity-60"
+                                                ? "border-[var(--border)] bg-[var(--glass-bg)]"
+                                                : "border-[var(--border)] bg-[var(--glass-bg)] opacity-60"
                                             }`}
                                           >
                                             <input
                                               type="checkbox"
                                               checked={model.isEnabled}
                                               onChange={() => toggleModelEnabled(provider.id, model.id)}
-                                              className="accent-[#9c5626]"
+                                              className="accent-[var(--accent)]"
                                             />
-                                            <span className="min-w-0 flex-1 truncate font-mono text-xs text-[#241c15]">
+                                            <span className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--foreground)]">
                                               {model.modelId}
                                             </span>
                                             {model.isDefault && (
-                                              <span className="shrink-0 rounded-full bg-[#9c5626]/10 px-2 py-0.5 text-[10px] font-medium text-[#9c5626]">
+                                              <span className="shrink-0 rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">
                                                 默认
                                               </span>
                                             )}
@@ -985,7 +990,7 @@ export function ProviderSettingsForm() {
                                               <button
                                                 type="button"
                                                 onClick={() => setDefaultModel(provider.id, model.id)}
-                                                className="shrink-0 text-[10px] text-[#8a8176] transition hover:text-[#9c5626]"
+                                                className="shrink-0 text-[10px] text-[var(--muted-foreground)] transition hover:text-[var(--accent)]"
                                               >
                                                 设为默认
                                               </button>
@@ -993,7 +998,7 @@ export function ProviderSettingsForm() {
                                             <button
                                               type="button"
                                               onClick={() => removeModelFromProvider(provider.id, model.id)}
-                                              className="shrink-0 text-[10px] text-[#8a8176] transition hover:text-red-500"
+                                              className="shrink-0 text-[10px] text-[var(--muted-foreground)] transition hover:text-[var(--danger)]"
                                             >
                                               移除
                                             </button>
@@ -1036,7 +1041,7 @@ export function ProviderSettingsForm() {
                                               setAddingModelForProvider(null);
                                             }
                                           }}
-                                          className="shrink-0 rounded-md border border-[rgba(23,23,23,0.12)] px-3 py-3 text-xs text-[#4d4339] transition hover:border-[#9c5626]/30 hover:text-[#9c5626]"
+                                          className="shrink-0 rounded-md border border-[var(--border)] px-3 py-3 text-xs text-[var(--foreground)] transition hover:border-[var(--accent)]/30 hover:text-[var(--accent)]"
                                         >
                                           添加
                                         </button>
@@ -1046,7 +1051,7 @@ export function ProviderSettingsForm() {
                                             setNewModelId("");
                                             setAddingModelForProvider(null);
                                           }}
-                                          className="shrink-0 rounded-md px-2 py-3 text-xs text-[#8a8176] transition hover:text-[#4d4339]"
+                                          className="shrink-0 rounded-md px-2 py-3 text-xs text-[var(--muted-foreground)] transition hover:text-[var(--foreground)]"
                                         >
                                           取消
                                         </button>
@@ -1058,7 +1063,7 @@ export function ProviderSettingsForm() {
                                           setAddingModelForProvider(provider.id);
                                           setNewModelId("");
                                         }}
-                                        className="text-xs text-[#9c5626] transition hover:text-[#a44d16]"
+                                        className="text-xs text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
                                       >
                                         + 手动添加模型
                                       </button>
@@ -1076,18 +1081,18 @@ export function ProviderSettingsForm() {
                     <button
                       type="button"
                       onClick={addProvider}
-                      className="mt-3 rounded-lg border border-dashed border-[rgba(23,23,23,0.16)] px-4 py-3 text-sm text-[#6e665d] transition hover:border-[rgba(201,106,43,0.45)] hover:text-[#9c5626]"
+                      className="mt-3 rounded-lg border border-dashed border-[var(--border)] px-4 py-3 text-sm text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
                     >
                       + 添加供应商
                     </button>
                   </section>
 
                   {/* Save bar */}
-                  <div className="flex items-center justify-end gap-3 border-t border-[rgba(23,23,23,0.08)] pt-5">
+                  <div className="flex items-center justify-end gap-3 border-t border-[var(--border)] pt-5">
                     {saveMessage && (
                       <span
                         className={`text-xs ${
-                          saveMessage.type === "success" ? "text-green-600" : "text-red-500"
+                          saveMessage.type === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"
                         }`}
                       >
                         {saveMessage.text}
@@ -1096,7 +1101,7 @@ export function ProviderSettingsForm() {
                     <button
                       type="submit"
                       disabled={isSaving}
-                      className="rounded-full bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d] disabled:opacity-50"
+                      className="rounded-full bg-foreground px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-primary-foreground transition hover:bg-[var(--accent-strong)] disabled:opacity-50"
                     >
                       {isSaving ? "保存中..." : "保存"}
                     </button>
@@ -1106,16 +1111,16 @@ export function ProviderSettingsForm() {
                 <section className="pt-0">
                   <div className="mb-5 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
                         内置 Tools
                       </p>
                     </div>
-                    <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-[rgba(23,23,23,0.1)] px-3 py-1 text-[11px] leading-none text-[#6e665d]">
+                    <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-[var(--border)] px-3 py-1 text-[11px] leading-none text-[var(--muted-foreground)]">
                       {builtInTools.length} 个
                     </span>
                   </div>
 
-                  <div className="mb-5 rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.72)] p-4">
+                  <div className="mb-5 rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] p-4">
                     <label className="block">
                       <span className={labelClass}>Tavily API Key</span>
                       <SecretInput
@@ -1129,59 +1134,59 @@ export function ProviderSettingsForm() {
                         placeholder="tvly-..."
                       />
                     </label>
-                    <p className="mt-2 text-xs leading-5 text-[#8a8176]">
+                    <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
                       `WebSearch` / `WebFetch` 会在需要联网时自动调用。若同时配置 Tavily 与 Exa，每次请求会在两者间随机分担、某家失败时自动回退；只配一个则始终用它。未填写时回退到环境变量 `TAVILY_API_KEY`。
                     </p>
 
                     {/* Tavily Usage Progress Bar */}
                     {settings.tavilyApiKey && (
-                      <div className="mt-4 rounded-lg border border-[rgba(23,23,23,0.06)] bg-[rgba(245,241,237,0.5)] p-3">
+                      <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] p-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] uppercase tracking-[0.18em] text-[#8d8478]">
+                          <span className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                             API 用量
                           </span>
                           {tavilyUsage && (
-                            <span className="rounded-full border border-[rgba(23,23,23,0.08)] bg-white px-2 py-0.5 text-[10px] text-[#6e665d]">
+                            <span className="rounded-full border border-[var(--border)] bg-[var(--panel)] px-2 py-0.5 text-[10px] text-[var(--muted-foreground)]">
                               {tavilyUsage.plan}
                             </span>
                           )}
                         </div>
 
                         {tavilyUsageLoading && (
-                          <p className="mt-2 text-xs text-[#8a8176]">查询中...</p>
+                          <p className="mt-2 text-xs text-[var(--muted-foreground)]">查询中...</p>
                         )}
 
                         {tavilyUsageError && (
-                          <p className="mt-2 text-xs text-red-500">{tavilyUsageError}</p>
+                          <p className="mt-2 text-xs text-[var(--danger)]">{tavilyUsageError}</p>
                         )}
 
                         {tavilyUsage && !tavilyUsageLoading && (
                           <>
                             <div className="mt-2 flex items-baseline justify-between">
-                              <span className="text-sm font-medium text-[#4d4339]">
+                              <span className="text-sm font-medium text-[var(--foreground)]">
                                 {tavilyUsage.usage.toLocaleString()}
                                 {tavilyUsage.limit != null && (
-                                  <span className="text-[#8a8176]">
+                                  <span className="text-[var(--muted-foreground)]">
                                     {" "}/ {tavilyUsage.limit.toLocaleString()} credits
                                   </span>
                                 )}
                               </span>
                               {tavilyUsage.limit != null && tavilyUsage.limit > 0 && (
-                                <span className="text-xs text-[#8a8176]">
+                                <span className="text-xs text-[var(--muted-foreground)]">
                                   {Math.round((tavilyUsage.usage / tavilyUsage.limit) * 100)}%
                                 </span>
                               )}
                             </div>
 
                             {tavilyUsage.limit != null && tavilyUsage.limit > 0 && (
-                              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[rgba(23,23,23,0.06)]">
+                              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--border)]">
                                 <div
                                   className={`h-full rounded-full transition-all ${
                                     tavilyUsage.usage / tavilyUsage.limit > 0.9
-                                      ? "bg-red-400"
+                                      ? "bg-[var(--danger)]"
                                       : tavilyUsage.usage / tavilyUsage.limit > 0.7
-                                        ? "bg-amber-400"
-                                        : "bg-[#c96a2b]"
+                                        ? "bg-[var(--warning)]"
+                                        : "bg-[var(--accent)]"
                                   }`}
                                   style={{
                                     width: `${Math.min(100, (tavilyUsage.usage / tavilyUsage.limit) * 100)}%`,
@@ -1190,18 +1195,18 @@ export function ProviderSettingsForm() {
                               </div>
                             )}
 
-                            <div className="mt-2 flex gap-3 text-[11px] text-[#8a8176]">
+                            <div className="mt-2 flex gap-3 text-[11px] text-[var(--muted-foreground)]">
                               <span>Search: {tavilyUsage.searchUsage}</span>
                               <span>Extract: {tavilyUsage.extractUsage}</span>
                             </div>
 
-                            <p className="mt-2 text-[11px] text-[#a39a90]">
+                            <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
                               额度按账单周期重置，具体时间请查看{" "}
                               <a
                                 href="https://app.tavily.com/home"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="underline transition hover:text-[#c96a2b]"
+                                className="underline transition hover:text-[var(--accent)]"
                               >
                                 Tavily Dashboard
                               </a>
@@ -1211,7 +1216,7 @@ export function ProviderSettingsForm() {
                       </div>
                     )}
 
-                    <div className="mt-5 border-t border-[rgba(23,23,23,0.06)] pt-4">
+                    <div className="mt-5 border-t border-[var(--border)] pt-4">
                       <label className="block">
                         <span className={labelClass}>Exa API Key</span>
                         <SecretInput
@@ -1225,13 +1230,13 @@ export function ProviderSettingsForm() {
                           placeholder="exa-..."
                         />
                       </label>
-                      <p className="mt-2 text-xs leading-5 text-[#8a8176]">
+                      <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
                         可选。作为 Tavily 的第二个联网来源参与负载均衡，用满一家时自动切到另一家。未填写时回退到环境变量 `EXA_API_KEY`。用量请查看{" "}
                         <a
                           href="https://dashboard.exa.ai"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="underline transition hover:text-[#c96a2b]"
+                          className="underline transition hover:text-[var(--accent)]"
                         >
                           Exa Dashboard
                         </a>
@@ -1244,17 +1249,17 @@ export function ProviderSettingsForm() {
                     {builtInTools.map((tool) => (
                       <div
                         key={tool.name}
-                        className="rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.64)] px-4 py-4"
+                        className="rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] px-4 py-4"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <p className="font-mono text-[12px] text-[#9c5626]">
+                          <p className="font-mono text-[12px] text-[var(--accent)]">
                             {tool.name}
                           </p>
-                          <span className="shrink-0 rounded-full border border-[rgba(23,23,23,0.1)] px-2.5 py-1 text-[11px] text-[#6e665d]">
+                          <span className="shrink-0 rounded-full border border-[var(--border)] px-2.5 py-1 text-[11px] text-[var(--muted-foreground)]">
                             调用 {toolUsageCounts[tool.name] ?? 0} 次
                           </span>
                         </div>
-                        <p className="mt-2 text-sm leading-6 text-[#4d4339]">
+                        <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">
                           {tool.description}
                         </p>
                       </div>
@@ -1264,14 +1269,14 @@ export function ProviderSettingsForm() {
                   {/* MCP Servers */}
                   <div className="mt-8">
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
                         MCP Servers
                       </p>
-                      <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-[rgba(23,23,23,0.1)] px-3 py-1 text-[11px] leading-none text-[#6e665d]">
+                      <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-[var(--border)] px-3 py-1 text-[11px] leading-none text-[var(--muted-foreground)]">
                         {settings.mcpServers.length} 个
                       </span>
                     </div>
-                    <p className="mb-4 text-xs leading-5 text-[#8a8176]">
+                    <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
                       通过 Streamable HTTP 接入远程 MCP Server，其工具会在对话中自动可用。启用的 Server 会在每次请求时连接；某个 Server 连接失败会被跳过，不影响其余对话。
                     </p>
 
@@ -1286,8 +1291,8 @@ export function ProviderSettingsForm() {
                               key={server.id}
                               className={`rounded-lg border ${
                                 server.isEnabled
-                                  ? "border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.64)]"
-                                  : "border-[rgba(23,23,23,0.06)] bg-[rgba(255,255,255,0.4)] opacity-70"
+                                  ? "border-[var(--border)] bg-[var(--glass-bg)]"
+                                  : "border-[var(--border)] bg-[var(--glass-bg)] opacity-70"
                               }`}
                             >
                               <div className="flex items-center gap-3 px-4 py-3">
@@ -1307,22 +1312,22 @@ export function ProviderSettingsForm() {
                                     strokeWidth="2"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
-                                    className={`shrink-0 text-[#a39a90] transition-transform ${
+                                    className={`shrink-0 text-[var(--muted-foreground)] transition-transform ${
                                       isExpanded ? "rotate-90" : ""
                                     }`}
                                   >
                                     <polyline points="9 18 15 12 9 6" />
                                   </svg>
-                                  <span className="shrink-0 truncate text-sm font-medium text-[#241c15]">
+                                  <span className="shrink-0 truncate text-sm font-medium text-[var(--foreground)]">
                                     {server.name || "未命名 Server"}
                                   </span>
                                   {server.url && (
-                                    <span className="min-w-0 truncate font-mono text-[11px] text-[#a39a90]">
+                                    <span className="min-w-0 truncate font-mono text-[11px] text-[var(--muted-foreground)]">
                                       {server.url}
                                     </span>
                                   )}
                                 </button>
-                                <label className="flex shrink-0 items-center gap-1.5 text-xs text-[#6e665d]">
+                                <label className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
                                   <input
                                     type="checkbox"
                                     checked={server.isEnabled}
@@ -1331,21 +1336,21 @@ export function ProviderSettingsForm() {
                                         isEnabled: e.target.checked,
                                       })
                                     }
-                                    className="accent-[#9c5626]"
+                                    className="accent-[var(--accent)]"
                                   />
                                   启用
                                 </label>
                                 <button
                                   type="button"
                                   onClick={() => removeMcpServer(server.id)}
-                                  className="shrink-0 text-[11px] text-[#8a8176] transition hover:text-red-500"
+                                  className="shrink-0 text-[11px] text-[var(--muted-foreground)] transition hover:text-[var(--danger)]"
                                 >
                                   删除
                                 </button>
                               </div>
 
                               {isExpanded && (
-                                <div className="space-y-4 border-t border-[rgba(23,23,23,0.08)] px-4 py-4">
+                                <div className="space-y-4 border-t border-[var(--border)] px-4 py-4">
                                   <label className="block">
                                     <span className={labelClass}>名称</span>
                                     <input
@@ -1378,14 +1383,14 @@ export function ProviderSettingsForm() {
                                       <button
                                         type="button"
                                         onClick={() => addMcpHeader(server.id)}
-                                        className="text-[11px] text-[#9c5626] transition hover:text-[#a44d16]"
+                                        className="text-[11px] text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
                                       >
                                         + 添加 Header
                                       </button>
                                     </div>
 
                                     {server.headers.length === 0 ? (
-                                      <p className="text-xs text-[#a39a90]">
+                                      <p className="text-xs text-[var(--muted-foreground)]">
                                         无需鉴权可留空；如需鉴权可添加 Authorization 等 Header。
                                       </p>
                                     ) : (
@@ -1419,7 +1424,7 @@ export function ProviderSettingsForm() {
                                             <button
                                               type="button"
                                               onClick={() => removeMcpHeader(server.id, index)}
-                                              className="shrink-0 px-1 py-3 text-[11px] text-[#8a8176] transition hover:text-red-500"
+                                              className="shrink-0 px-1 py-3 text-[11px] text-[var(--muted-foreground)] transition hover:text-[var(--danger)]"
                                             >
                                               移除
                                             </button>
@@ -1438,41 +1443,41 @@ export function ProviderSettingsForm() {
                                         disabled={
                                           !server.url.trim() || testState.status === "loading"
                                         }
-                                        className="text-[11px] text-[#9c5626] transition hover:text-[#a44d16] disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="text-[11px] text-[var(--accent)] transition hover:text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
                                       >
                                         {testState.status === "loading" ? "测试中…" : "测试连接"}
                                       </button>
                                     </div>
 
                                     {testState.status === "idle" && (
-                                      <p className="text-xs text-[#a39a90]">
+                                      <p className="text-xs text-[var(--muted-foreground)]">
                                         使用当前填写的 URL 与 Headers 连接一次，并列出该 Server 提供的工具。
                                       </p>
                                     )}
                                     {testState.status === "loading" && (
-                                      <p className="text-xs text-[#a39a90]">正在连接并发现工具…</p>
+                                      <p className="text-xs text-[var(--muted-foreground)]">正在连接并发现工具…</p>
                                     )}
                                     {testState.status === "error" && (
-                                      <p className="text-xs text-red-500">{testState.error}</p>
+                                      <p className="text-xs text-[var(--danger)]">{testState.error}</p>
                                     )}
                                     {testState.status === "success" &&
                                       (testState.tools.length === 0 ? (
-                                        <p className="text-xs text-green-600">
+                                        <p className="text-xs text-[var(--success)]">
                                           连接成功，但该 Server 未提供任何工具。
                                         </p>
                                       ) : (
                                         <div>
-                                          <p className="mb-2 text-xs text-green-600">
+                                          <p className="mb-2 text-xs text-[var(--success)]">
                                             连接成功，发现 {testState.tools.length} 个工具。
                                           </p>
-                                          <ul className="space-y-2 rounded-lg border border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.5)] px-4 py-3">
+                                          <ul className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] px-4 py-3">
                                             {testState.tools.map((tool) => (
                                               <li key={tool.name}>
-                                                <p className="font-mono text-xs text-[#241c15]">
+                                                <p className="font-mono text-xs text-[var(--foreground)]">
                                                   {tool.name}
                                                 </p>
                                                 {tool.description && (
-                                                  <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-[#8a8176]">
+                                                  <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-[var(--muted-foreground)]">
                                                     {tool.description}
                                                   </p>
                                                 )}
@@ -1493,7 +1498,7 @@ export function ProviderSettingsForm() {
                     <button
                       type="button"
                       onClick={addMcpServer}
-                      className="mt-3 rounded-lg border border-dashed border-[rgba(23,23,23,0.16)] px-4 py-3 text-sm text-[#6e665d] transition hover:border-[rgba(201,106,43,0.45)] hover:text-[#9c5626]"
+                      className="mt-3 rounded-lg border border-dashed border-[var(--border)] px-4 py-3 text-sm text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
                     >
                       + 添加 MCP Server
                     </button>
@@ -1502,14 +1507,14 @@ export function ProviderSettingsForm() {
                   {/* Skills */}
                   <div className="mt-8">
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
                         Skills
                       </p>
-                      <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-[rgba(23,23,23,0.1)] px-3 py-1 text-[11px] leading-none text-[#6e665d]">
+                      <span className="inline-flex shrink-0 whitespace-nowrap rounded-full border border-[var(--border)] px-3 py-1 text-[11px] leading-none text-[var(--muted-foreground)]">
                         {skills.length} 个
                       </span>
                     </div>
-                    <p className="mb-4 text-xs leading-5 text-[#8a8176]">
+                    <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
                       Skills 是预先写好的可复用操作指南，放在服务器的 skill 目录（默认{" "}
                       <code>workspace/skills/</code>，可用环境变量 <code>SKILLS_DIR</code> 指定）
                       下，每个子目录一个 <code>SKILL.md</code>。检测到的 Skill 会按用途自动提供
@@ -1517,11 +1522,11 @@ export function ProviderSettingsForm() {
                     </p>
 
                     {skillsLoading ? (
-                      <p className="text-xs text-[#a39a90]">检测中…</p>
+                      <p className="text-xs text-[var(--muted-foreground)]">检测中…</p>
                     ) : skillsError ? (
-                      <p className="text-xs text-red-500">{skillsError}</p>
+                      <p className="text-xs text-[var(--danger)]">{skillsError}</p>
                     ) : skills.length === 0 ? (
-                      <p className="rounded-lg border border-dashed border-[rgba(23,23,23,0.16)] px-4 py-3 text-xs leading-5 text-[#8a8176]">
+                      <p className="rounded-lg border border-dashed border-[var(--border)] px-4 py-3 text-xs leading-5 text-[var(--muted-foreground)]">
                         未检测到 Skill。在服务器的 skill 目录下创建一个子目录并放入 SKILL.md
                         （开头用 frontmatter 标注 name 与 description），刷新本页后即可在此看到。
                       </p>
@@ -1534,25 +1539,25 @@ export function ProviderSettingsForm() {
                               key={skill.name}
                               className={`rounded-lg border px-4 py-3 ${
                                 enabled
-                                  ? "border-[rgba(23,23,23,0.08)] bg-[rgba(255,255,255,0.64)]"
-                                  : "border-[rgba(23,23,23,0.06)] bg-[rgba(255,255,255,0.4)] opacity-70"
+                                  ? "border-[var(--border)] bg-[var(--glass-bg)]"
+                                  : "border-[var(--border)] bg-[var(--glass-bg)] opacity-70"
                               }`}
                             >
                               <div className="flex items-start gap-3">
                                 <div className="min-w-0 flex-1">
-                                  <p className="font-mono text-[12px] text-[#9c5626]">
+                                  <p className="font-mono text-[12px] text-[var(--accent)]">
                                     {skill.name}
                                   </p>
-                                  <p className="mt-1 text-sm leading-6 text-[#4d4339]">
+                                  <p className="mt-1 text-sm leading-6 text-[var(--foreground)]">
                                     {skill.description}
                                   </p>
                                 </div>
-                                <label className="flex shrink-0 items-center gap-1.5 text-xs text-[#6e665d]">
+                                <label className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
                                   <input
                                     type="checkbox"
                                     checked={enabled}
                                     onChange={() => toggleSkillDisabled(skill.name)}
-                                    className="accent-[#9c5626]"
+                                    className="accent-[var(--accent)]"
                                   />
                                   启用
                                 </label>
@@ -1564,11 +1569,11 @@ export function ProviderSettingsForm() {
                     )}
                   </div>
 
-                  <div className="mt-6 flex items-center justify-end gap-3 border-t border-[rgba(23,23,23,0.08)] pt-5">
+                  <div className="mt-6 flex items-center justify-end gap-3 border-t border-[var(--border)] pt-5">
                     {saveMessage && (
                       <span
                         className={`text-xs ${
-                          saveMessage.type === "success" ? "text-green-600" : "text-red-500"
+                          saveMessage.type === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"
                         }`}
                       >
                         {saveMessage.text}
@@ -1577,7 +1582,7 @@ export function ProviderSettingsForm() {
                     <button
                       type="submit"
                       disabled={isSaving}
-                      className="rounded-full bg-[#171717] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d] disabled:opacity-50"
+                      className="rounded-full bg-foreground px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-primary-foreground transition hover:bg-[var(--accent-strong)] disabled:opacity-50"
                     >
                       {isSaving ? "保存中..." : "保存"}
                     </button>

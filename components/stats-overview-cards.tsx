@@ -40,15 +40,15 @@ export function StatsOverviewCards({ overview }: StatsOverviewCardsProps) {
       {cards.map((card) => (
         <div
           key={card.label}
-          className="rounded-[14px] border border-[rgba(23,23,23,0.08)] bg-[rgba(248,242,235,0.8)] px-4 py-3.5"
+          className="rounded-[14px] border border-border bg-[var(--panel)] px-4 py-3.5"
         >
-          <p className="text-[11px] uppercase tracking-[0.15em] text-[#8e8070]">
+          <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">
             {card.label}
           </p>
-          <p className="mt-1.5 font-mono text-[22px] font-medium leading-none tracking-[-0.02em] text-[#241c15]">
+          <p className="mt-1.5 font-mono text-[22px] font-medium leading-none tracking-[-0.02em] text-foreground">
             {card.value}
           </p>
-          <p className="mt-2 truncate text-xs text-[#9a8d7d]" title={card.hint}>
+          <p className="mt-2 truncate text-xs text-muted-foreground" title={card.hint}>
             {card.hint}
           </p>
         </div>

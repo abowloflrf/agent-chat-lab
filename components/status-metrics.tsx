@@ -28,15 +28,15 @@ function StatusMetric({
       className="flex items-baseline gap-1 whitespace-nowrap"
       title={title}
     >
-      <span className={muted ? "text-[#8a8175]" : "text-[#352d25]"}>
+      <span className={muted ? "text-muted-foreground" : "text-foreground"}>
         {icon ? (
           <span className={`mr-0.5 ${iconClassName ?? ""}`}>{icon}</span>
         ) : null}
         {value}
       </span>
-      {suffix ? <span className="text-[#b0a496]">{suffix}</span> : null}
+      {suffix ? <span className="text-muted-foreground">{suffix}</span> : null}
       {label ? (
-        <span className="text-[9px] tracking-[0.12em] text-[#b0a496]">
+        <span className="text-[9px] tracking-[0.12em] text-muted-foreground">
           {label}
         </span>
       ) : null}
@@ -58,7 +58,7 @@ export function StatusMetrics({
   cacheHitRate: number | null;
 }) {
   return (
-    <div className="hidden flex-wrap items-center gap-x-3 gap-y-1 border-t border-[rgba(23,23,23,0.08)] pt-2.5 font-mono text-[11px] leading-none text-[#5c544a] sm:flex lg:w-auto lg:justify-end lg:border-t-0 lg:pt-0">
+    <div className="hidden flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-2.5 font-mono text-[11px] leading-none text-muted-foreground sm:flex lg:w-auto lg:justify-end lg:border-t-0 lg:pt-0">
       <StatusMetric
         label="CTX"
         value={formatCompactTokens(currentContextLength)}
@@ -66,13 +66,13 @@ export function StatusMetrics({
       />
       <StatusMetric
         icon="↑"
-        iconClassName="text-[#7f9b5a]"
+        iconClassName="text-[var(--success)]"
         value={formatCompactTokens(inputTokens)}
         title={`累计输入：${formatContextLength(inputTokens)} tokens`}
       />
       <StatusMetric
         icon="↓"
-        iconClassName="text-[#c96a2b]"
+        iconClassName="text-[var(--accent)]"
         value={formatCompactTokens(outputTokens)}
         title={`累计输出：${formatContextLength(outputTokens)} tokens`}
       />

@@ -182,8 +182,8 @@ function TodoLine({ todo, deleted }: { todo: ParsedTodo; deleted?: boolean }) {
   const mark = priorityMark(todo.priority);
   const titleClass =
     deleted || todo.status === "done"
-      ? "text-[#8e8070] line-through"
-      : "text-[#282019]";
+      ? "text-muted-foreground line-through"
+      : "text-foreground";
 
   return (
     <div className="flex items-start gap-2.5">
@@ -210,7 +210,7 @@ function TodoLine({ todo, deleted }: { todo: ParsedTodo; deleted?: boolean }) {
           </span>
         </div>
         {todo.content ? (
-          <p className="mt-1 truncate text-[12px] leading-5 text-[#8e8070]">
+          <p className="mt-1 truncate text-[12px] leading-5 text-muted-foreground">
             {todo.content}
           </p>
         ) : null}
@@ -235,15 +235,15 @@ export function TodoToolPanel({
 
     if (!parsed.success) {
       return (
-        <div className="rounded-[12px] border border-[rgba(153,27,27,0.15)] bg-[#fee2e2] px-3.5 py-2.5 text-[12px] leading-5 text-[#991b1b]">
+        <div className="rounded-[12px] border border-[var(--danger-border)] bg-[var(--danger-surface)] px-3.5 py-2.5 text-[12px] leading-5 text-[var(--danger)]">
           {todoWriteVerbs[parsed.action] ?? parsed.action}失败：{parsed.error}
         </div>
       );
     }
 
     return (
-      <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 p-3.5">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
+      <div className="rounded-[12px] border border-border bg-[var(--panel)] p-3.5">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
           {todoWriteResultLabels[parsed.action] ?? parsed.action}
         </p>
         <div className="mt-2">
@@ -262,14 +262,14 @@ export function TodoToolPanel({
   const filterLabel = readFilterLabel(parsed.status);
 
   return (
-    <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 p-3.5">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
+    <div className="rounded-[12px] border border-border bg-[var(--panel)] p-3.5">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
         共 {parsed.totalMatches} 项
         {parsed.query ? ` · 关键词 "${parsed.query}"` : ""}
         {filterLabel ? ` · ${filterLabel}` : ""}
       </p>
       {parsed.todos.length === 0 ? (
-        <p className="mt-2 text-[12px] text-[#8e8070]">没有匹配的待办</p>
+        <p className="mt-2 text-[12px] text-muted-foreground">没有匹配的待办</p>
       ) : (
         <div className="mt-2.5 space-y-2.5">
           {parsed.todos.map((todo) => (

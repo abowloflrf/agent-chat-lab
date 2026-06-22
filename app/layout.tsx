@@ -48,6 +48,15 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} h-full`}
     >
+      <head>
+        {/* Apply the persisted color theme before first paint to avoid a flash.
+            Runs synchronously during HTML parsing; default warm == :root. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("color-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body className="h-full">{children}</body>
     </html>
   );

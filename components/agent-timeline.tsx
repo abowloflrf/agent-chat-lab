@@ -74,8 +74,8 @@ export function AgentTimeline({ observability }: AgentTimelineProps) {
         type="button"
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
-        className={`-mx-2 flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[11px] transition-colors hover:bg-[rgba(201,106,43,0.06)] ${
-          isRunning ? "text-[#9a5b05]" : "text-[#6d6257] hover:text-[#9c5626]"
+        className={`-mx-2 flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[11px] transition-colors hover:bg-[var(--surface-muted)] ${
+          isRunning ? "text-[var(--accent)]" : "text-muted-foreground hover:text-[var(--accent)]"
         }`}
       >
         {isRunning ? (
@@ -130,56 +130,56 @@ export function AgentTimeline({ observability }: AgentTimelineProps) {
 
       {/* Expanded step details */}
       {expanded ? (
-        <div className="mt-2 rounded-[14px] border border-[rgba(23,23,23,0.08)] bg-[rgba(248,242,235,0.8)] px-4 pb-4 pt-3">
+        <div className="mt-2 rounded-[14px] border border-border bg-[var(--panel)] px-4 pb-4 pt-3">
           {observability.timeline.length === 0 ? (
-            <p className="text-sm text-[#6d6257]">等待下一步执行记录...</p>
+            <p className="text-sm text-muted-foreground">等待下一步执行记录...</p>
           ) : (
             <div className="space-y-4">
               {observability.timeline.map((step) => (
                 <article
                   key={`${step.event}-${step.stepNumber}-${step.finishedAt}`}
-                  className="border-t border-[rgba(23,23,23,0.08)] pt-4 first:border-t-0 first:pt-0"
+                  className="border-t border-border pt-4 first:border-t-0 first:pt-0"
                 >
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-xs text-[#a44d16]">
+                        <span className="font-mono text-xs text-[var(--accent-strong)]">
                           Step {step.stepNumber + 1}
                         </span>
-                        <span className="rounded-full bg-[rgba(23,23,23,0.05)] px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-[#6b6157]">
+                        <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                           {step.event}
                         </span>
                       </div>
-                      <p className="mt-1 text-xs text-[#7a6e62]">
+                      <p className="mt-1 text-xs text-muted-foreground">
                         {step.provider} · {formatClockTime(step.startedAt)}
                       </p>
                     </div>
 
                     <div className="text-left md:text-right">
-                      <p className="text-sm text-[#2b231b]">
+                      <p className="text-sm text-foreground">
                         {formatDuration(step.durationMs)}
                       </p>
-                      <p className="text-xs text-[#7a6e62]">{step.finishReason}</p>
+                      <p className="text-xs text-muted-foreground">{step.finishReason}</p>
                     </div>
                   </div>
 
-                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#584d43]">
-                    <span className="rounded-full bg-white px-2.5 py-1">
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                    <span className="rounded-full bg-background px-2.5 py-1">
                       In {step.usage.inputTokens}
                     </span>
-                    <span className="rounded-full bg-white px-2.5 py-1">
+                    <span className="rounded-full bg-background px-2.5 py-1">
                       Out {step.usage.outputTokens}
                     </span>
-                    <span className="rounded-full bg-white px-2.5 py-1">
+                    <span className="rounded-full bg-background px-2.5 py-1">
                       Total {step.usage.totalTokens}
                     </span>
                     {step.usage.reasoningTokens > 0 ? (
-                      <span className="rounded-full bg-white px-2.5 py-1">
+                      <span className="rounded-full bg-background px-2.5 py-1">
                         Reasoning {step.usage.reasoningTokens}
                       </span>
                     ) : null}
                     {step.usage.cachedInputTokens > 0 ? (
-                      <span className="rounded-full bg-white px-2.5 py-1">
+                      <span className="rounded-full bg-background px-2.5 py-1">
                         Cache {step.usage.cachedInputTokens}
                       </span>
                     ) : null}
@@ -187,14 +187,14 @@ export function AgentTimeline({ observability }: AgentTimelineProps) {
 
                   {step.toolCalls.length > 0 ? (
                     <div className="mt-3">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                         Tools
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {step.toolCalls.map((toolCall) => (
                           <span
                             key={toolCall.toolCallId}
-                            className="rounded-full bg-[rgba(201,106,43,0.12)] px-2.5 py-1 font-mono text-[11px] text-[#9c5626]"
+                            className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1 font-mono text-[11px] text-[var(--accent)]"
                           >
                             {toolCall.toolName}
                           </span>
@@ -203,7 +203,7 @@ export function AgentTimeline({ observability }: AgentTimelineProps) {
                     </div>
                   ) : null}
 
-                  <div className="mt-3 rounded-[10px] bg-white px-4 py-3 text-sm leading-6 text-[#53483d]">
+                  <div className="mt-3 rounded-[10px] bg-background px-4 py-3 text-sm leading-6 text-muted-foreground">
                     {formatPreview(step.text)}
                   </div>
                 </article>

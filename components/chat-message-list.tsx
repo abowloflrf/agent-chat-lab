@@ -46,7 +46,7 @@ export function ChatMessageList({
       <div className="hidden min-h-[520px] items-center justify-center sm:flex">
         <section className="w-full max-w-3xl">
           <div className="mb-4">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-[#8d8478]">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
               Quick Starts
             </p>
           </div>
@@ -57,17 +57,17 @@ export function ChatMessageList({
                 type="button"
                 onClick={() => void onStarterPrompt(prompt)}
                 disabled={isBusy}
-                className="group flex items-start justify-between gap-4 rounded-lg border border-[rgba(23,23,23,0.12)] px-4 py-4 text-left transition hover:border-[rgba(201,106,43,0.45)] hover:bg-white/55 disabled:cursor-not-allowed disabled:opacity-50"
+                className="group flex items-start justify-between gap-4 rounded-lg border border-border px-4 py-4 text-left transition hover:border-[var(--accent)] hover:bg-[var(--glass-bg)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <div>
-                  <p className="font-mono text-[11px] text-[#9e9285]">
+                  <p className="font-mono text-[11px] text-muted-foreground">
                     0{index + 1}
                   </p>
-                  <p className="mt-2 text-base leading-7 text-[#282019] transition group-hover:text-[#9c5626]">
+                  <p className="mt-2 text-base leading-7 text-foreground transition group-hover:text-[var(--accent)]">
                     {prompt}
                   </p>
                 </div>
-                <span className="mt-1 text-lg text-[#b7a99a] transition group-hover:translate-x-1 group-hover:text-[#9c5626]">
+                <span className="mt-1 text-lg text-muted-foreground transition group-hover:translate-x-1 group-hover:text-[var(--accent)]">
                   ↗
                 </span>
               </button>

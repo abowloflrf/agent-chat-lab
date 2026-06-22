@@ -215,8 +215,8 @@ function TrashIcon() {
 function EmptyState() {
   return (
     <div className="px-4 py-7 text-center">
-      <p className="text-sm font-medium text-[#3b3027]">暂无 Artifacts</p>
-      <p className="mt-1.5 text-xs leading-5 text-[#9e9285]">
+      <p className="text-sm font-medium text-foreground">暂无 Artifacts</p>
+      <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
         会话生成图片、HTML、文本等产物后会自动显示在这里。
       </p>
     </div>
@@ -307,7 +307,7 @@ function ArtifactPreview({
 
   const previewDialog = (
     <div
-      className="fixed inset-0 z-[70] bg-[rgba(36,28,21,0.28)] backdrop-blur-[2px] md:flex md:items-center md:justify-center md:p-6"
+      className="fixed inset-0 z-[70] bg-black/[0.28] backdrop-blur-[2px] md:flex md:items-center md:justify-center md:p-6"
       role="dialog"
       aria-modal="true"
       aria-label={`预览 ${artifact.name}`}
@@ -317,13 +317,13 @@ function ArtifactPreview({
         }
       }}
     >
-      <div className="flex h-dvh w-full flex-col bg-[#fffaf4] text-[#2d251e] shadow-[0_24px_80px_rgba(37,28,20,0.22)] md:h-[calc(100dvh-3rem)] md:max-h-[760px] md:w-[min(92vw,1120px)] md:overflow-hidden md:rounded-xl md:border md:border-[rgba(23,23,23,0.1)]">
-        <header className="flex items-center justify-between gap-3 border-b border-[rgba(23,23,23,0.08)] px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:px-4 md:pt-3">
+      <div className="flex h-dvh w-full flex-col bg-background text-foreground shadow-[0_24px_80px_rgba(0,0,0,0.22)] md:h-[calc(100dvh-3rem)] md:max-h-[760px] md:w-[min(92vw,1120px)] md:overflow-hidden md:rounded-xl md:border md:border-border">
+        <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] md:px-4">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-sm text-[#6f6257] transition hover:bg-[rgba(23,23,23,0.06)] hover:text-[#2d251e] md:w-8 md:justify-center md:px-0"
+              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-sm text-muted-foreground transition hover:bg-[var(--surface-muted)] hover:text-foreground md:w-8 md:justify-center md:px-0"
               aria-label="关闭预览"
               title="关闭"
             >
@@ -338,11 +338,11 @@ function ArtifactPreview({
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
                 <p className="truncate text-sm font-medium">{artifact.name}</p>
-                <span className="shrink-0 rounded border border-[rgba(23,23,23,0.08)] px-1.5 py-0.5 text-[10px] text-[#8a5a37]">
+                <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-[var(--accent)]">
                   {artifactLabel(artifact.kind)}
                 </span>
               </div>
-              <p className="mt-0.5 truncate font-mono text-[10px] text-[#8e8070]">
+              <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
                 {artifact.path}
               </p>
             </div>
@@ -353,14 +353,14 @@ function ArtifactPreview({
               <button
                 type="button"
                 onClick={() => setShowSource((value) => !value)}
-                className="rounded-md border border-[rgba(23,23,23,0.1)] px-2.5 py-1.5 text-xs text-[#6f6257] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626]"
+                className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
               >
                 {shouldShowSource ? "预览" : "源码"}
               </button>
             ) : null}
             <a
               href={downloadUrl}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#6f6257] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626]"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
               aria-label={`下载 ${artifact.name}`}
               title="下载"
             >
@@ -369,9 +369,9 @@ function ArtifactPreview({
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-auto bg-white">
+        <div className="min-h-0 flex-1 overflow-auto bg-background">
           {shouldShowSource && canReadSource(artifact.kind) ? (
-            <pre className="min-h-full whitespace-pre-wrap break-words p-4 font-mono text-xs leading-6 text-[#3e3329]">
+            <pre className="min-h-full whitespace-pre-wrap break-words p-4 font-mono text-xs leading-6 text-foreground">
               {selectedSourceState?.error ?? selectedSourceState?.text ?? "读取中..."}
             </pre>
           ) : artifact.kind === "image" ? (
@@ -399,7 +399,7 @@ function ArtifactPreview({
               className="h-full min-h-full w-full border-0 bg-white"
             />
           ) : (
-            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[#7f7468]">
+            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
               当前类型暂不支持内嵌预览，请下载查看。
             </div>
           )}
@@ -562,8 +562,8 @@ export function ArtifactPopover({
         aria-controls={popoverId}
         className={`inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium transition ${
           artifacts.length > 0
-            ? "text-[#9c5626] hover:bg-[rgba(201,106,43,0.1)]"
-            : "text-[#776b60] hover:bg-[rgba(23,23,23,0.05)]"
+            ? "text-[var(--accent)] hover:bg-muted"
+            : "text-muted-foreground hover:bg-[var(--surface-muted)]"
         }`}
         title="查看会话 artifacts"
       >
@@ -581,13 +581,13 @@ export function ArtifactPopover({
             left: position.left,
             width: position.width,
           }}
-          className="menu-appear fixed z-[60] overflow-hidden rounded-xl border border-[rgba(23,23,23,0.1)] bg-white text-[#3b3027] shadow-lg shadow-black/8"
+          className="menu-appear fixed z-[60] overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-lg shadow-black/8"
         >
-          <div className="flex items-center justify-between gap-2 border-b border-[rgba(23,23,23,0.06)] px-3 py-2">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-[#978b7e]">
+          <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
               会话 Artifacts
             </span>
-            <span className="font-mono text-[10px] tabular-nums text-[#b0a496]">
+            <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
               {artifacts.length}
             </span>
           </div>
@@ -603,28 +603,28 @@ export function ArtifactPopover({
                 return (
                   <div
                     key={artifact.id}
-                    className="flex w-full items-start gap-2.5 px-3 py-1.5 transition hover:bg-[rgba(201,106,43,0.06)]"
+                    className="flex w-full items-start gap-2.5 px-3 py-1.5 transition hover:bg-[var(--surface-muted)]"
                   >
-                    <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center text-[#9c5626]">
+                    <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center text-[var(--accent)]">
                       <ArtifactIcon />
                     </span>
 
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-mono text-[12px] text-[#352d25]">
+                        <span className="truncate font-mono text-[12px] text-foreground">
                           {artifact.name}
                         </span>
-                        <span className="shrink-0 rounded-full bg-[rgba(201,106,43,0.1)] px-1.5 py-0.5 text-[10px] leading-none text-[#9c5626]">
+                        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] leading-none text-[var(--accent)]">
                           {artifactLabel(artifact.kind)}
                         </span>
                       </div>
                       <p
-                        className="mt-0.5 truncate text-[11px] leading-4 text-[#9e9285]"
+                        className="mt-0.5 truncate text-[11px] leading-4 text-muted-foreground"
                         title={artifact.path}
                       >
                         {artifact.path}
                       </p>
-                      <p className="mt-0.5 font-mono text-[10px] leading-4 text-[#b0a496]">
+                      <p className="mt-0.5 font-mono text-[10px] leading-4 text-muted-foreground">
                         {formatBytes(artifact.sizeBytes)}
                       </p>
                     </div>
@@ -637,7 +637,7 @@ export function ArtifactPopover({
                           setPreviewArtifactId(artifact.id);
                           onOpenChange(false);
                         }}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#8c8175] transition hover:bg-[rgba(201,106,43,0.08)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-45"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-[var(--surface-muted)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
                         aria-label={`预览 ${artifact.name}`}
                         title="预览"
                       >
@@ -645,7 +645,7 @@ export function ArtifactPopover({
                       </button>
                       <a
                         href={downloadUrl}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#8c8175] transition hover:bg-[rgba(201,106,43,0.08)] hover:text-[#9c5626]"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-[var(--surface-muted)] hover:text-[var(--accent)]"
                         aria-label={`下载 ${artifact.name}`}
                         title="下载"
                       >
@@ -655,7 +655,7 @@ export function ArtifactPopover({
                         type="button"
                         disabled={pending}
                         onClick={() => openRemoveDialog(artifact)}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#a05a4e] transition hover:bg-[rgba(169,68,55,0.1)] hover:text-[#8d3125] disabled:cursor-not-allowed disabled:opacity-45"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--danger)] transition hover:bg-[var(--danger-surface)] hover:text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-45"
                         aria-label={`移除 ${artifact.name}`}
                         title="移除"
                       >
@@ -668,7 +668,7 @@ export function ArtifactPopover({
             </div>
           )}
           {artifacts.length > 0 ? (
-            <div className="border-t border-[rgba(23,23,23,0.06)] px-3 py-1.5 text-[10px] leading-4 text-[#b0a496]">
+            <div className="border-t border-border px-3 py-1.5 text-[10px] leading-4 text-muted-foreground">
               {artifactError ?? "预览会在当前页面打开，下载保留原文件"}
             </div>
           ) : null}
@@ -688,7 +688,7 @@ export function ArtifactPopover({
       {removeTarget ? (
         <BodyPortal>
           <div
-            className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(36,28,21,0.28)] p-4 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/[0.28] p-4 backdrop-blur-[2px]"
             role="dialog"
             aria-modal="true"
             aria-label={`移除 ${removeTarget.name}`}
@@ -699,32 +699,32 @@ export function ArtifactPopover({
               }
             }}
           >
-            <div className="w-full max-w-sm rounded-xl border border-[rgba(23,23,23,0.1)] bg-white p-4 text-[#2d251e] shadow-[0_24px_80px_rgba(37,28,20,0.22)]">
+            <div className="w-full max-w-sm rounded-xl border border-border bg-background p-4 text-foreground shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
               <div>
                 <p className="text-sm font-semibold">移除 Artifact</p>
-                <p className="mt-1 break-words font-mono text-xs leading-5 text-[#8e8070]">
+                <p className="mt-1 break-words font-mono text-xs leading-5 text-muted-foreground">
                   {removeTarget.path}
                 </p>
               </div>
 
-              <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-lg border border-[rgba(23,23,23,0.08)] bg-[#fffaf4] p-3 text-sm text-[#5f5348]">
+              <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-lg border border-border bg-background p-3 text-sm text-foreground">
                 <input
                   type="checkbox"
                   checked={deleteFileChecked}
                   disabled={pendingArtifactId === removeTarget.id}
                   onChange={(event) => setDeleteFileChecked(event.currentTarget.checked)}
-                  className="mt-0.5 h-4 w-4 accent-[#9c5626]"
+                  className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
                 />
                 <span>
                   同时删除 workspace 中的文件
-                  <span className="mt-1 block text-xs leading-5 text-[#9e9285]">
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">
                     默认只取消当前会话关联，文件会保留在磁盘上。
                   </span>
                 </span>
               </label>
 
               {artifactError ? (
-                <p className="mt-3 text-xs leading-5 text-[#9b3328]">
+                <p className="mt-3 text-xs leading-5 text-[var(--danger)]">
                   {artifactError}
                 </p>
               ) : null}
@@ -737,7 +737,7 @@ export function ArtifactPopover({
                     setRemoveTarget(null);
                     setDeleteFileChecked(false);
                   }}
-                  className="rounded-md border border-[rgba(23,23,23,0.1)] px-3 py-1.5 text-sm text-[#6f6257] transition hover:bg-[rgba(23,23,23,0.04)] disabled:cursor-not-allowed disabled:opacity-45"
+                  className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   取消
                 </button>
@@ -747,7 +747,7 @@ export function ArtifactPopover({
                   onClick={() =>
                     void removeArtifact(removeTarget, deleteFileChecked)
                   }
-                  className="rounded-md bg-[#8d3125] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#76271e] disabled:cursor-not-allowed disabled:opacity-45"
+                  className="rounded-md bg-[var(--danger)] px-3 py-1.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   {deleteFileChecked ? "移除并删除文件" : "移除关联"}
                 </button>

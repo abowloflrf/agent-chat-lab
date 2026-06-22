@@ -222,7 +222,7 @@ function SpinnerIcon() {
   return (
     <svg
       aria-hidden="true"
-      className="tool-spin h-3.5 w-3.5 flex-shrink-0 text-[#c96a2b]"
+      className="tool-spin h-3.5 w-3.5 flex-shrink-0 text-[var(--accent)]"
       viewBox="0 0 16 16"
       fill="none"
     >
@@ -245,14 +245,14 @@ function SuccessIcon() {
   return (
     <svg
       aria-hidden="true"
-      className="h-3.5 w-3.5 flex-shrink-0 text-[#36643a]"
+      className="h-3.5 w-3.5 flex-shrink-0 text-[var(--success)]"
       viewBox="0 0 16 16"
       fill="none"
     >
-      <circle cx="8" cy="8" r="7" fill="#e7f4e5" stroke="#36643a" strokeWidth="1" />
+      <circle cx="8" cy="8" r="7" fill="var(--success-surface)" stroke="var(--success)" strokeWidth="1" />
       <path
         d="M5 8.2l2 2 4-4.4"
-        stroke="#36643a"
+        stroke="var(--success)"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -265,14 +265,14 @@ function ErrorIcon() {
   return (
     <svg
       aria-hidden="true"
-      className="h-3.5 w-3.5 flex-shrink-0 text-[#991b1b]"
+      className="h-3.5 w-3.5 flex-shrink-0 text-[var(--danger)]"
       viewBox="0 0 16 16"
       fill="none"
     >
-      <circle cx="8" cy="8" r="7" fill="#fee2e2" stroke="#991b1b" strokeWidth="1" />
+      <circle cx="8" cy="8" r="7" fill="var(--danger-surface)" stroke="var(--danger)" strokeWidth="1" />
       <path
         d="M5.5 5.5l5 5M10.5 5.5l-5 5"
-        stroke="#991b1b"
+        stroke="var(--danger)"
         strokeWidth="1.5"
         strokeLinecap="round"
       />
@@ -285,30 +285,30 @@ function WaitingIcon({ kind }: { kind: "question" | "approval" }) {
   return (
     <svg
       aria-hidden="true"
-      className="h-3.5 w-3.5 flex-shrink-0 text-[#9a5b05]"
+      className="h-3.5 w-3.5 flex-shrink-0 text-[var(--warning)]"
       viewBox="0 0 16 16"
       fill="none"
     >
-      <circle cx="8" cy="8" r="7" fill="#fff1d6" stroke="#9a5b05" strokeWidth="1" />
+      <circle cx="8" cy="8" r="7" fill="var(--warning-surface)" stroke="var(--warning)" strokeWidth="1" />
       {kind === "question" ? (
         <>
           <path
             d="M6.1 6.1a1.9 1.9 0 1 1 2.75 1.7c-.55.28-.85.62-.85 1.2v.25"
-            stroke="#9a5b05"
+            stroke="var(--warning)"
             strokeWidth="1.3"
             strokeLinecap="round"
           />
-          <circle cx="8" cy="11.6" r="0.9" fill="#9a5b05" />
+          <circle cx="8" cy="11.6" r="0.9" fill="var(--warning)" />
         </>
       ) : (
         <>
           <path
             d="M8 4.4v4.4"
-            stroke="#9a5b05"
+            stroke="var(--warning)"
             strokeWidth="1.5"
             strokeLinecap="round"
           />
-          <circle cx="8" cy="11.4" r="0.9" fill="#9a5b05" />
+          <circle cx="8" cy="11.4" r="0.9" fill="var(--warning)" />
         </>
       )}
     </svg>
@@ -341,7 +341,7 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
   return (
     <svg
       aria-hidden="true"
-      className={`h-4 w-4 flex-shrink-0 text-[#8e8070] transition-transform duration-200 ${
+      className={`h-4 w-4 flex-shrink-0 text-[var(--muted-foreground)] transition-transform duration-200 ${
         expanded ? "rotate-180" : ""
       }`}
       viewBox="0 0 16 16"
@@ -368,20 +368,20 @@ function rowBadge(
     if (!actionable) {
       return {
         text: "已失效",
-        className: "rounded-full bg-[rgba(23,23,23,0.06)] px-2 py-0.5 text-[#6d6257]",
+        className: "rounded-full bg-[var(--border)] px-2 py-0.5 text-[var(--muted-foreground)]",
       };
     }
 
     return {
       text: isQuestionTool ? "等待回答" : "等待审批",
-      className: "rounded-full bg-[#fff1d6] px-2 py-0.5 text-[#9a5b05]",
+      className: "rounded-full bg-[var(--warning-surface)] px-2 py-0.5 text-[var(--warning)]",
     };
   }
 
   if (status === "error") {
     return {
       text: invocation.state === "output-denied" ? "已拒绝" : "失败",
-      className: "rounded-full bg-[#fee2e2] px-2 py-0.5 text-[#991b1b]",
+      className: "rounded-full bg-[var(--danger-surface)] px-2 py-0.5 text-[var(--danger)]",
     };
   }
 
@@ -390,13 +390,13 @@ function rowBadge(
     if (invocation.state === "approval-responded") {
       return {
         text: invocation.approval?.approved ? "已批准，执行中" : "已拒绝，处理中",
-        className: "tool-running-indicator text-[#9a5b05]",
+        className: "tool-running-indicator text-[var(--accent)]",
       };
     }
 
     return {
       text: invocation.state === "input-streaming" ? "生成参数" : "运行中",
-      className: "tool-running-indicator text-[#9a5b05]",
+      className: "tool-running-indicator text-[var(--accent)]",
     };
   }
 
@@ -440,22 +440,22 @@ function ContentModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-4"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-2xl bg-white shadow-2xl"
+        className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-2xl border border-[var(--border)] bg-[var(--panel-raised)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[rgba(23,23,23,0.08)] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
           <div className="flex flex-col gap-1">
-            <h3 className="text-sm font-medium uppercase tracking-[0.15em] text-[#a44d16]">
+            <h3 className="text-sm font-medium uppercase tracking-[0.15em] text-[var(--accent-strong)]">
               {title}
             </h3>
-            <p className="text-[10px] font-mono text-[#8e8070]">
+            <p className="text-[10px] font-mono text-[var(--muted-foreground)]">
               #{toolCallId}
             </p>
           </div>
@@ -463,7 +463,7 @@ function ContentModal({
             ref={closeButtonRef}
             onClick={onClose}
             aria-label="关闭"
-            className="rounded-full p-2 text-[#8e8070] transition-colors hover:bg-[rgba(23,23,23,0.08)] hover:text-[#2f261d]"
+            className="rounded-full p-2 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--border)] hover:text-[var(--foreground)]"
           >
             <svg
               className="h-5 w-5"
@@ -480,7 +480,7 @@ function ContentModal({
             </svg>
           </button>
         </div>
-        <pre className="flex-1 overflow-auto p-6 font-mono text-[12px] leading-6 text-[#4b3f35]">
+        <pre className="flex-1 overflow-auto p-6 font-mono text-[12px] leading-6 text-[var(--foreground)]">
           {content}
         </pre>
       </div>
@@ -501,18 +501,18 @@ function IOPanel({
   return (
     <div className="min-w-0">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#6d6257]">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
           {label}
         </p>
         <button
           type="button"
           onClick={onExpand}
-          className="-my-1.5 rounded px-2 py-1.5 text-[10px] text-[#a44d16] transition-colors hover:bg-[rgba(201,106,43,0.08)] hover:text-[#8b3d0f]"
+          className="-my-1.5 rounded px-2 py-1.5 text-[10px] text-[var(--accent-strong)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--accent-strong)]"
         >
           展开
         </button>
       </div>
-      <pre className="mt-1.5 max-h-48 overflow-y-auto rounded-[10px] bg-white px-3 py-2.5 font-mono text-[11px] leading-6 text-[#4b3f35]">
+      <pre className="mt-1.5 max-h-48 overflow-y-auto rounded-[10px] bg-background px-3 py-2.5 font-mono text-[11px] leading-6 text-[var(--foreground)]">
         {content}
       </pre>
     </div>
@@ -591,12 +591,12 @@ function ToolCallRow({
       />
       {status === "success" ? <span className="sr-only">成功</span> : null}
 
-      <span className="flex-shrink-0 font-mono text-[11px] font-medium text-[#a44d16]">
+      <span className="flex-shrink-0 font-mono text-[11px] font-medium text-[var(--accent-strong)]">
         {toolName}
       </span>
 
       {summary ? (
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-[#6d6257]">
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-[var(--muted-foreground)]">
           {summary}
         </span>
       ) : (
@@ -626,7 +626,7 @@ function ToolCallRow({
           type="button"
           onClick={() => setUserExpanded((v) => !v)}
           aria-expanded={expanded}
-          className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[rgba(201,106,43,0.05)]"
+          className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[var(--surface-muted)]"
         >
           {headerContent}
         </button>
@@ -639,7 +639,7 @@ function ToolCallRow({
         }`}
       >
         <div className="overflow-hidden">
-          <div className="space-y-3 border-t border-[rgba(23,23,23,0.06)] px-3 pb-3 pt-3">
+          <div className="space-y-3 border-t border-[var(--border)] px-3 pb-3 pt-3">
             {/* AskUserQuestion interactive panel / answered summary */}
             {isQuestionTool ? (
               <AskUserQuestionPanel
@@ -654,25 +654,25 @@ function ToolCallRow({
 
             {/* Bash: command is always visible when expanded */}
             {bashAssessment ? (
-              <pre className="overflow-x-auto rounded-[10px] bg-[#1f1711] px-4 py-3 font-mono text-[12px] leading-6 text-[#fff4eb]">
+              <pre className="overflow-x-auto rounded-[10px] bg-[var(--panel-strong)] px-4 py-3 font-mono text-[12px] leading-6 text-[var(--panel-foreground)]">
                 {bashAssessment.normalizedCommand}
               </pre>
             ) : null}
 
             {/* Bash: full risk assessment only while approval is pending */}
             {bashAssessment && (isApprovalRequested || isApprovalResponded) ? (
-              <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 p-3.5">
+              <div className="rounded-[12px] border border-[var(--border)] bg-[var(--panel)] p-3.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-[0.18em] text-[#6d6257]">
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                     即将执行
                   </span>
                   <span
                     className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${
                       bashAssessment.decision === "deny"
-                        ? "bg-[#fee2e2] text-[#991b1b]"
+                        ? "bg-[var(--danger-surface)] text-[var(--danger)]"
                         : bashAssessment.decision === "auto"
-                          ? "bg-[#e7f4e5] text-[#36643a]"
-                          : "bg-[#fff1d6] text-[#9a5b05]"
+                          ? "bg-[var(--success-surface)] text-[var(--success)]"
+                          : "bg-[var(--warning-surface)] text-[var(--warning)]"
                     }`}
                   >
                     {bashAssessment.decision === "deny"
@@ -683,21 +683,21 @@ function ToolCallRow({
                   </span>
                 </div>
 
-                <div className="mt-3 grid gap-3 text-[12px] text-[#4b3f35] md:grid-cols-3">
+                <div className="mt-3 grid gap-3 text-[12px] text-[var(--foreground)] md:grid-cols-3">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#6d6257]">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                       Workdir
                     </p>
                     <p className="mt-1 break-all font-mono">{bashAssessment.workdir}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#6d6257]">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                       Timeout
                     </p>
                     <p className="mt-1 font-mono">{BASH_TOOL_TIMEOUT_MS}ms</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#6d6257]">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                       Output Limit
                     </p>
                     <p className="mt-1 font-mono">{BASH_TOOL_OUTPUT_LIMIT} bytes</p>
@@ -705,10 +705,10 @@ function ToolCallRow({
                 </div>
 
                 <div className="mt-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#6d6257]">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                     风险说明
                   </p>
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-[12px] leading-6 text-[#4b3f35]">
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-[12px] leading-6 text-[var(--foreground)]">
                     {bashAssessment.reasons.map((reason) => (
                       <li key={reason}>{reason}</li>
                     ))}
@@ -721,7 +721,7 @@ function ToolCallRow({
                       type="button"
                       onClick={() => void respondApproval(true)}
                       disabled={approvalPending || bashAssessment.decision === "deny"}
-                      className="rounded-full bg-[#171717] px-4 py-2 text-[11px] font-medium text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:bg-[#b8afa6]"
+                      className="rounded-full bg-foreground px-4 py-2 text-[11px] font-medium text-primary-foreground transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:bg-[var(--muted-foreground)]"
                     >
                       {approvalPending ? "提交中…" : "允许执行"}
                     </button>
@@ -729,7 +729,7 @@ function ToolCallRow({
                       type="button"
                       onClick={() => void respondApproval(false)}
                       disabled={approvalPending}
-                      className="rounded-full border border-[rgba(23,23,23,0.14)] px-4 py-2 text-[11px] font-medium text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-full border border-[var(--border)] px-4 py-2 text-[11px] font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       拒绝执行
                     </button>
@@ -737,13 +737,13 @@ function ToolCallRow({
                 ) : null}
 
                 {isApprovalRequested && !actionable ? (
-                  <p className="mt-4 text-[12px] text-[#6b5b4f]">
+                  <p className="mt-4 text-[12px] text-[var(--muted-foreground)]">
                     此审批已失效，发送新消息时会自动按拒绝处理。
                   </p>
                 ) : null}
 
                 {isApprovalResponded ? (
-                  <p className="mt-4 text-[12px] text-[#6b5b4f]">
+                  <p className="mt-4 text-[12px] text-[var(--muted-foreground)]">
                     {invocation.approval?.approved
                       ? "已提交允许执行，等待服务端继续处理。"
                       : "已拒绝执行这条命令。"}
@@ -760,7 +760,7 @@ function ToolCallRow({
                     type="button"
                     onClick={() => void respondApproval(true)}
                     disabled={approvalPending}
-                    className="rounded-full bg-[#171717] px-4 py-2 text-[11px] font-medium text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:bg-[#b8afa6]"
+                    className="rounded-full bg-foreground px-4 py-2 text-[11px] font-medium text-primary-foreground transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:bg-[var(--muted-foreground)]"
                   >
                     {approvalPending ? "提交中…" : "允许执行"}
                   </button>
@@ -768,13 +768,13 @@ function ToolCallRow({
                     type="button"
                     onClick={() => void respondApproval(false)}
                     disabled={approvalPending}
-                    className="rounded-full border border-[rgba(23,23,23,0.14)] px-4 py-2 text-[11px] font-medium text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-full border border-[var(--border)] px-4 py-2 text-[11px] font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     拒绝执行
                   </button>
                 </div>
               ) : (
-                <p className="text-[12px] text-[#6b5b4f]">
+                <p className="text-[12px] text-[var(--muted-foreground)]">
                   此审批已失效，发送新消息时会自动按拒绝处理。
                 </p>
               )
@@ -796,11 +796,11 @@ function ToolCallRow({
 
             {/* Raw input/output: inline for generic tools, tucked away for specialized ones */}
             {hasSpecializedView ? (
-              <details className="rounded-[10px] border border-[rgba(23,23,23,0.06)] bg-white/60">
-                <summary className="cursor-pointer select-none px-3 py-2 text-[11px] text-[#6d6257] transition-colors hover:text-[#9c5626]">
+              <details className="rounded-[10px] border border-[var(--border)] bg-[var(--panel)]">
+                <summary className="cursor-pointer select-none px-3 py-2 text-[11px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--accent)]">
                   原始数据
                 </summary>
-                <div className="grid gap-3 border-t border-[rgba(23,23,23,0.06)] p-3 md:grid-cols-2">
+                <div className="grid gap-3 border-t border-[var(--border)] p-3 md:grid-cols-2">
                   <IOPanel
                     label="Input"
                     content={inputContent}
@@ -894,17 +894,17 @@ export function ToolCallGroup({
 
   const containerClassName = `overflow-hidden rounded-[14px] border transition-colors duration-200 ${
     hasRunning || hasActionable
-      ? "border-[rgba(201,106,43,0.25)] bg-[rgba(255,248,241,0.9)]"
-      : "border-[rgba(23,23,23,0.08)] bg-[rgba(255,248,241,0.82)]"
+      ? "border-[var(--accent)] bg-[var(--panel)]"
+      : "border-[var(--border)] bg-[var(--panel)]"
   }`;
 
   const uniqueToolNames = [...new Set(parts.map(toToolName))];
   const groupBadge = hasActionable
-    ? { text: "等待操作", className: "rounded-full bg-[#fff1d6] px-2 py-0.5 text-[#9a5b05]" }
+    ? { text: "等待操作", className: "rounded-full bg-[var(--warning-surface)] px-2 py-0.5 text-[var(--warning)]" }
     : hasRunning
-      ? { text: "运行中", className: "tool-running-indicator text-[#9a5b05]" }
+      ? { text: "运行中", className: "tool-running-indicator text-[var(--accent)]" }
       : errorCount > 0
-        ? { text: `${errorCount} 个失败`, className: "rounded-full bg-[#fee2e2] px-2 py-0.5 text-[#991b1b]" }
+        ? { text: `${errorCount} 个失败`, className: "rounded-full bg-[var(--danger-surface)] px-2 py-0.5 text-[var(--danger)]" }
         : null;
 
   const headerContent = (
@@ -920,11 +920,11 @@ export function ToolCallGroup({
       )}
       {allSuccess ? <span className="sr-only">全部成功</span> : null}
 
-      <span className="flex-shrink-0 text-[11px] font-medium text-[#6d6257]">
+      <span className="flex-shrink-0 text-[11px] font-medium text-[var(--muted-foreground)]">
         工具调用 ×{parts.length}
       </span>
 
-      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-[#6d6257]">
+      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-[var(--muted-foreground)]">
         {uniqueToolNames.join(" · ")}
       </span>
 
@@ -949,7 +949,7 @@ export function ToolCallGroup({
             type="button"
             onClick={() => setUserCollapsed((v) => !v)}
             aria-expanded={!collapsed}
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[rgba(201,106,43,0.05)]"
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[var(--surface-muted)]"
           >
             {headerContent}
           </button>
@@ -970,7 +970,7 @@ export function ToolCallGroup({
           <div
             className={
               showHeader
-                ? "divide-y divide-[rgba(23,23,23,0.05)] border-t border-[rgba(23,23,23,0.06)]"
+                ? "divide-y divide-[var(--border)] border-t border-[var(--border)]"
                 : ""
             }
           >

@@ -482,24 +482,24 @@ export function TodoManager() {
   const updatedAtLabel = activeTodo ? `更新于 ${formatTime(activeTodo.updatedAt)}` : "新建待办";
 
   return (
-    <main className="app-shell h-full overflow-hidden text-[#171717]">
+    <main className="app-shell h-full overflow-hidden text-foreground">
       <section className="glass-panel rise-in flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-[rgba(23,23,23,0.08)] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
           <Link
             href="/"
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-[rgba(23,23,23,0.1)] text-[#5c544a] transition hover:bg-[rgba(23,23,23,0.04)]"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:bg-[var(--surface-muted)]"
             aria-label="返回聊天"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </Link>
-          <h1 className="text-lg font-semibold tracking-[-0.02em] text-[#241c15]">
+          <h1 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
             待办清单
           </h1>
         </div>
 
-        <div className="border-b border-[rgba(23,23,23,0.08)] px-4 py-3">
+        <div className="border-b border-border px-4 py-3">
           <div className="mx-auto w-full max-w-3xl">
             <TodoToolbar
               filter={filter}
@@ -518,31 +518,31 @@ export function TodoManager() {
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
           <div className="mx-auto w-full max-w-3xl">
             {loadState === "loading" ? (
-              <div className="py-12 text-center text-sm text-[#8a8176]">
+              <div className="py-12 text-center text-sm text-muted-foreground">
                 加载待办中...
               </div>
             ) : loadState === "error" ? (
               <div className="accent-line py-12 pl-4">
-                <p className="text-lg font-semibold tracking-[-0.02em] text-[#352d25]">
+                <p className="text-lg font-semibold tracking-[-0.02em] text-foreground">
                   加载待办失败
                 </p>
-                <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   请检查网络后重试。
                 </p>
                 <button
                   type="button"
                   onClick={retryLoad}
-                  className="mt-4 rounded-full bg-[#171717] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#2b241d]"
+                  className="mt-4 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-[var(--accent-strong)]"
                 >
                   重试
                 </button>
               </div>
             ) : visibleTodos.length === 0 ? (
               <div className="accent-line py-12 pl-4">
-                <p className="text-lg font-semibold tracking-[-0.02em] text-[#352d25]">
+                <p className="text-lg font-semibold tracking-[-0.02em] text-foreground">
                   没有匹配的待办
                 </p>
-                <p className="mt-2 text-sm leading-6 text-[#6e665d]">
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   调整筛选条件，或新建一条待办。
                 </p>
               </div>

@@ -17,15 +17,15 @@ const defaultEditorTheme = EditorView.theme({
   "&": {
     minHeight: "360px",
     height: "100%",
-    backgroundColor: "rgba(255, 255, 255, 0.72)",
-    color: "#171717",
-    border: "1px solid rgba(23, 23, 23, 0.12)",
+    backgroundColor: "var(--glass-bg)",
+    color: "var(--foreground)",
+    border: "1px solid var(--border)",
     borderRadius: "0.75rem",
     overflow: "hidden",
     fontSize: "14px",
   },
   "&.cm-focused": {
-    borderColor: "rgba(201, 106, 43, 0.45)",
+    borderColor: "var(--accent)",
     outline: "none",
   },
   ".cm-scroller": {
@@ -36,29 +36,29 @@ const defaultEditorTheme = EditorView.theme({
     padding: "12px 0",
   },
   ".cm-content": {
-    caretColor: "#171717",
+    caretColor: "var(--foreground)",
     padding: "0 14px",
   },
   ".cm-line": {
     padding: "0 2px",
   },
   ".cm-gutters": {
-    backgroundColor: "rgba(248, 242, 234, 0.7)",
-    borderRight: "1px solid rgba(23, 23, 23, 0.08)",
-    color: "#a59a8d",
+    backgroundColor: "var(--panel)",
+    borderRight: "1px solid var(--border)",
+    color: "var(--muted-foreground)",
   },
   ".cm-activeLine": {
-    backgroundColor: "rgba(201, 106, 43, 0.06)",
+    backgroundColor: "var(--surface-muted)",
   },
   ".cm-activeLineGutter": {
-    backgroundColor: "rgba(201, 106, 43, 0.08)",
-    color: "#7b4a26",
+    backgroundColor: "var(--surface-muted)",
+    color: "var(--accent-strong)",
   },
   ".cm-selectionBackground, .cm-content ::selection": {
-    backgroundColor: "rgba(201, 106, 43, 0.18) !important",
+    backgroundColor: "var(--selection-bg) !important",
   },
   ".cm-placeholder": {
-    color: "#a39a90",
+    color: "var(--muted-foreground)",
   },
 });
 
@@ -67,7 +67,7 @@ const minimalEditorTheme = EditorView.theme({
     minHeight: "320px",
     height: "100%",
     backgroundColor: "transparent",
-    color: "#171717",
+    color: "var(--foreground)",
     border: "none",
     borderRadius: "0",
     overflow: "hidden",
@@ -84,7 +84,7 @@ const minimalEditorTheme = EditorView.theme({
     padding: "2px 0 18px",
   },
   ".cm-content": {
-    caretColor: "#171717",
+    caretColor: "var(--foreground)",
     padding: "0",
   },
   ".cm-line": {
@@ -94,13 +94,13 @@ const minimalEditorTheme = EditorView.theme({
     display: "none",
   },
   ".cm-activeLine": {
-    backgroundColor: "rgba(201, 106, 43, 0.05)",
+    backgroundColor: "var(--surface-muted)",
   },
   ".cm-selectionBackground, .cm-content ::selection": {
-    backgroundColor: "rgba(201, 106, 43, 0.16) !important",
+    backgroundColor: "var(--selection-bg) !important",
   },
   ".cm-placeholder": {
-    color: "#b1a697",
+    color: "var(--muted-foreground)",
   },
 });
 

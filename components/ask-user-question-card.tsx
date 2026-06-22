@@ -40,7 +40,7 @@ export function AskUserQuestionPanel({
 
     if (parsedOutput.outcome === "selected_option") {
       return (
-        <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#36643a]">
+        <div className="rounded-[12px] border border-[var(--border)] bg-[var(--panel)] px-3.5 py-2.5 text-[12px] leading-5 text-[var(--foreground)]">
           ✓ 已选择：{parsedOutput.answer}
         </div>
       );
@@ -48,14 +48,14 @@ export function AskUserQuestionPanel({
 
     if (parsedOutput.outcome === "free_text") {
       return (
-        <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#36643a]">
+        <div className="rounded-[12px] border border-[var(--border)] bg-[var(--panel)] px-3.5 py-2.5 text-[12px] leading-5 text-[var(--foreground)]">
           ✓ 已回答：{parsedOutput.answer}
         </div>
       );
     }
 
     return (
-      <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#8e8070]">
+      <div className="rounded-[12px] border border-[var(--border)] bg-[var(--panel)] px-3.5 py-2.5 text-[12px] leading-5 text-[var(--muted-foreground)]">
         {parsedOutput.outcome === "skipped"
           ? "用户跳过了此问题"
           : "未作答（用户已另行回复）"}
@@ -75,7 +75,7 @@ export function AskUserQuestionPanel({
 
   if (!interactive) {
     return (
-      <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 px-3.5 py-2.5 text-[12px] leading-5 text-[#8e8070]">
+      <div className="rounded-[12px] border border-[var(--border)] bg-[var(--panel)] px-3.5 py-2.5 text-[12px] leading-5 text-[var(--muted-foreground)]">
         此提问已失效（未作答）
       </div>
     );
@@ -101,11 +101,11 @@ export function AskUserQuestionPanel({
   const canSubmitFreeText = freeText.trim().length > 0 && !submitting;
 
   return (
-    <div className="rounded-[12px] border border-[rgba(23,23,23,0.08)] bg-white/80 p-3.5">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-[#8e8070]">
+    <div className="rounded-[12px] border border-[var(--border)] bg-[var(--panel)] p-3.5">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
         需要你确认
       </p>
-      <p className="mt-1.5 text-[13px] font-medium leading-6 text-[#282019]">
+      <p className="mt-1.5 text-[13px] font-medium leading-6 text-[var(--foreground)]">
         {parsedInput.question}
       </p>
 
@@ -117,13 +117,13 @@ export function AskUserQuestionPanel({
               type="button"
               disabled={submitting}
               onClick={() => void submit(buildSelectedOptionOutput(option.label))}
-              className="block w-full rounded-[10px] border border-[rgba(23,23,23,0.14)] px-3.5 py-2.5 text-left transition hover:border-[rgba(201,106,43,0.35)] hover:bg-[rgba(255,248,241,0.9)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="block w-full rounded-[10px] border border-[var(--border)] px-3.5 py-2.5 text-left transition hover:border-[var(--accent)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <span className="block text-[13px] leading-5 text-[#282019]">
+              <span className="block text-[13px] leading-5 text-[var(--foreground)]">
                 {option.label}
               </span>
               {option.description ? (
-                <span className="mt-0.5 block text-[12px] leading-5 text-[#8e8070]">
+                <span className="mt-0.5 block text-[12px] leading-5 text-[var(--muted-foreground)]">
                   {option.description}
                 </span>
               ) : null}
@@ -150,13 +150,13 @@ export function AskUserQuestionPanel({
               }
             }}
             placeholder="输入你的回答…"
-            className="min-w-0 flex-1 rounded-full border border-[rgba(23,23,23,0.14)] bg-white px-4 py-2 text-[13px] text-[#282019] placeholder:text-[#b8afa6] focus:border-[rgba(201,106,43,0.45)] focus:outline-none disabled:opacity-50"
+            className="min-w-0 flex-1 rounded-full border border-[var(--border)] bg-[var(--glass-bg)] px-4 py-2 text-[13px] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)] focus:outline-none disabled:opacity-50"
           />
           <button
             type="button"
             disabled={!canSubmitFreeText}
             onClick={() => void submit(buildFreeTextOutput(freeText.trim()))}
-            className="flex-shrink-0 rounded-full bg-[#171717] px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#2b241d] disabled:cursor-not-allowed disabled:bg-[#b8afa6]"
+            className="flex-shrink-0 rounded-full bg-foreground px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-primary-foreground transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)] disabled:text-muted-foreground"
           >
             回复
           </button>
@@ -168,7 +168,7 @@ export function AskUserQuestionPanel({
           type="button"
           disabled={submitting}
           onClick={() => void submit(buildSkippedOutput())}
-          className="rounded-full border border-[rgba(23,23,23,0.14)] px-4 py-2 text-[11px] font-medium text-[#4a4138] transition hover:border-[rgba(201,106,43,0.35)] hover:text-[#9c5626] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-full border border-[var(--border)] px-4 py-2 text-[11px] font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           跳过，让助手自行判断
         </button>
