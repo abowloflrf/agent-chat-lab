@@ -17,6 +17,8 @@ import {
   type SystemSettings,
 } from "@/lib/provider-config";
 import { getExistingSkillNames } from "@/lib/ai/skills";
+import { deleteSession, deleteSessionsNotIn, readSession } from "@/lib/db/mcp-oauth";
+import { invalidateMcpCache } from "@/lib/ai/mcp";
 
 const SETTINGS_ROW_ID = 1;
 
@@ -215,6 +217,8 @@ function parseSettingsInput(input: unknown) {
       id: server.id?.trim() || crypto.randomUUID(),
       name: server.name?.trim() || "MCP Server",
       url: server.url?.trim() || "",
+      authType: server.authType ?? "header",
+      oauthScopes: server.oauthScopes?.trim() || "",
       headers: (server.headers ?? []).map((header) => ({
         key: header.key?.trim() || "",
         value: header.value?.trim() || "",
@@ -357,6 +361,27 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
       }
     }
   });
+
+  // Drop OAuth sessions for MCP servers the user just removed.
+  deleteSessionsNotIn(normalized.mcpServers.map((server) => server.id));
+
+  // Drop OAuth sessions that are no longer valid for the saved config:
+  //  - switched away from OAuth → the stored token is orphaned (data hygiene);
+  //  - re-pointed URL → the token was minted for the old authorization server,
+  //    so it must not leak to the new origin and the UI should show needs re-auth.
+  for (const server of normalized.mcpServers) {
+    const session = readSession(server.id);
+    if (!session) continue;
+    if (server.authType !== "oauth") {
+      deleteSession(server.id);
+    } else if (session.serverUrl && session.serverUrl !== server.url) {
+      deleteSession(server.id);
+    }
+  }
+
+  // Config may have changed (URL/headers/scopes/auth); drop reused MCP
+  // connections so the next request reconnects with the new settings.
+  invalidateMcpCache();
 
   return getSystemSettings();
 }

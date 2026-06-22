@@ -64,10 +64,18 @@ export const mcpHeaderInputSchema = z.object({
   value: z.string().trim().optional(),
 });
 
+export const mcpAuthTypes = ["header", "oauth"] as const;
+export type McpAuthType = (typeof mcpAuthTypes)[number];
+
 export const mcpServerSchema = z.object({
   id: z.string().trim().min(1),
   name: z.string().trim().min(1).default("MCP Server"),
   url: z.string().trim().url(),
+  // "header": static request headers (default, backward compatible).
+  // "oauth": OAuth 2.1 authorization code flow; tokens live in mcp_oauth_sessions.
+  authType: z.enum(mcpAuthTypes).default("header"),
+  // Space-separated OAuth scopes; empty falls back to the server's advertised default.
+  oauthScopes: z.string().trim().max(500).default(""),
   headers: z.array(mcpHeaderSchema).default([]),
   isEnabled: z.boolean().default(true),
 });
@@ -76,6 +84,8 @@ export const mcpServerInputSchema = z.object({
   id: z.string().trim().optional(),
   name: z.string().trim().optional(),
   url: z.string().trim().optional(),
+  authType: z.enum(mcpAuthTypes).optional(),
+  oauthScopes: z.string().trim().optional(),
   headers: z.array(mcpHeaderInputSchema).optional(),
   isEnabled: z.boolean().optional(),
 });
@@ -157,6 +167,8 @@ export function normalizeMcpServer(input: McpServer): McpServer {
     id: input.id.trim(),
     name: input.name.trim() || "MCP Server",
     url: input.url.trim().replace(/\/+$/, ""),
+    authType: input.authType,
+    oauthScopes: input.oauthScopes.trim(),
     headers: input.headers
       .map((header) => ({
         key: header.key.trim(),

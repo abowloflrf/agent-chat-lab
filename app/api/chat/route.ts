@@ -24,6 +24,7 @@ import { createAgentTools } from "@/lib/ai/tools";
 import { hasAnySearchProvider } from "@/lib/ai/web-search";
 import { repairToolCall } from "@/lib/ai/repair-tool-call";
 import { connectMcpServers, type McpServerToolInfo } from "@/lib/ai/mcp";
+import { resolveBaseUrl } from "@/lib/ai/mcp-oauth";
 import { discoverSkills, type SkillInfo } from "@/lib/ai/skills";
 import {
   persistFinishedConversation,
@@ -564,7 +565,7 @@ export async function POST(request: Request) {
   // MCP handshake doesn't queue behind the DB write. connectMcpServers never
   // throws (per-server failures are swallowed), so only the persist can
   // reject — in which case we still close any connections that opened.
-  const mcpBundlePromise = connectMcpServers(mcpServers);
+  const mcpBundlePromise = connectMcpServers(mcpServers, resolveBaseUrl(request));
 
   try {
     await persistIncomingMessages(parsed.data.conversationId, messagesForRequest);

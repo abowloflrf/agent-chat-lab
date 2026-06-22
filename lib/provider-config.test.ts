@@ -26,6 +26,8 @@ function makeMcpServer(overrides: Partial<McpServer> = {}): McpServer {
     id: "srv-1",
     name: "My Server",
     url: "https://example.com/mcp",
+    authType: "header",
+    oauthScopes: "",
     headers: [],
     isEnabled: true,
     ...overrides,
@@ -161,6 +163,22 @@ describe("normalizeMcpServer", () => {
     expect(normalizeMcpServer(makeMcpServer({ isEnabled: true })).isEnabled).toBe(
       true,
     );
+  });
+
+  it("passes authType through unchanged", () => {
+    expect(normalizeMcpServer(makeMcpServer({ authType: "oauth" })).authType).toBe(
+      "oauth",
+    );
+    expect(normalizeMcpServer(makeMcpServer({ authType: "header" })).authType).toBe(
+      "header",
+    );
+  });
+
+  it("trims oauthScopes", () => {
+    expect(
+      normalizeMcpServer(makeMcpServer({ oauthScopes: "  repo read:user  " }))
+        .oauthScopes,
+    ).toBe("repo read:user");
   });
 });
 
@@ -674,6 +692,8 @@ describe("normalizeSystemSettings", () => {
         id: "ok",
         name: "My Server",
         url: "https://ok.dev/mcp",
+        authType: "header",
+        oauthScopes: "",
         headers: [],
         isEnabled: true,
       },

@@ -169,6 +169,33 @@ export const systemSettings = sqliteTable("system_settings", {
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
 });
 
+// One row per MCP server that uses OAuth. Tokens live here (not in the settings
+// JSON blob) so silent refresh writes are cheap and isolated. The row is keyed
+// by the server id from systemSettings.mcpServers[].id.
+export const mcpOAuthSessions = sqliteTable(
+  "mcp_oauth_sessions",
+  {
+    serverId: text("server_id").primaryKey(),
+    // Dynamic client registration result (client_id/client_secret, plus the
+    // authorization_server/token_endpoint keys @ai-sdk/mcp merges in — never strip them).
+    clientInfoJson: text("client_info_json"),
+    // OAuthTokens (access_token / refresh_token / scope / token_type / expires_in).
+    tokensJson: text("tokens_json"),
+    // Absolute expiry (ms) derived from tokens.expires_in at save time, for the UI badge.
+    expiresAt: integer("expires_at", { mode: "number" }),
+    // Transient during an in-flight authorize (cleared on success).
+    codeVerifier: text("code_verifier"),
+    state: text("state"),
+    // Server URL captured at authorize time; callback rejects if the server was re-addressed.
+    serverUrl: text("server_url"),
+    // unauthorized | pending | authorized | needs_reauth
+    status: text("status").notNull().default("unauthorized"),
+    createdAt: integer("created_at", { mode: "number" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => [index("mcp_oauth_sessions_state_idx").on(table.state)],
+);
+
 export const modelProviders = sqliteTable(
   "model_providers",
   {

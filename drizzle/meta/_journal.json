@@ -67,6 +67,13 @@
       "when": 1781452181225,
       "tag": "0009_cuddly_carnage",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1782134351732,
+      "tag": "0010_nasty_hawkeye",
+      "breakpoints": true
     }
   ]
 }

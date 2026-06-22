@@ -15,4 +15,7 @@ services:
       - PORT=${PORT:-3000}
       - BASH_TOOL_WORKDIR=/app/workspace
       - TZ=Asia/Shanghai
+      # Set to your external https origin so the MCP OAuth redirect_uri stays
+      # stable; if unset it is derived from x-forwarded-* / Host headers.
+      # - APP_BASE_URL=https://your-host
     restart: unless-stopped

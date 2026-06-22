@@ -4,28 +4,25 @@
 
 ### P0 稳定性 / 正确性
 - [ ] 为 Bash 中的解释器命令（`python`、`node` 等）增加额外隔离（不仅人工审批，还要限制执行环境）
-- [ ] MCP 工具名按服务器名前缀隔离，避免跨服务器同名工具互相覆盖
-- [ ] 为 MCP 工具执行增加超时控制（当前仅连接与工具发现有超时）
 - [ ] 改进 `/api/models` 失败提示，按鉴权 / URL / 上游错误给出更可操作的报错
 
 ### P1 测试补齐
-- [ ] 为 DB 持久层补单测（`persistence` / `settings` 读写路径 / `artifacts`，需 in-memory SQLite 夹具）
+- [ ] 为 DB 持久层补单测（`persistence` / `settings` 读写路径 / `artifacts` / `mcp-oauth` 状态机与 cleanup，需 in-memory SQLite 夹具）
 
 ### P1 Agent 能力补齐
 - [ ] Resumable Streaming：关闭页面后 Agent 继续运行，重新打开自动重连（设计方案见 [docs/resumable-streaming-plan.md](docs/resumable-streaming-plan.md)）
 - [ ] 持续参考 Codex / OpenCode / Claude Code 的 prompt，迭代工具使用策略、约束和长期任务处理规则
-- [ ] 新建对话时支持首条消息配置“纯对话模式”：关闭后续整个会话的 tool 调用，默认关闭该选项
+- [ ] 新建对话时支持首条消息配置"纯对话模式"：关闭后续整个会话的 tool 调用，默认关闭该选项
 - [ ] 文件上传与分析（图片、PDF、代码文件等多模态输入）
 - [ ] 设计并实现跨会话 memory 系统：沉淀用户偏好、长期上下文和历史决策，并调研 file-based 与 SQLite 两种实现路径
 - [ ] 支持在 web 设置页创建 / 编辑 / 删除 Skill（当前仅支持检索文件系统中的 Skill 并逐个开关，安装需在服务器操作）
+- [ ] MCP 连接失败/耗时在 UI 上可观测（连接发生在 `streamText` 之前，不进 timeline，用户无法归因首字慢与失败）
 
 ### P1 MCP 能力补齐
 - [ ] MCP 支持 `stdio` transport（当前仅 Streamable HTTP）
 - [ ] MCP 支持 `SSE` transport（当前仅 Streamable HTTP）
 - [ ] MCP Server 支持工具级启用开关（当前仅 server 级开关）
 - [ ] 为 MCP 工具增加调用审批开关（对齐内置 Bash 的 `needsApproval` 机制）
-- [ ] MCP 连接复用/缓存（当前每次请求重新握手并拉取工具列表，拖慢首 token）
-- [ ] MCP 连接失败/耗时在 UI 上可观测（连接发生在 `streamText` 之前，不进 timeline，用户无法归因首字慢与失败）
 
 ### P2 体验与可观测性
 - [ ] 支持指定删除某条消息

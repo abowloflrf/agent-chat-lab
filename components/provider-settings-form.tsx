@@ -74,9 +74,33 @@ function createMcpServer(): McpServer {
     id: generateId(),
     name: "",
     url: "",
+    authType: "header",
+    oauthScopes: "",
     headers: [],
     isEnabled: true,
   };
+}
+
+type McpOAuthStatus = "unauthorized" | "pending" | "authorized" | "needs_reauth";
+type McpOAuthInfo = { status: McpOAuthStatus; expiresAt: number | null };
+
+const mcpOAuthBadge: Record<McpOAuthStatus, { label: string; dot: string; color: string }> = {
+  unauthorized: { label: "未授权", dot: "○", color: "text-[var(--muted-foreground)]" },
+  pending: { label: "授权进行中", dot: "◐", color: "text-[var(--muted-foreground)]" },
+  authorized: { label: "已授权", dot: "●", color: "text-[var(--success)]" },
+  needs_reauth: { label: "需重新授权", dot: "▲", color: "text-[var(--danger)]" },
+};
+
+// Coarse human-friendly remaining validity for the OAuth badge.
+function formatMcpTokenRemaining(expiresAt: number | null): string {
+  if (!expiresAt) return "";
+  const ms = expiresAt - Date.now();
+  if (ms <= 0) return "已过期";
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60) return `约 ${Math.max(1, minutes)} 分钟后过期`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `约 ${hours} 小时后过期`;
+  return `约 ${Math.floor(hours / 24)} 天后过期`;
 }
 
 const inputClass =
@@ -171,6 +195,8 @@ export function ProviderSettingsForm() {
   const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
   const [expandedMcpServerId, setExpandedMcpServerId] = useState<string | null>(null);
   const [mcpTestStates, setMcpTestStates] = useState<Record<string, McpTestState>>({});
+  const [mcpOAuthStatuses, setMcpOAuthStatuses] = useState<Record<string, McpOAuthInfo>>({});
+  const [mcpAuthorizingId, setMcpAuthorizingId] = useState<string | null>(null);
   const [fetchStates, setFetchStates] = useState<Record<string, FetchModelsState>>({});
   const [fetchedModels, setFetchedModels] = useState<Record<string, string[]>>({});
   const [addingModelForProvider, setAddingModelForProvider] = useState<string | null>(null);
@@ -200,7 +226,10 @@ export function ProviderSettingsForm() {
     async function loadSettings() {
       try {
         const response = await fetch("/api/settings");
-        const payload = (await response.json()) as { settings?: SystemSettings };
+        const payload = (await response.json()) as {
+          settings?: SystemSettings;
+          mcpOAuth?: Record<string, McpOAuthInfo>;
+        };
 
         if (!response.ok || cancelled) {
           return;
@@ -208,6 +237,7 @@ export function ProviderSettingsForm() {
 
         const loaded = payload.settings ?? defaultSystemSettings;
         setSettings(loaded);
+        setMcpOAuthStatuses(payload.mcpOAuth ?? {});
 
         // Auto-expand the default or first provider
         const defaultProvider = loaded.providers.find((p) => p.isDefault) ?? loaded.providers[0];
@@ -231,6 +261,37 @@ export function ProviderSettingsForm() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Surface the OAuth callback result (set by /api/mcp/oauth/callback redirect),
+  // expand the affected server, then strip the query so a refresh doesn't re-toast.
+  useEffect(() => {
+    async function handleOAuthResult() {
+      const params = new URLSearchParams(window.location.search);
+      const outcome = params.get("mcpOAuth");
+      if (!outcome) return;
+
+      const serverId = params.get("server");
+      params.delete("mcpOAuth");
+      params.delete("server");
+      const query = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${query ? `?${query}` : ""}`,
+      );
+
+      // Defer state updates out of the synchronous effect body.
+      await Promise.resolve();
+      setSaveMessage(
+        outcome === "success"
+          ? { type: "success", text: "已完成 OAuth 授权。" }
+          : { type: "error", text: "OAuth 授权失败，请重试。" },
+      );
+      if (serverId) setExpandedMcpServerId(serverId);
+    }
+
+    void handleOAuthResult();
   }, []);
 
   // Load tool usage counts
@@ -477,17 +538,37 @@ export function ProviderSettingsForm() {
     }));
   }
 
-  function testMcpServerConnection(server: McpServer) {
+  async function testMcpServerConnection(server: McpServer) {
     if (!server.url.trim()) return;
 
     setMcpTestStates((prev) => ({ ...prev, [server.id]: { status: "loading" } }));
+
+    // OAuth tests run against the saved config + stored token, so persist the
+    // draft first to keep the tested URL/scopes consistent with what's stored.
+    if (server.authType === "oauth") {
+      try {
+        await persistSettings();
+      } catch (error) {
+        setMcpTestStates((prev) => ({
+          ...prev,
+          [server.id]: {
+            status: "error",
+            error: error instanceof Error ? error.message : "保存失败，无法测试。",
+          },
+        }));
+        return;
+      }
+    }
 
     fetch("/api/mcp-test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        id: server.id,
         name: server.name.trim() || undefined,
         url: server.url.trim(),
+        authType: server.authType,
+        oauthScopes: server.oauthScopes,
         headers: server.headers.filter((header) => header.key.trim()),
       }),
     })
@@ -633,28 +714,40 @@ export function ProviderSettingsForm() {
     }));
   }
 
+  async function persistSettings(): Promise<void> {
+    const response = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+
+    const payload = (await response.json()) as {
+      settings?: SystemSettings;
+      mcpOAuth?: Record<string, McpOAuthInfo>;
+      error?: string;
+    };
+
+    if (!response.ok) {
+      throw new Error(payload.error || "保存失败。");
+    }
+
+    if (payload.settings) {
+      setSettings(payload.settings);
+    }
+    // Keep OAuth badges in sync with server-side cleanup (e.g. a URL change or
+    // switch-to-Header drops the session), avoiding a stale "authorized" badge.
+    if (payload.mcpOAuth) {
+      setMcpOAuthStatuses(payload.mcpOAuth);
+    }
+  }
+
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
     setSaveMessage(null);
 
     try {
-      const response = await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
-      });
-
-      const payload = (await response.json()) as { settings?: SystemSettings; error?: string };
-
-      if (!response.ok) {
-        throw new Error(payload.error || "保存失败。");
-      }
-
-      if (payload.settings) {
-        setSettings(payload.settings);
-      }
-
+      await persistSettings();
       setSaveMessage({ type: "success", text: "设置已保存。" });
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (error) {
@@ -664,6 +757,63 @@ export function ProviderSettingsForm() {
       });
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  // Authorize an OAuth MCP server. Settings must be persisted first: the browser
+  // redirects out to the authorization server and the in-memory draft would be
+  // lost, so the start route reads the saved config by id.
+  async function authorizeMcpServer(server: McpServer) {
+    if (!server.url.trim() || mcpAuthorizingId) return;
+
+    setMcpAuthorizingId(server.id);
+    setSaveMessage(null);
+
+    try {
+      await persistSettings();
+
+      const response = await fetch("/api/mcp/oauth/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serverId: server.id }),
+      });
+      const payload = (await response.json()) as {
+        authorizeUrl?: string | null;
+        alreadyAuthorized?: boolean;
+        expiresAt?: number | null;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "发起授权失败。");
+      }
+
+      if (payload.alreadyAuthorized) {
+        setMcpOAuthStatuses((prev) => ({
+          ...prev,
+          [server.id]: {
+            status: "authorized",
+            expiresAt: payload.expiresAt ?? prev[server.id]?.expiresAt ?? null,
+          },
+        }));
+        setSaveMessage({ type: "success", text: "该 Server 已授权。" });
+        setMcpAuthorizingId(null);
+        return;
+      }
+
+      if (payload.authorizeUrl) {
+        // Leaves the page; the callback redirects back to /settings/tools.
+        window.location.href = payload.authorizeUrl;
+        return;
+      }
+
+      throw new Error("未能获取授权地址。");
+    } catch (error) {
+      setSaveMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "发起授权失败。",
+      });
+      setMcpAuthorizingId(null);
     }
   }
 
@@ -1286,6 +1436,10 @@ export function ProviderSettingsForm() {
                           const isExpanded = expandedMcpServerId === server.id;
                           const testState: McpTestState =
                             mcpTestStates[server.id] ?? { status: "idle" };
+                          const oauthInfo: McpOAuthInfo =
+                            mcpOAuthStatuses[server.id] ?? { status: "unauthorized", expiresAt: null };
+                          const oauthBadge = mcpOAuthBadge[oauthInfo.status];
+                          const isAuthorizing = mcpAuthorizingId === server.id;
                           return (
                             <div
                               key={server.id}
@@ -1378,61 +1532,137 @@ export function ProviderSettingsForm() {
                                   </label>
 
                                   <div>
-                                    <div className="mb-2 flex items-center justify-between">
-                                      <span className={labelClass}>请求 Headers</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => addMcpHeader(server.id)}
-                                        className="text-[11px] text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
-                                      >
-                                        + 添加 Header
-                                      </button>
+                                    <span className={labelClass}>认证方式</span>
+                                    <div className="inline-flex rounded-lg border border-[var(--border)] p-0.5">
+                                      {([
+                                        ["header", "Header"],
+                                        ["oauth", "OAuth"],
+                                      ] as const).map(([value, label]) => (
+                                        <button
+                                          key={value}
+                                          type="button"
+                                          onClick={() =>
+                                            updateMcpServer(server.id, { authType: value })
+                                          }
+                                          className={`rounded-md px-3 py-1.5 text-xs transition ${
+                                            server.authType === value
+                                              ? "bg-[var(--accent)] text-[var(--primary-foreground)]"
+                                              : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                                          }`}
+                                        >
+                                          {label}
+                                        </button>
+                                      ))}
                                     </div>
-
-                                    {server.headers.length === 0 ? (
-                                      <p className="text-xs text-[var(--muted-foreground)]">
-                                        无需鉴权可留空；如需鉴权可添加 Authorization 等 Header。
-                                      </p>
-                                    ) : (
-                                      <div className="space-y-2">
-                                        {server.headers.map((header, index) => (
-                                          <div key={index} className="flex items-start gap-2">
-                                            <div className="min-w-0 flex-1">
-                                              <input
-                                                type="text"
-                                                value={header.key}
-                                                onChange={(e) =>
-                                                  updateMcpHeader(server.id, index, {
-                                                    key: e.target.value,
-                                                  })
-                                                }
-                                                placeholder="Header 名，如 Authorization"
-                                                className={inputClass}
-                                              />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                              <SecretInput
-                                                value={header.value}
-                                                onChange={(e) =>
-                                                  updateMcpHeader(server.id, index, {
-                                                    value: e.target.value,
-                                                  })
-                                                }
-                                                placeholder="Header 值，如 Bearer xxx"
-                                              />
-                                            </div>
-                                            <button
-                                              type="button"
-                                              onClick={() => removeMcpHeader(server.id, index)}
-                                              className="shrink-0 px-1 py-3 text-[11px] text-[var(--muted-foreground)] transition hover:text-[var(--danger)]"
-                                            >
-                                              移除
-                                            </button>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
                                   </div>
+
+                                  {server.authType === "header" ? (
+                                    <div>
+                                      <div className="mb-2 flex items-center justify-between">
+                                        <span className={labelClass}>请求 Headers</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => addMcpHeader(server.id)}
+                                          className="text-[11px] text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
+                                        >
+                                          + 添加 Header
+                                        </button>
+                                      </div>
+
+                                      {server.headers.length === 0 ? (
+                                        <p className="text-xs text-[var(--muted-foreground)]">
+                                          无需鉴权可留空；如需鉴权可添加 Authorization 等 Header。
+                                        </p>
+                                      ) : (
+                                        <div className="space-y-2">
+                                          {server.headers.map((header, index) => (
+                                            <div key={index} className="flex items-start gap-2">
+                                              <div className="min-w-0 flex-1">
+                                                <input
+                                                  type="text"
+                                                  value={header.key}
+                                                  onChange={(e) =>
+                                                    updateMcpHeader(server.id, index, {
+                                                      key: e.target.value,
+                                                    })
+                                                  }
+                                                  placeholder="Header 名，如 Authorization"
+                                                  className={inputClass}
+                                                />
+                                              </div>
+                                              <div className="min-w-0 flex-1">
+                                                <SecretInput
+                                                  value={header.value}
+                                                  onChange={(e) =>
+                                                    updateMcpHeader(server.id, index, {
+                                                      value: e.target.value,
+                                                    })
+                                                  }
+                                                  placeholder="Header 值，如 Bearer xxx"
+                                                />
+                                              </div>
+                                              <button
+                                                type="button"
+                                                onClick={() => removeMcpHeader(server.id, index)}
+                                                className="shrink-0 px-1 py-3 text-[11px] text-[var(--muted-foreground)] transition hover:text-[var(--danger)]"
+                                              >
+                                                移除
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-4">
+                                      <label className="block">
+                                        <span className={labelClass}>授权范围（可选）</span>
+                                        <input
+                                          type="text"
+                                          value={server.oauthScopes}
+                                          onChange={(e) =>
+                                            updateMcpServer(server.id, {
+                                              oauthScopes: e.target.value,
+                                            })
+                                          }
+                                          placeholder="留空使用服务器默认，如 repo read:user"
+                                          className={inputClass}
+                                        />
+                                      </label>
+
+                                      <div>
+                                        <span className={labelClass}>授权状态</span>
+                                        <div className="flex items-center justify-between gap-3">
+                                          <div className="min-w-0">
+                                            <span className={`text-sm ${oauthBadge.color}`}>
+                                              {oauthBadge.dot} {oauthBadge.label}
+                                            </span>
+                                            {oauthInfo.status === "authorized" &&
+                                              formatMcpTokenRemaining(oauthInfo.expiresAt) && (
+                                                <span className="ml-2 text-xs text-[var(--muted-foreground)]">
+                                                  · {formatMcpTokenRemaining(oauthInfo.expiresAt)}
+                                                </span>
+                                              )}
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => authorizeMcpServer(server)}
+                                            disabled={!server.url.trim() || isAuthorizing}
+                                            className="shrink-0 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--accent)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                                          >
+                                            {isAuthorizing
+                                              ? "跳转中…"
+                                              : oauthInfo.status === "unauthorized"
+                                                ? "授权"
+                                                : "重新授权"}
+                                          </button>
+                                        </div>
+                                        <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
+                                          授权一次即可；聊天时自动使用、过期自动续期。点击授权会先保存设置并跳转到授权页面。
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
 
                                   <div>
                                     <div className="mb-2 flex items-center justify-between">
