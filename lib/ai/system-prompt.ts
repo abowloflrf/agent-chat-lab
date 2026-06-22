@@ -13,6 +13,11 @@ General principles:
 - For relative-time questions, rely on the current time provided by the system
 - Each tool's own description states exactly when and how to use it — follow it, and prefer the dedicated tool over doing the same work another way`.trim();
 
+const toneStylePrompt = `
+Tone and formatting:
+- Keep a professional yet natural, human tone; avoid robotic or stiff, overly formal phrasing, and lean conversational in casual chats
+- Do not use emoji or em-dashes unless the user explicitly asks for them`.trim();
+
 const capabilityBoundaryPrompt = `
 Your available tools are determined dynamically each turn; your capabilities are defined by the tools actually provided right now.
 Do not claim capabilities beyond the current tool set, nor deny capabilities that genuinely exist within it.`.trim();
@@ -20,6 +25,7 @@ Do not claim capabilities beyond the current tool set, nor deny capabilities tha
 export const systemPromptSections = [
   coreIdentityPrompt,
   coreBehaviorPrompt,
+  toneStylePrompt,
   capabilityBoundaryPrompt,
 ] as const;
 

@@ -25,7 +25,7 @@ describe("systemPrompt", () => {
   });
 
   it("exposes the expected number of sections", () => {
-    expect(systemPromptSections).toHaveLength(3);
+    expect(systemPromptSections).toHaveLength(4);
   });
 });
 
@@ -294,11 +294,12 @@ describe("buildTimeContextPrompt", () => {
 });
 
 describe("systemPrompt section ordering", () => {
-  it("orders identity before behavior before capability boundary", () => {
-    const [identity, behavior, boundary] = systemPromptSections;
+  it("orders identity before behavior before tone before capability boundary", () => {
+    const [identity, behavior, tone, boundary] = systemPromptSections;
     const idx = (s: string) => systemPrompt.indexOf(s);
     expect(idx(identity)).toBeLessThan(idx(behavior));
-    expect(idx(behavior)).toBeLessThan(idx(boundary));
+    expect(idx(behavior)).toBeLessThan(idx(tone));
+    expect(idx(tone)).toBeLessThan(idx(boundary));
   });
 
   it("begins with the core identity section", () => {
