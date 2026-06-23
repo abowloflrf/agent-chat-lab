@@ -57,20 +57,46 @@ export function resolveModelSelection(
   };
 }
 
+/** 设置里默认开启的候选 id —— 新会话的初始勾选集合。 */
+export function defaultToolSelection(items: SessionToolItem[]): string[] {
+  return items.filter((item) => item.enabledByDefault).map((item) => item.id);
+}
+
 /**
- * 把已存的启用清单对账成当前候选下的勾选 id：null（未收窄）→ 全选；数组 → 与现有
- * 候选取交集（丢弃已被删除的项），保证结果始终是候选的子集。
+ * 把已存的启用清单对账成当前候选下的勾选 id：null（未收窄）→ 默认开启子集；数组 →
+ * 与现有候选取交集（丢弃已被删除的项），保证结果始终是候选的子集。
  */
 export function reconcileToolSelection(
   saved: string[] | null,
   items: SessionToolItem[],
 ): string[] {
   if (saved === null) {
-    return items.map((item) => item.id);
+    return defaultToolSelection(items);
   }
 
   const candidateIds = new Set(items.map((item) => item.id));
   return saved.filter((id) => candidateIds.has(id));
+}
+
+/**
+ * 当前勾选是否正好等于设置默认集合：是则下发 null（让会话跟随设置默认、设置变更可
+ * 自动生效），否则下发精确清单。按集合比较，忽略顺序与重复。
+ */
+export function isDefaultToolSelection(
+  selected: string[],
+  items: SessionToolItem[],
+): boolean {
+  const defaults = new Set(defaultToolSelection(items));
+  const current = new Set(selected);
+  if (current.size !== defaults.size) {
+    return false;
+  }
+  for (const id of current) {
+    if (!defaults.has(id)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 export function formatShortConversationId(conversationId: string) {

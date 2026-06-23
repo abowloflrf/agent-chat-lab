@@ -32,6 +32,7 @@ import {
   findLastUserMessageText,
   hasUnresolvedInterruption,
   hostFromUrl,
+  isDefaultToolSelection,
   normalizeRecoveredMessages,
   reconcileToolSelection,
   resolveModelSelection,
@@ -331,20 +332,22 @@ export function ChatShell({
     setSidebarCollapsedStorage(!getSidebarCollapsedSnapshot());
   }, []);
 
-  // 全选（= 候选总数）视为"未收窄"，下发 null 让服务端走默认全开；否则下发精确清单。
+  // 勾选正好等于设置默认集合时视为"未收窄"，下发 null 让服务端走默认；否则下发精确清单。
   useEffect(() => {
     sessionToolsStore.setMcpServerIds(
-      selectedMcpServerIds.length < mcpServerItems.length
-        ? selectedMcpServerIds
-        : null,
+      isDefaultToolSelection(selectedMcpServerIds, mcpServerItems)
+        ? null
+        : selectedMcpServerIds,
     );
-  }, [sessionToolsStore, selectedMcpServerIds, mcpServerItems.length]);
+  }, [sessionToolsStore, selectedMcpServerIds, mcpServerItems]);
 
   useEffect(() => {
     sessionToolsStore.setSkillNames(
-      selectedSkillNames.length < skillItems.length ? selectedSkillNames : null,
+      isDefaultToolSelection(selectedSkillNames, skillItems)
+        ? null
+        : selectedSkillNames,
     );
-  }, [sessionToolsStore, selectedSkillNames, skillItems.length]);
+  }, [sessionToolsStore, selectedSkillNames, skillItems]);
 
   // 对账：候选列表或已存配置变化时（应用启动加载完候选、或切换会话）重算三项选择。
   // 用 React 官方的"渲染期按来源调整 state"模式（prev 守卫）而非 effect——避免 effect
@@ -435,24 +438,25 @@ export function ChatShell({
           data.settings?.providers ?? [];
         setProviders(settingsProviders);
 
-        // 本次会话的 MCP 候选 = 设置里全局已启用的服务；勾选交由对账 effect 还原。
-        const enabledMcpServers = (
+        // MCP 候选 = 所有已配置（有 url）的服务，默认开启的初始勾选；勾选交由对账 effect 还原。
+        const mcpServers = (
           (data.settings?.mcpServers ?? []) as Array<{
             id: string;
             name: string;
             url: string;
             isEnabled: boolean;
           }>
-        ).filter((server) => server.isEnabled);
+        ).filter((server) => server.url);
         setMcpServerItems(
-          enabledMcpServers.map((server) => ({
+          mcpServers.map((server) => ({
             id: server.id,
             name: server.name,
             secondary: hostFromUrl(server.url),
+            enabledByDefault: server.isEnabled,
           })),
         );
 
-        // Skills 候选 = 文件系统发现 - 全局禁用名单；勾选交由对账 effect 还原。
+        // Skills 候选 = 文件系统发现的全部，禁用名单外的初始勾选；勾选交由对账 effect 还原。
         const disabledSkillNames = new Set<string>(
           data.settings?.disabledSkills ?? [],
         );
@@ -461,17 +465,16 @@ export function ChatShell({
           .then((skillData) => {
             if (cancelled) return;
 
-            const candidates = (
-              (skillData.skills ?? []) as Array<{
-                name: string;
-                description: string;
-              }>
-            ).filter((skill) => !disabledSkillNames.has(skill.name));
+            const candidates = (skillData.skills ?? []) as Array<{
+              name: string;
+              description: string;
+            }>;
             setSkillItems(
               candidates.map((skill) => ({
                 id: skill.name,
                 name: skill.name,
                 secondary: skill.description,
+                enabledByDefault: !disabledSkillNames.has(skill.name),
               })),
             );
           })

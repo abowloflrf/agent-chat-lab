@@ -191,6 +191,7 @@ async function searchWithExa(
       includeDomains: input.includeDomains.length ? input.includeDomains : undefined,
       excludeDomains: input.excludeDomains.length ? input.excludeDomains : undefined,
       startPublishedDate: timeRangeToStartDate(input.timeRange),
+      maxAgeHours: 24,
       contents: { text: { maxCharacters: EXA_SEARCH_SNIPPET_CHARS } },
     }),
   });
@@ -298,7 +299,8 @@ async function fetchWithExa(
     },
     body: JSON.stringify({
       urls: input.urls,
-      text: true,
+      maxAgeHours: 24,
+      text: { maxCharacters: WEB_FETCH_CONTENT_PREVIEW_LENGTH * 4 },
     }),
   });
 

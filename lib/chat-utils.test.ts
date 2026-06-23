@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   resolveModelSelection,
+  defaultToolSelection,
   reconcileToolSelection,
+  isDefaultToolSelection,
   formatShortConversationId,
   hostFromUrl,
   extractMessageText,
@@ -411,13 +413,30 @@ describe("resolveModelSelection — null results", () => {
 
 describe("reconcileToolSelection", () => {
   const items = [
-    { id: "a", name: "A" },
-    { id: "b", name: "B" },
-    { id: "c", name: "C" },
+    { id: "a", name: "A", enabledByDefault: true },
+    { id: "b", name: "B", enabledByDefault: true },
+    { id: "c", name: "C", enabledByDefault: true },
   ] satisfies SessionToolItem[];
 
-  it("returns all item ids when saved is null (not narrowed yet)", () => {
+  it("returns the default-on subset when saved is null (not narrowed yet)", () => {
+    const mixed = [
+      { id: "a", name: "A", enabledByDefault: true },
+      { id: "b", name: "B", enabledByDefault: false },
+      { id: "c", name: "C", enabledByDefault: true },
+    ] satisfies SessionToolItem[];
+    expect(reconcileToolSelection(null, mixed)).toEqual(["a", "c"]);
+  });
+
+  it("returns all item ids when saved is null and every item is default-on", () => {
     expect(reconcileToolSelection(null, items)).toEqual(["a", "b", "c"]);
+  });
+
+  it("keeps a saved default-off id (manually enabled for this session)", () => {
+    const mixed = [
+      { id: "a", name: "A", enabledByDefault: true },
+      { id: "b", name: "B", enabledByDefault: false },
+    ] satisfies SessionToolItem[];
+    expect(reconcileToolSelection(["a", "b"], mixed)).toEqual(["a", "b"]);
   });
 
   it("returns an empty array when saved is null and there are no items", () => {
@@ -462,6 +481,59 @@ describe("reconcileToolSelection", () => {
   it("matches candidates by exact id (no substring/normalization)", () => {
     // "A" (uppercase) and "ab" must NOT match candidate "a"/"b".
     expect(reconcileToolSelection(["A", "ab", "a"], items)).toEqual(["a"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// defaultToolSelection / isDefaultToolSelection
+// ---------------------------------------------------------------------------
+
+describe("defaultToolSelection", () => {
+  it("returns only the ids flagged enabledByDefault", () => {
+    const items = [
+      { id: "a", name: "A", enabledByDefault: true },
+      { id: "b", name: "B", enabledByDefault: false },
+      { id: "c", name: "C", enabledByDefault: true },
+    ] satisfies SessionToolItem[];
+    expect(defaultToolSelection(items)).toEqual(["a", "c"]);
+  });
+
+  it("returns an empty array when nothing is default-on", () => {
+    const items = [
+      { id: "a", name: "A", enabledByDefault: false },
+    ] satisfies SessionToolItem[];
+    expect(defaultToolSelection(items)).toEqual([]);
+  });
+});
+
+describe("isDefaultToolSelection", () => {
+  const items = [
+    { id: "a", name: "A", enabledByDefault: true },
+    { id: "b", name: "B", enabledByDefault: false },
+    { id: "c", name: "C", enabledByDefault: true },
+  ] satisfies SessionToolItem[];
+
+  it("is true when the selection equals the default set, ignoring order", () => {
+    expect(isDefaultToolSelection(["c", "a"], items)).toBe(true);
+  });
+
+  it("is false when a default-off item is added", () => {
+    expect(isDefaultToolSelection(["a", "b", "c"], items)).toBe(false);
+  });
+
+  it("is false when a default-on item is missing", () => {
+    expect(isDefaultToolSelection(["a"], items)).toBe(false);
+  });
+
+  it("is true for an empty selection when no item is default-on", () => {
+    const noneDefault = [
+      { id: "a", name: "A", enabledByDefault: false },
+    ] satisfies SessionToolItem[];
+    expect(isDefaultToolSelection([], noneDefault)).toBe(true);
+  });
+
+  it("is false for an explicit empty selection when some item is default-on", () => {
+    expect(isDefaultToolSelection([], items)).toBe(false);
   });
 });
 

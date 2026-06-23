@@ -39,6 +39,7 @@ import type {
 } from "@/lib/observability";
 import {
   getSystemSettings,
+  getConfiguredMcpServersFromSettings,
   getEnabledMcpServersFromSettings,
   getRuntimeProviderConfigFromSettings,
   getProviderConfigByOverrideFromSettings,
@@ -512,24 +513,27 @@ export async function POST(request: Request) {
         parsed.data.modelOverride.modelId,
       )
     : getRuntimeProviderConfigFromSettings(settings);
-  // 全局已启用的 MCP 服务，再与本次会话的收窄清单取交集（缺省则不收窄）。
+  // 会话给了显式清单：从所有已配置服务里选（可放行默认未开启的）；缺省则沿用全局默认开启。
   const sessionMcpServerIds = parsed.data.enabledMcpServerIds
     ? new Set(parsed.data.enabledMcpServerIds)
     : null;
-  const mcpServers = getEnabledMcpServersFromSettings(settings).filter(
-    (server) => !sessionMcpServerIds || sessionMcpServerIds.has(server.id),
-  );
+  const mcpServers = sessionMcpServerIds
+    ? getConfiguredMcpServersFromSettings(settings).filter((server) =>
+        sessionMcpServerIds.has(server.id),
+      )
+    : getEnabledMcpServersFromSettings(settings);
 
-  // Skills 来自文件系统，用设置里的禁用名单过滤后才对模型可见。读盘很快，串行
-  // await 即可；放在 createAgentTools 之前，让历史里的 Skill 工具调用也能被解析。
+  // Skills 来自文件系统。会话给了显式清单则按清单（可放行默认禁用的）；缺省用设置禁用名单
+  // 过滤。读盘很快，串行 await 即可；放在 createAgentTools 之前，让历史里的 Skill 工具调用
+  // 也能被解析。
   const disabledSkillNames = new Set(settings.disabledSkills);
   const sessionSkillNames = parsed.data.enabledSkillNames
     ? new Set(parsed.data.enabledSkillNames)
     : null;
-  const enabledSkills = (await discoverSkills()).filter(
-    (skill) =>
-      !disabledSkillNames.has(skill.name) &&
-      (!sessionSkillNames || sessionSkillNames.has(skill.name)),
+  const enabledSkills = (await discoverSkills()).filter((skill) =>
+    sessionSkillNames
+      ? sessionSkillNames.has(skill.name)
+      : !disabledSkillNames.has(skill.name),
   );
   const enabledSkillNames = new Set(enabledSkills.map((skill) => skill.name));
   const agentTools = createAgentTools(providerConfig, enabledSkillNames);

@@ -10,6 +10,8 @@ export type SessionToolItem = {
   name: string;
   /** 次要说明：MCP 显示 url host，Skill 显示 description。 */
   secondary?: string;
+  /** 是否在设置里默认开启：决定新会话里的默认勾选状态，不影响是否展示。 */
+  enabledByDefault: boolean;
 };
 
 type SessionToolSelectorProps = {
@@ -17,7 +19,7 @@ type SessionToolSelectorProps = {
   label: string;
   /** chip 前缀图标（内联 SVG，描边风格）。 */
   icon: ReactNode;
-  /** 候选项 = 全局已启用的范围，本选择器只在其中收窄。 */
+  /** 候选项 = 所有已配置项；默认开启的初始勾选，其余可手动勾上。 */
   items: SessionToolItem[];
   /** 当前勾选的 id 列表（受控）。 */
   selectedIds: string[];
@@ -52,12 +54,16 @@ export function SessionToolSelector({
   const allSelected = selectedCount === total;
   const noneSelected = selectedCount === 0;
 
-  // chip 三态：全选=中性灰（默认无存在感）、子集=橙色高亮+计数、全不选=灰显「关」。
-  const triggerStateClass = noneSelected
+  // 勾选是否正好等于设置默认集合（默认开启项）——这是"未收窄"的常态，不该高亮。
+  const defaultIds = items.filter((item) => item.enabledByDefault).map((item) => item.id);
+  const atDefault =
+    selectedCount === defaultIds.length &&
+    defaultIds.every((id) => selectedSet.has(id));
+
+  // chip 二态：处于默认集合=中性灰（默认无存在感）、偏离默认=橙色高亮。计数移入展开列表。
+  const triggerStateClass = atDefault
     ? "text-[var(--muted-foreground)]"
-    : allSelected
-      ? "text-[var(--muted-foreground)]"
-      : "text-[var(--accent)]";
+    : "text-[var(--accent)]";
 
   function toggle(id: string) {
     onChange(
@@ -84,13 +90,6 @@ export function SessionToolSelector({
             {icon}
           </span>
           <span className="hidden font-mono text-[11px] sm:inline">{label}</span>
-          {noneSelected ? (
-            <span className="hidden font-mono text-[10px] text-[var(--muted-foreground)] sm:inline">关</span>
-          ) : allSelected ? null : (
-            <span className="hidden sm:inline-flex rounded-full bg-[var(--surface-muted)] px-1.5 font-mono text-[10px] tabular-nums text-[var(--accent)]">
-              {selectedCount}/{total}
-            </span>
-          )}
         </button>
       </Popover.Trigger>
 
@@ -103,8 +102,11 @@ export function SessionToolSelector({
           className="menu-appear z-50 w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)] shadow-lg shadow-black/8 sm:w-auto sm:min-w-[260px] sm:max-w-[340px]"
         >
           <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+            <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
               本次会话 · {label}
+              <span className="rounded-full bg-[var(--surface-muted)] px-1.5 font-mono tracking-normal tabular-nums text-[var(--accent)]">
+                {selectedCount}/{total}
+              </span>
             </span>
             <button
               type="button"

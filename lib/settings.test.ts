@@ -203,6 +203,21 @@ describe("getEnabledMcpServersFromSettings", () => {
   });
 });
 
+describe("getConfiguredMcpServersFromSettings", () => {
+  it("returns every server with a url, including default-off ones", () => {
+    const result = settings.getConfiguredMcpServersFromSettings(
+      makeSettings({
+        mcpServers: [
+          { id: "1", name: "on", url: "https://a.example", headers: [], isEnabled: true },
+          { id: "2", name: "off", url: "https://b.example", headers: [], isEnabled: false },
+          { id: "3", name: "no-url", url: "", headers: [], isEnabled: true },
+        ],
+      }),
+    );
+    expect(result.map((server) => server.id)).toEqual(["1", "2"]);
+  });
+});
+
 describe("resolveProviderConfig", () => {
   it("merges valid input over the env fallback", () => {
     const result = settings.resolveProviderConfig({ model: "override-model" });

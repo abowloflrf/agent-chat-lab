@@ -168,8 +168,13 @@ export function getProviderConfigByOverrideFromSettings(
   return buildProviderConfigFromSettings(settings, provider, model.modelId);
 }
 
+/** All configured servers that have a url, regardless of the default-on flag. */
+export function getConfiguredMcpServersFromSettings(settings: SystemSettings): McpServer[] {
+  return settings.mcpServers.filter((server) => server.url);
+}
+
 export function getEnabledMcpServersFromSettings(settings: SystemSettings): McpServer[] {
-  return settings.mcpServers.filter((server) => server.isEnabled && server.url);
+  return getConfiguredMcpServersFromSettings(settings).filter((server) => server.isEnabled);
 }
 
 function assertValidMcpServerUrls(servers: McpServer[]) {

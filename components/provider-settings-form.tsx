@@ -211,6 +211,15 @@ export function ProviderSettingsForm() {
   } | null>(null);
   const [tavilyUsageLoading, setTavilyUsageLoading] = useState(false);
   const [tavilyUsageError, setTavilyUsageError] = useState<string | null>(null);
+  const [exaUsage, setExaUsage] = useState<{
+    count: number;
+    limit: number | null;
+    costUsd: number;
+    searchCount: number;
+    contentsCount: number;
+  } | null>(null);
+  const [exaUsageLoading, setExaUsageLoading] = useState(false);
+  const [exaUsageError, setExaUsageError] = useState<string | null>(null);
   const [skills, setSkills] = useState<DiscoveredSkill[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(false);
   const [skillsError, setSkillsError] = useState<string | null>(null);
@@ -370,6 +379,56 @@ export function ProviderSettingsForm() {
       cancelled = true;
     };
   }, [section, settings.tavilyApiKey]);
+
+  // Load Exa API usage (current calendar month) when viewing the tools section.
+  // The usage service key is env-only (EXA_SERVICE_KEY), separate from the search key.
+  useEffect(() => {
+    if (section !== "tools" || !settings.exaApiKey) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadExaUsage() {
+      setExaUsageLoading(true);
+      setExaUsageError(null);
+
+      try {
+        const response = await fetch("/api/exa-usage");
+        const payload = await response.json();
+
+        if (!response.ok || cancelled) {
+          if (!cancelled) {
+            setExaUsageError(payload.error ?? "查询失败");
+          }
+          return;
+        }
+
+        const data = payload.usage;
+        setExaUsage({
+          count: data?.count ?? 0,
+          limit: data?.limit ?? null,
+          costUsd: data?.costUsd ?? 0,
+          searchCount: data?.searchCount ?? 0,
+          contentsCount: data?.contentsCount ?? 0,
+        });
+      } catch {
+        if (!cancelled) {
+          setExaUsageError("无法连接 Exa API");
+        }
+      } finally {
+        if (!cancelled) {
+          setExaUsageLoading(false);
+        }
+      }
+    }
+
+    void loadExaUsage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [section, settings.exaApiKey]);
 
   // Discover skills from the server when viewing the tools section. The skill
   // list lives on the filesystem (not in settings); only the on/off state does.
@@ -1392,6 +1451,76 @@ export function ProviderSettingsForm() {
                         </a>
                         。
                       </p>
+
+                      {/* Exa Usage Progress Bar (current calendar month) */}
+                      {settings.exaApiKey && (
+                        <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] p-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                              本月用量
+                            </span>
+                            {exaUsage && (
+                              <span className="rounded-full border border-[var(--border)] bg-[var(--panel)] px-2 py-0.5 text-[10px] text-[var(--muted-foreground)]">
+                                ${exaUsage.costUsd.toFixed(3)}
+                              </span>
+                            )}
+                          </div>
+
+                          {exaUsageLoading && (
+                            <p className="mt-2 text-xs text-[var(--muted-foreground)]">查询中...</p>
+                          )}
+
+                          {exaUsageError && (
+                            <p className="mt-2 text-xs text-[var(--danger)]">{exaUsageError}</p>
+                          )}
+
+                          {exaUsage && !exaUsageLoading && (
+                            <>
+                              <div className="mt-2 flex items-baseline justify-between">
+                                <span className="text-sm font-medium text-[var(--foreground)]">
+                                  {exaUsage.count.toLocaleString()}
+                                  {exaUsage.limit != null && (
+                                    <span className="text-[var(--muted-foreground)]">
+                                      {" "}/ {exaUsage.limit.toLocaleString()} 次
+                                    </span>
+                                  )}
+                                </span>
+                                {exaUsage.limit != null && exaUsage.limit > 0 && (
+                                  <span className="text-xs text-[var(--muted-foreground)]">
+                                    {Math.round((exaUsage.count / exaUsage.limit) * 100)}%
+                                  </span>
+                                )}
+                              </div>
+
+                              {exaUsage.limit != null && exaUsage.limit > 0 && (
+                                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--border)]">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      exaUsage.count / exaUsage.limit > 0.9
+                                        ? "bg-[var(--danger)]"
+                                        : exaUsage.count / exaUsage.limit > 0.7
+                                          ? "bg-[var(--warning)]"
+                                          : "bg-[var(--accent)]"
+                                    }`}
+                                    style={{
+                                      width: `${Math.min(100, (exaUsage.count / exaUsage.limit) * 100)}%`,
+                                    }}
+                                  />
+                                </div>
+                              )}
+
+                              <div className="mt-2 flex gap-3 text-[11px] text-[var(--muted-foreground)]">
+                                <span>Search: {exaUsage.searchCount}</span>
+                                <span>Contents: {exaUsage.contentsCount}</span>
+                              </div>
+
+                              <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
+                                按自然月统计，免费额度上限 {exaUsage.limit?.toLocaleString()} 次。
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
