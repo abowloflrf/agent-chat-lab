@@ -1,22 +1,18 @@
+"use client";
+
 import { useSyncExternalStore } from "react";
 
-export const THEMES = ["warm", "paper", "dark"] as const;
-export type Theme = (typeof THEMES)[number];
+import {
+  DEFAULT_THEME,
+  EVENT,
+  isTheme,
+  STORAGE_KEY,
+  THEME_UI_COLORS,
+  type Theme,
+} from "./theme-constants";
 
-export const DEFAULT_THEME: Theme = "warm";
-
-export const THEME_LABELS: Record<Theme, { name: string; description: string }> = {
-  warm: { name: "暖棕奶油", description: "默认，温暖的奶油底配琥珀强调色" },
-  paper: { name: "素雅黑白", description: "干净的黑白灰，无彩色强调" },
-  dark: { name: "深色", description: "近黑底的通用深色模式，适合 OLED" },
-};
-
-const STORAGE_KEY = "color-theme";
-const EVENT = "color-theme-change";
-
-function isTheme(value: string | null): value is Theme {
-  return value !== null && (THEMES as readonly string[]).includes(value);
-}
+// Re-export the pure data so existing `@/lib/theme` consumers keep working.
+export * from "./theme-constants";
 
 /**
  * 主题只存浏览器端（localStorage），用 useSyncExternalStore 读取，与 chat-shell 的
@@ -42,11 +38,23 @@ function getServerSnapshot(): Theme {
   return DEFAULT_THEME;
 }
 
+/** Keep the browser-UI <meta name="theme-color"> in sync with the active theme. */
+function applyThemeColor(theme: Theme) {
+  let meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.setAttribute("name", "theme-color");
+    document.head.appendChild(meta);
+  }
+  meta.setAttribute("content", THEME_UI_COLORS[theme]);
+}
+
 export function useTheme() {
   const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const setTheme = (next: Theme) => {
     window.localStorage.setItem(STORAGE_KEY, next);
     document.documentElement.dataset.theme = next;
+    applyThemeColor(next);
     window.dispatchEvent(new Event(EVENT));
   };
   return { theme, setTheme };

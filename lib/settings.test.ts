@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import type { ProviderSettings, SystemSettings } from "@/lib/provider-config";
+import type { McpServer, ProviderSettings, SystemSettings } from "@/lib/provider-config";
 
 // settings.ts captures `envProviderConfig` from process.env at import time, and the
 // pure resolvers fall back to it. Pin sentinel env values BEFORE importing so the
@@ -46,6 +46,19 @@ function makeProvider(over: Partial<ProviderSettings> = {}): ProviderSettings {
     isEnabled: true,
     isDefault: true,
     models: [makeModel()],
+    ...over,
+  };
+}
+
+function makeMcpServer(over: Partial<McpServer> = {}): McpServer {
+  return {
+    id: "1",
+    name: "mcp",
+    url: "https://a.example",
+    authType: "header",
+    oauthScopes: "",
+    headers: [],
+    isEnabled: true,
     ...over,
   };
 }
@@ -189,9 +202,9 @@ describe("getEnabledMcpServersFromSettings", () => {
     const result = settings.getEnabledMcpServersFromSettings(
       makeSettings({
         mcpServers: [
-          { id: "1", name: "ok", url: "https://a.example", headers: [], isEnabled: true },
-          { id: "2", name: "disabled", url: "https://b.example", headers: [], isEnabled: false },
-          { id: "3", name: "no-url", url: "", headers: [], isEnabled: true },
+          makeMcpServer({ id: "1", name: "ok", url: "https://a.example", isEnabled: true }),
+          makeMcpServer({ id: "2", name: "disabled", url: "https://b.example", isEnabled: false }),
+          makeMcpServer({ id: "3", name: "no-url", url: "", isEnabled: true }),
         ],
       }),
     );
@@ -208,9 +221,9 @@ describe("getConfiguredMcpServersFromSettings", () => {
     const result = settings.getConfiguredMcpServersFromSettings(
       makeSettings({
         mcpServers: [
-          { id: "1", name: "on", url: "https://a.example", headers: [], isEnabled: true },
-          { id: "2", name: "off", url: "https://b.example", headers: [], isEnabled: false },
-          { id: "3", name: "no-url", url: "", headers: [], isEnabled: true },
+          makeMcpServer({ id: "1", name: "on", url: "https://a.example", isEnabled: true }),
+          makeMcpServer({ id: "2", name: "off", url: "https://b.example", isEnabled: false }),
+          makeMcpServer({ id: "3", name: "no-url", url: "", isEnabled: true }),
         ],
       }),
     );

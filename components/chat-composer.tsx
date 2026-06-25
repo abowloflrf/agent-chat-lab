@@ -1,7 +1,9 @@
 "use client";
 
-import type { FormEvent, KeyboardEvent, RefObject } from "react";
+import type { KeyboardEvent, RefObject, SyntheticEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MAX_TEXTAREA_ROWS, MIN_TEXTAREA_ROWS } from "@/lib/constants";
+import { useSpeechRecognition } from "@/components/use-speech-recognition";
 import {
   ModelSelector,
   type ModelSelection,
@@ -49,6 +51,44 @@ function SkillsIcon() {
   );
 }
 
+function MicIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="9" y="2" width="6" height="11" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0" />
+      <path d="M12 17v4" />
+    </svg>
+  );
+}
+
+function voiceErrorMessage(code: string): string {
+  switch (code) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return "麦克风权限被拒绝";
+    case "no-speech":
+      return "没有听到声音";
+    case "audio-capture":
+      return "未检测到麦克风";
+    case "network":
+      return "浏览器语音识别服务连接失败";
+    case "start-failed":
+      return "语音识别启动失败，请检查浏览器权限";
+    default:
+      return "语音识别出错";
+  }
+}
+
 /**
  * 底部输入区表单：textarea + 模型/MCP/Skills 选择 + 发送/停止按钮。textareaRef 由
  * ChatShell 持有（其 [draft] 依赖的自适应高度 effect 操作它），此处透传给 <textarea>。
@@ -74,7 +114,7 @@ export function ChatComposer({
   isBusy,
   onStop,
 }: {
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   draft: string;
   onDraftChange: (value: string) => void;
@@ -91,16 +131,61 @@ export function ChatComposer({
   isBusy: boolean;
   onStop: () => void | Promise<void>;
 }) {
+  // Draft content captured when recording starts; transcript is appended onto it.
+  const baseRef = useRef("");
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const { supported, listening, start, stop, abort } = useSpeechRecognition({
+    onResult: (text) => onDraftChange(baseRef.current + text),
+    onError: (code) => setVoiceError(voiceErrorMessage(code)),
+  });
+  useEffect(() => {
+    if (isBusy && listening) {
+      abort();
+    }
+  }, [abort, isBusy, listening]);
+  const startVoice = () => {
+    baseRef.current = draft.trim().length > 0 ? draft : "";
+    setVoiceError(null);
+    start();
+  };
+  const handleSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
+    if (listening) {
+      event.preventDefault();
+      stop();
+      return;
+    }
+    onSubmit(event);
+  };
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      listening &&
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.nativeEvent.isComposing
+    ) {
+      event.preventDefault();
+      stop();
+      return;
+    }
+    onKeyDown(event);
+  };
+  const isEmpty = draft.trim().length === 0;
+
   return (
-    <form onSubmit={onSubmit} className="pointer-events-auto">
+    <form onSubmit={handleSubmit} className="pointer-events-auto">
       <div className="rounded-3xl border border-border bg-[var(--glass-bg)] shadow-[0_18px_28px_-2px_var(--glass-glow),0_36px_48px_-2px_var(--glass-glow),0_8px_30px_rgba(23,23,23,0.08),inset_0_1px_0_var(--glass-highlight),inset_0_0_0_1px_var(--glass-edge)] backdrop-blur-xl backdrop-saturate-[1.8] backdrop-brightness-105">
         <label className="block">
           <span className="sr-only">输入消息</span>
           <textarea
             ref={textareaRef}
             value={draft}
-            onChange={(event) => onDraftChange(event.target.value)}
-            onKeyDown={onKeyDown}
+            onChange={(event) => {
+              if (voiceError) setVoiceError(null);
+              onDraftChange(event.target.value);
+            }}
+            onKeyDown={handleKeyDown}
             placeholder="输入消息..."
             rows={MIN_TEXTAREA_ROWS}
             className="w-full resize-none field-sizing-content overflow-y-auto bg-transparent px-3.5 pb-1.5 pt-3 text-[15px] leading-7 text-foreground outline-none placeholder:text-muted-foreground lg:px-4"
@@ -137,8 +222,16 @@ export function ChatComposer({
               disabled={isBusy}
               emptyHint="本次对话不会加载任何 Skill"
             />
-            <span className="ml-1 hidden truncate text-[11px] text-muted-foreground lg:inline">
-              Enter 发送 · Shift+Enter 换行
+            <span
+              className={`ml-1 hidden truncate text-[11px] lg:inline ${
+                voiceError ? "text-red-500" : "text-muted-foreground"
+              }`}
+            >
+              {listening
+                ? "正在聆听… 再次点击结束"
+                : voiceError
+                  ? voiceError
+                  : "Enter 发送 · Shift+Enter 换行"}
             </span>
           </div>
           {isBusy ? (
@@ -151,10 +244,30 @@ export function ChatComposer({
             >
               <svg className="animate-[square-breathe_2s_ease-in-out_infinite]" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5" /></svg>
             </button>
+          ) : listening ? (
+            <button
+              type="button"
+              onClick={stop}
+              title="停止录音"
+              aria-label="停止录音"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-500 text-white transition hover:bg-red-600 animate-[pulse-ring_2s_ease-in-out_infinite]"
+            >
+              <MicIcon />
+            </button>
+          ) : supported && isEmpty ? (
+            <button
+              type="button"
+              onClick={startVoice}
+              title="语音输入"
+              aria-label="语音输入"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-primary-foreground transition-colors duration-200 hover:bg-[var(--accent-strong)]"
+            >
+              <MicIcon />
+            </button>
           ) : (
             <button
               type="submit"
-              disabled={draft.trim().length === 0}
+              disabled={isEmpty}
               title="发送消息"
               aria-label="发送消息"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-primary-foreground transition-colors duration-200 hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)] disabled:text-muted-foreground"
@@ -163,6 +276,11 @@ export function ChatComposer({
             </button>
           )}
         </div>
+        {voiceError ? (
+          <p className="px-3 pb-2 text-xs text-red-500 lg:hidden">
+            {voiceError}
+          </p>
+        ) : null}
       </div>
     </form>
   );

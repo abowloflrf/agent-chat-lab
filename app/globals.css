@@ -23,6 +23,9 @@
 }
 
 :root {
+  /* Light themes (warm/paper): native controls, scrollbars and over-scroll
+     render light; dark theme overrides to `dark` below. */
+  color-scheme: light;
   --background: #f3efe7;
   --foreground: #171717;
   --border: rgba(23, 23, 23, 0.12);
@@ -125,6 +128,7 @@
    gray/white accents, no hue in the chrome. Panels sit a few % above black for
    elevation. Status colors below stay colored so they keep their meaning. */
 [data-theme="dark"] {
+  color-scheme: dark;
   --background: #000000;
   --foreground: #f2f2f2;
   --border: rgba(255, 255, 255, 0.1);

@@ -7,6 +7,7 @@ import {
 import { useChat } from "@ai-sdk/react";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { useRouter, useSearchParams } from "next/navigation";
+import type { KeyboardEvent, SyntheticEvent } from "react";
 import {
   useCallback,
   useEffect,
@@ -911,12 +912,12 @@ export function ChatShell({
     await sendMessage({ text });
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     await submitMessage();
   }
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (
       event.key === "Enter" &&
       !event.shiftKey &&

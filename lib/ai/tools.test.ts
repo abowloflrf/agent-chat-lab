@@ -125,9 +125,11 @@ describe("WebSearch / WebFetch without a provider configured", () => {
 
 describe("Skill tool gating", () => {
   it("refuses to load a skill that is not in the enabled set (no filesystem access)", async () => {
-    const tools = createAgentTools(noSearchConfig, new Set(["allowed"]));
-    const skill = tools.Skill as Extract<typeof tools.Skill, { execute: unknown }>;
-    const result = (await skill.execute!({ name: "not-allowed" }, TOOL_OPTS)) as {
+    // With a non-empty skill set, the returned union narrows to the branch that
+    // includes Skill; Extract picks it so `.Skill` is accessible.
+    type WithSkill = Extract<ReturnType<typeof createAgentTools>, { Skill: unknown }>;
+    const tools = createAgentTools(noSearchConfig, new Set(["allowed"])) as WithSkill;
+    const result = (await tools.Skill.execute!({ name: "not-allowed" }, TOOL_OPTS)) as {
       ok: boolean;
       error?: string;
     };

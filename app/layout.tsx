@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
+import { DEFAULT_THEME, THEME_UI_COLORS } from "@/lib/theme-constants";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -19,6 +20,9 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  // Default browser-UI color (= default theme). The anti-flash script and
+  // lib/theme.ts mutate this <meta> at runtime to follow the active theme.
+  themeColor: THEME_UI_COLORS[DEFAULT_THEME],
 };
 
 export const metadata: Metadata = {
@@ -49,11 +53,14 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} h-full`}
     >
       <head>
-        {/* Apply the persisted color theme before first paint to avoid a flash.
-            Runs synchronously during HTML parsing; default warm == :root. */}
+        {/* Apply the persisted color theme before first paint to avoid a flash,
+            and sync the browser-UI <meta name="theme-color"> to it. Runs
+            synchronously during HTML parsing; default warm == :root. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("color-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}})()`,
+            __html: `(function(){try{var c=${JSON.stringify(
+              THEME_UI_COLORS,
+            )},t=localStorage.getItem("color-theme");if(t&&c[t]){document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m)}m.setAttribute("content",c[t])}}catch(e){}})()`,
           }}
         />
       </head>
