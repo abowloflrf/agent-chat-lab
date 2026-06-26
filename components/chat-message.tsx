@@ -30,7 +30,7 @@ import {
   normalizeSourceUrl,
 } from "@/lib/ai/message-sources";
 import { formatMessageDateTime } from "@/lib/datetime";
-import { formatTokenCount } from "@/lib/format";
+import { formatCompactTokens, formatTokenCount } from "@/lib/format";
 import { getMessageTimestamp, parseAgentObservability } from "@/lib/observability";
 
 // Streamdown/Shiki emits both light and dark token colors. The global Tailwind
@@ -380,6 +380,76 @@ function SvgPreview({
   );
 }
 
+// Pasted blobs (long logs/docs) flood the bubble and Markdown can mangle their raw
+// punctuation, so user text past these limits collapses into a card. Expanding shows
+// the raw text in a scrollable monospace panel instead of re-rendering it as Markdown.
+const USER_TEXT_COLLAPSE_CHARS = 1200;
+const USER_TEXT_COLLAPSE_LINES = 12;
+const USER_TEXT_PREVIEW_LINES = 3;
+
+function isCollapsibleUserText(text: string) {
+  if (text.length > USER_TEXT_COLLAPSE_CHARS) {
+    return true;
+  }
+  return text.split("\n").length > USER_TEXT_COLLAPSE_LINES;
+}
+
+const UserTextBlock = memo(function UserTextBlock({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const { lineCount, preview } = useMemo(() => {
+    const lines = text.split("\n");
+    return {
+      lineCount: lines.length,
+      preview: lines.slice(0, USER_TEXT_PREVIEW_LINES).join("\n"),
+    };
+  }, [text]);
+
+  return (
+    <div className="w-full max-w-full overflow-hidden rounded-[16px] bg-[var(--msg-user-bg)] text-[var(--msg-user-fg)] shadow-[0_16px_40px_rgba(74,51,40,0.14)]">
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[color-mix(in_srgb,var(--msg-user-fg)_5%,transparent)]"
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 20 20"
+          fill="none"
+          className="h-4 w-4 shrink-0 text-[var(--msg-user-muted)]"
+        >
+          <path d="M5.5 2.5h6L15 6v11h-9.5z" className="stroke-current" strokeWidth="1.4" strokeLinejoin="round" />
+          <path d="M11 2.5V6h3.5M7.75 10h4.5M7.75 13h4.5" className="stroke-current" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="text-[13px] font-medium">粘贴的长文本</span>
+        <span className="text-[11px] text-[var(--msg-user-muted)]">
+          {lineCount} 行 · {formatCompactTokens(text.length)} 字符
+        </span>
+        <span className="ml-auto inline-flex items-center gap-1 text-[12px] text-[var(--msg-user-muted)]">
+          {expanded ? "收起" : "展开"}
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 20 20"
+            fill="none"
+            className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`}
+          >
+            <path d="M6 8l4 4 4-4" className="stroke-current" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </button>
+      <pre
+        className={`whitespace-pre-wrap break-words border-t border-[color-mix(in_srgb,var(--msg-user-fg)_10%,transparent)] px-4 py-3 font-mono text-[12.5px] leading-[1.55] ${
+          expanded
+            ? "max-h-[min(60vh,460px)] overflow-auto text-[var(--msg-user-fg)]"
+            : "max-h-[4.8em] overflow-hidden text-[var(--msg-user-muted)]"
+        }`}
+      >
+        {expanded ? text : preview}
+      </pre>
+    </div>
+  );
+});
+
 export const ChatMessage = memo(function ChatMessage({
   message,
   onRegenerate,
@@ -496,6 +566,14 @@ export const ChatMessage = memo(function ChatMessage({
           {buildRenderBlocks(message.parts).map((block) => {
               if (block.kind === "text") {
                 const part = block.part;
+                if (isUser && isCollapsibleUserText(part.text)) {
+                  return (
+                    <UserTextBlock
+                      key={`${message.id}-text-${block.index}`}
+                      text={part.text}
+                    />
+                  );
+                }
                 return (
                   <div
                     key={`${message.id}-text-${block.index}`}
