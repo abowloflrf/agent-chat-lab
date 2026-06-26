@@ -25,6 +25,7 @@
 - [ ] 为 MCP 工具增加调用审批开关（对齐内置 Bash 的 `needsApproval` 机制）
 
 ### P2 体验与可观测性
+- [ ] Bash 工具调用准实时流式输出：长命令执行中实时刷新 stdout/stderr（服务端改 async generator + 节流，方案见 [docs/bash-terminal-rendering-plan.md](docs/bash-terminal-rendering-plan.md) Phase 2）
 - [ ] 支持指定删除某条消息
 - [ ] 允许编辑用户已发送的某条消息，并基于编辑后的内容重新发送
 - [ ] 完善 artifacts 误收录预防策略（忽略规则、输出目录约束、扫描开关等）

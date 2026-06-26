@@ -118,6 +118,64 @@ function extractBashCommand(value: unknown) {
   return typeof record.command === "string" ? record.command : null;
 }
 
+type BashOutput = {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  durationMs?: number;
+  // Phase 2: intermediate streamed snapshots set running=true with no exitCode.
+  running?: boolean;
+};
+
+/** Parse a Bash tool result into the terminal shape; null if it isn't one. */
+function parseBashOutput(value: unknown): BashOutput | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  if (typeof record.stdout !== "string" || typeof record.stderr !== "string") {
+    return null;
+  }
+
+  return {
+    exitCode: typeof record.exitCode === "number" ? record.exitCode : null,
+    stdout: record.stdout,
+    stderr: record.stderr,
+    durationMs:
+      typeof record.durationMs === "number" ? record.durationMs : undefined,
+    running: record.running === true,
+  };
+}
+
+function formatBashDuration(ms?: number) {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) {
+    return null;
+  }
+
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
+
+  const seconds = ms / 1000;
+  return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
+}
+
+/** Exit-code status of a finished Bash call, for the collapsed-row dot. */
+function bashExitStatus(invocation: ToolInvocation): "ok" | "fail" | null {
+  if (toToolName(invocation) !== "Bash" || invocation.state !== "output-available") {
+    return null;
+  }
+
+  const parsed = parseBashOutput(invocation.output);
+  if (!parsed) {
+    return null;
+  }
+
+  return parsed.exitCode === 0 ? "ok" : "fail";
+}
+
 function extractInputSummary(toolName: string, input: unknown): string | null {
   if (!input || typeof input !== "object") {
     return null;
@@ -519,6 +577,123 @@ function IOPanel({
   );
 }
 
+/**
+ * Bash 终端块：`$ 命令` + 合并的 stdout/stderr 输出，深色 panel-strong 底。
+ * 审批态只渲染命令行（输出尚不存在）；运行中显示「运行中…」；完成后给退出码
+ * 药丸 + 耗时 + 单个「展开」（弹窗看完整命令+输出）。解析失败回退原始 JSON。
+ */
+function BashToolPanel({
+  command,
+  invocation,
+  onExpand,
+}: {
+  command: string;
+  invocation: ToolInvocation;
+  onExpand: (title: string, content: string) => void;
+}) {
+  const state = invocation.state;
+  const isApproval =
+    state === "approval-requested" || state === "approval-responded";
+  const failed = state === "output-error";
+  const parsed =
+    state === "output-available" ? parseBashOutput(invocation.output) : null;
+  // output-available 但形状不符：保底用原始 JSON，绝不丢数据。
+  const rawFallback =
+    state === "output-available" && !parsed
+      ? formatJson(invocation.output)
+      : null;
+  const running = state === "input-streaming" || state === "input-available";
+
+  const exitCode = parsed?.exitCode ?? null;
+  const duration = formatBashDuration(parsed?.durationMs);
+
+  // 退出码药丸用浅底 surface，在深色终端卡上可读。
+  let badge: { text: string; className: string } | null = null;
+  if (failed) {
+    badge = {
+      text: "失败",
+      className: "bg-[var(--danger-surface)] text-[var(--danger)]",
+    };
+  } else if (parsed) {
+    badge =
+      exitCode === 0
+        ? {
+            text: "exit 0",
+            className: "bg-[var(--success-surface)] text-[var(--success)]",
+          }
+        : {
+            text: exitCode === null ? "已终止" : `exit ${exitCode}`,
+            className: "bg-[var(--danger-surface)] text-[var(--danger)]",
+          };
+  }
+
+  // 正文：stdout + stderr 合并（服务端已含截断/超时提示）；失败用 errorText。
+  let body: string | null = null;
+  if (failed) {
+    body = invocation.errorText?.trim() || "命令执行失败。";
+  } else if (parsed) {
+    const merged = [parsed.stdout, parsed.stderr]
+      .map((s) => s.replace(/\s+$/, ""))
+      .filter((s) => s.length > 0)
+      .join("\n");
+    body = merged.length > 0 ? merged : null;
+  } else if (rawFallback) {
+    body = rawFallback;
+  }
+
+  const showBody = !isApproval && !running;
+  const fullText = `$ ${command}${body ? `\n\n${body}` : ""}`;
+
+  return (
+    <div className="rounded-[10px] bg-[var(--panel-strong)] px-3.5 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <pre className="max-h-28 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words font-mono text-[12px] leading-6 text-[var(--panel-foreground)]">
+          <span className="select-none text-[var(--accent)]">$ </span>
+          {command}
+        </pre>
+        <span className="flex flex-shrink-0 items-center gap-2 pt-0.5">
+          {running ? (
+            <span className="font-mono text-[10px] text-[var(--panel-muted)]">
+              运行中…
+            </span>
+          ) : null}
+          {badge ? (
+            <span
+              className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-medium ${badge.className}`}
+            >
+              {badge.text}
+            </span>
+          ) : null}
+          {duration ? (
+            <span className="font-mono text-[10px] text-[var(--panel-muted)]">
+              {duration}
+            </span>
+          ) : null}
+          {showBody ? (
+            <button
+              type="button"
+              onClick={() => onExpand("Bash · 终端输出", fullText)}
+              className="font-mono text-[10px] text-[var(--panel-muted)] underline-offset-2 transition-colors hover:text-[var(--panel-foreground)] hover:underline"
+            >
+              展开
+            </button>
+          ) : null}
+        </span>
+      </div>
+
+      {showBody ? (
+        <pre
+          className={`mt-2 max-h-72 overflow-auto whitespace-pre border-t border-[var(--panel-muted)]/15 pt-2 font-mono text-[11px] leading-6 ${
+            body ? "text-[var(--panel-foreground)]" : "text-[var(--panel-muted)]"
+          }`}
+        >
+          {body ?? "(无输出)"}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
+
 function ToolCallRow({
   invocation,
   actionable,
@@ -578,6 +753,7 @@ function ToolCallRow({
   const bashAssessment = bashCommand ? assessBashCommand(bashCommand) : null;
   const summary = buildRowSummary(invocation, toolName);
   const badge = rowBadge(invocation, status, isQuestionTool, actionable);
+  const exitDot = bashExitStatus(invocation);
   const showTodoPanel =
     isTodoToolName(toolName) && invocation.state === "output-available";
   // 有专属面板的工具把原始 JSON 收进“原始数据”，避免同一信息渲染两遍。
@@ -602,6 +778,15 @@ function ToolCallRow({
       ) : (
         <span className="flex-1" />
       )}
+
+      {exitDot ? (
+        <span
+          aria-hidden="true"
+          className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+            exitDot === "ok" ? "bg-[var(--success)]" : "bg-[var(--danger)]"
+          }`}
+        />
+      ) : null}
 
       {badge ? (
         <span className={`flex-shrink-0 text-[10px] font-medium ${badge.className}`}>
@@ -652,11 +837,13 @@ function ToolCallRow({
               />
             ) : null}
 
-            {/* Bash: command is always visible when expanded */}
-            {bashAssessment ? (
-              <pre className="overflow-x-auto rounded-[10px] bg-[var(--panel-strong)] px-4 py-3 font-mono text-[12px] leading-6 text-[var(--panel-foreground)]">
-                {bashAssessment.normalizedCommand}
-              </pre>
+            {/* Bash: terminal-style command + merged stdout/stderr */}
+            {toolName === "Bash" && bashAssessment ? (
+              <BashToolPanel
+                command={bashAssessment.normalizedCommand}
+                invocation={invocation}
+                onExpand={openModal}
+              />
             ) : null}
 
             {/* Bash: full risk assessment only while approval is pending */}
@@ -783,15 +970,6 @@ function ToolCallRow({
             {/* Todo-specific formatted result */}
             {showTodoPanel ? (
               <TodoToolPanel toolName={toolName} output={invocation.output} />
-            ) : null}
-
-            {/* Bash output stays visible; its input lives in 原始数据 below */}
-            {toolName === "Bash" && !isApprovalRequested && !isApprovalResponded ? (
-              <IOPanel
-                label="Output"
-                content={outputContent}
-                onExpand={() => openModal(`${toolName} - Output`, outputContent)}
-              />
             ) : null}
 
             {/* Raw input/output: inline for generic tools, tucked away for specialized ones */}
