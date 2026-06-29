@@ -12,6 +12,8 @@ const EXA_SEARCH_URL = "https://api.exa.ai/search";
 const EXA_CONTENTS_URL = "https://api.exa.ai/contents";
 // Exa 搜索结果带回的正文片段长度，对齐 Tavily 的 content 摘要量级，避免一次塞入整页。
 const EXA_SEARCH_SNIPPET_CHARS = 800;
+// Exa /contents 全文上限：取 Exa 文档允许的最大值 10000，尽量多保留正文。
+const EXA_FETCH_MAX_CHARS = 10000;
 
 const WEB_SEARCH_NEXT_ACTION =
   "To verify a source, summarize a page, or extract details, pick the most relevant url(s) from results and pass them to WebFetch in a single call to fetch them concurrently.";
@@ -300,7 +302,7 @@ async function fetchWithExa(
     body: JSON.stringify({
       urls: input.urls,
       maxAgeHours: 24,
-      text: { maxCharacters: WEB_FETCH_CONTENT_PREVIEW_LENGTH * 4 },
+      text: { maxCharacters: EXA_FETCH_MAX_CHARS },
     }),
   });
 
