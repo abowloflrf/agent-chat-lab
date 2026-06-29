@@ -1012,7 +1012,7 @@ export async function generateConversationTitle(
   await ensureDatabase();
 
   const { generateText } = await import("ai");
-  const { getChatModel } = await import("@/lib/ai/model");
+  const { getChatModel, sessionHeaders } = await import("@/lib/ai/model");
 
   const model = getChatModel(providerConfig);
 
@@ -1054,6 +1054,7 @@ export async function generateConversationTitle(
   try {
     const result = await generateText({
       model,
+      headers: sessionHeaders(conversationId),
       maxOutputTokens: TITLE_MAX_OUTPUT_TOKENS,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       providerOptions: buildTitleProviderOptions(providerConfig) as any,

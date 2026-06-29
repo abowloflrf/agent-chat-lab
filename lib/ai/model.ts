@@ -6,6 +6,15 @@ import { resolveProviderConfig } from "@/lib/settings";
 
 export { resolveProviderConfig };
 
+// Mirror Claude Code's per-session header so the conversation id travels with
+// every outbound LLM request (gateways use it for sticky routing / tracing).
+export const SESSION_ID_HEADER = "X-Claude-Code-Session_Id";
+
+/** Build the per-request session header for a given conversation. */
+export function sessionHeaders(sessionId: string): Record<string, string> {
+  return { [SESSION_ID_HEADER]: sessionId };
+}
+
 export function getChatModel(config: ProviderConfig) {
   switch (config.protocol) {
     case "openai-response": {

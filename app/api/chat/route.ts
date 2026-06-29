@@ -12,7 +12,7 @@ import {
   ASK_USER_QUESTION_PART_TYPE,
   buildUnansweredOutput,
 } from "@/lib/ai/ask-user-question";
-import { getChatModel } from "@/lib/ai/model";
+import { getChatModel, sessionHeaders } from "@/lib/ai/model";
 import {
   buildMcpContextPrompt,
   buildSkillContextPrompt,
@@ -618,6 +618,7 @@ export async function POST(request: Request) {
 
   const result = streamText({
     model: getChatModel(providerConfig),
+    headers: sessionHeaders(parsed.data.conversationId),
     system: runtimeSystemPrompt,
     messages: modelMessages,
     tools,
