@@ -90,6 +90,44 @@ export const mcpServerInputSchema = z.object({
   isEnabled: z.boolean().optional(),
 });
 
+// 用户自定义字体值会被注入 <style>，必须防 CSS 注入。支持一个或多个 family 名、逗号分隔、
+// 引号可选（如 `Inter`、`"PingFang SC"`、`"Inter","PingFang SC"`）。逐段剥用户引号后按白名单
+// 校验（拉丁字母 / 数字 / 空格 / 连字符 / 下划线 / CJK），再由我们重新加引号拼回——用户的引号
+// 与逗号永不原样进 CSS。非法或空段丢弃；整体超长或无合法段则归零为空。返回带引号的 CSS 列表。
+const FONT_FAMILY_RE = /^[\p{Script=Han}A-Za-z0-9 _-]+$/u;
+const FONT_VALUE_MAX = 200;
+
+export function sanitizeFontStack(value: unknown): string {
+  if (typeof value !== "string" || value.length > FONT_VALUE_MAX) {
+    return "";
+  }
+
+  const families: string[] = [];
+  for (const segment of value.split(",")) {
+    let name = segment.trim();
+    // Strip one matching pair of surrounding quotes the user may have typed.
+    const first = name[0];
+    const last = name[name.length - 1];
+    if (name.length >= 2 && (first === '"' || first === "'") && last === first) {
+      name = name.slice(1, -1).trim();
+    }
+    if (name && FONT_FAMILY_RE.test(name)) {
+      families.push(JSON.stringify(name));
+    }
+  }
+
+  return families.join(",");
+}
+
+const fontNameSchema = z.unknown().transform(sanitizeFontStack);
+
+// 零散 UI 偏好的统一容器（存 systemSettings.preferences JSON 列）。今后新增偏好往这里
+// 加键，无需再改数据库 schema。
+export const preferencesSchema = z.object({
+  fontSans: fontNameSchema,
+  fontMono: fontNameSchema,
+});
+
 export const systemSettingsSchema = z.object({
   tavilyApiKey: z.string().trim().default(""),
   exaApiKey: z.string().trim().default(""),
@@ -97,6 +135,7 @@ export const systemSettingsSchema = z.object({
   mcpServers: z.array(mcpServerSchema).default([]),
   // 被用户在设置页关闭的 skill 名单（skill 本体在文件系统，这里只存开关状态）。
   disabledSkills: z.array(z.string().trim().min(1)).default([]),
+  preferences: preferencesSchema.default({ fontSans: "", fontMono: "" }),
 });
 
 export const systemSettingsInputSchema = z.object({
@@ -105,6 +144,7 @@ export const systemSettingsInputSchema = z.object({
   providers: z.array(providerSettingsInputSchema).optional(),
   mcpServers: z.array(mcpServerInputSchema).optional(),
   disabledSkills: z.array(z.string()).optional(),
+  preferences: preferencesSchema.optional(),
 });
 
 export const providerConfigSchema = z.object({
@@ -160,6 +200,7 @@ export const defaultSystemSettings: SystemSettings = {
   providers: [defaultProviderSettings],
   mcpServers: [],
   disabledSkills: [],
+  preferences: { fontSans: "", fontMono: "" },
 };
 
 export function normalizeMcpServer(input: McpServer): McpServer {
@@ -247,5 +288,9 @@ export function normalizeSystemSettings(input: SystemSettings): SystemSettings {
     disabledSkills: Array.from(
       new Set(input.disabledSkills.map((name) => name.trim()).filter(Boolean)),
     ),
+    preferences: {
+      fontSans: sanitizeFontStack(input.preferences?.fontSans),
+      fontMono: sanitizeFontStack(input.preferences?.fontMono),
+    },
   };
 }

@@ -36,7 +36,7 @@ const RANGES = [
 ];
 
 const DAY_MS = 86_400_000;
-const MONO_FONT = "var(--font-ibm-plex-mono)";
+const MONO_FONT = "var(--font-mono-stack)";
 
 type TooltipEntry = { dataKey?: string | number; value?: number; color?: string };
 

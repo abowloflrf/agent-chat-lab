@@ -8,6 +8,8 @@ import { ModuleSwitcher } from "@/components/module-switcher";
 import { StatsDashboard } from "@/components/stats-dashboard";
 import { ConversationsManager } from "@/components/conversations-manager";
 import { ThemeSelector } from "@/components/theme-selector";
+import { FontSettings } from "@/components/font-settings";
+import { applyUserFontStyle } from "@/lib/fonts";
 import {
   defaultProviderSettings,
   defaultSystemSettings,
@@ -773,7 +775,7 @@ export function ProviderSettingsForm() {
     }));
   }
 
-  async function persistSettings(): Promise<void> {
+  async function persistSettings(): Promise<SystemSettings> {
     const response = await fetch("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -798,6 +800,8 @@ export function ProviderSettingsForm() {
     if (payload.mcpOAuth) {
       setMcpOAuthStatuses(payload.mcpOAuth);
     }
+
+    return payload.settings ?? settings;
   }
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
@@ -807,6 +811,27 @@ export function ProviderSettingsForm() {
 
     try {
       await persistSettings();
+      setSaveMessage({ type: "success", text: "设置已保存。" });
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (error) {
+      setSaveMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "保存设置时发生未知错误。",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  // Appearance section saves through the same settings PUT, then reflects the
+  // saved (server-sanitized) fonts immediately by updating the injected style.
+  async function handleSaveAppearance() {
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const saved = await persistSettings();
+      applyUserFontStyle(saved.preferences.fontSans, saved.preferences.fontMono);
       setSaveMessage({ type: "success", text: "设置已保存。" });
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (error) {
@@ -965,6 +990,19 @@ export function ProviderSettingsForm() {
             {section === "appearance" ? (
               <div className="mx-auto w-full max-w-5xl">
                 <ThemeSelector />
+                <FontSettings
+                  fontSans={settings.preferences.fontSans}
+                  fontMono={settings.preferences.fontMono}
+                  onChange={(next) =>
+                    setSettings((current) => ({
+                      ...current,
+                      preferences: { ...current.preferences, ...next },
+                    }))
+                  }
+                  onSave={handleSaveAppearance}
+                  isSaving={isSaving}
+                  saveMessage={saveMessage}
+                />
               </div>
             ) : section === "stats" ? (
               <div className="mx-auto w-full max-w-5xl">

@@ -82,6 +82,19 @@
   --glass-glow: rgba(255, 251, 245, 0.97);
   --glass-highlight: rgba(255, 255, 255, 0.8);
   --glass-edge: rgba(255, 255, 255, 0.12);
+  /* Font stacks: single source of truth for the whole app. --font-sans/--font-mono
+     live in @theme inline (below) and can't be referenced globally, so consumers
+     (body, editors, charts) use the *-stack vars instead. */
+  --font-cjk: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC",
+    "Hiragino Sans GB", "WenQuanYi Micro Hei";
+  /* Built-in face + CJK + generic. Reused by the stacks and by the SSR-injected
+     user-font override (lib/fonts.ts), so the fallback chain lives in one place. */
+  --font-sans-fallback: var(--font-space-grotesk), var(--font-cjk), sans-serif;
+  --font-mono-fallback: var(--font-ibm-plex-mono), var(--font-cjk), monospace;
+  /* Final stacks consumed app-wide. A configured user font is prepended by a
+     :root override that redefines these (see buildFontOverrideCss). */
+  --font-sans-stack: var(--font-sans-fallback);
+  --font-mono-stack: var(--font-mono-fallback);
 }
 
 /* Color themes: each block overrides the same token set with different values.
@@ -187,8 +200,8 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-primary: var(--accent);
   --color-primary-foreground: var(--primary-foreground);
-  --font-sans: var(--font-space-grotesk);
-  --font-mono: var(--font-ibm-plex-mono);
+  --font-sans: var(--font-sans-stack);
+  --font-mono: var(--font-mono-stack);
 }
 
 * {
@@ -204,7 +217,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-sans-stack);
   font-size: 13px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;

@@ -68,6 +68,7 @@ function makeSystemSettings(overrides: Partial<SystemSettings> = {}): SystemSett
     providers: [],
     mcpServers: [],
     disabledSkills: [],
+    preferences: { fontSans: "", fontMono: "" },
     ...overrides,
   };
 }
@@ -626,6 +627,7 @@ describe("normalizeSystemSettings", () => {
       providers: [],
       mcpServers: [],
       disabledSkills: [],
+      preferences: { fontSans: "", fontMono: "" },
     });
   });
 

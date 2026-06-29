@@ -29,8 +29,7 @@ const defaultEditorTheme = EditorView.theme({
     outline: "none",
   },
   ".cm-scroller": {
-    fontFamily:
-      'var(--font-ibm-plex-mono), "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Hiragino Sans GB", "WenQuanYi Micro Hei", monospace',
+    fontFamily: "var(--font-mono-stack)",
     lineHeight: "1.65",
     minHeight: "360px",
     padding: "12px 0",
@@ -77,8 +76,7 @@ const minimalEditorTheme = EditorView.theme({
     outline: "none",
   },
   ".cm-scroller": {
-    fontFamily:
-      'var(--font-ibm-plex-mono), "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Hiragino Sans GB", "WenQuanYi Micro Hei", monospace',
+    fontFamily: "var(--font-mono-stack)",
     lineHeight: "1.8",
     minHeight: "320px",
     padding: "2px 0 18px",

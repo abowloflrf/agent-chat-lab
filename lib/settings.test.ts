@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { normalizeSystemSettings, sanitizeFontStack } from "@/lib/provider-config";
 import type { McpServer, ProviderSettings, SystemSettings } from "@/lib/provider-config";
 
 // settings.ts captures `envProviderConfig` from process.env at import time, and the
@@ -70,6 +71,7 @@ function makeSettings(over: Partial<SystemSettings> = {}): SystemSettings {
     providers: [],
     mcpServers: [],
     disabledSkills: [],
+    preferences: { fontSans: "", fontMono: "" },
     ...over,
   };
 }
@@ -252,6 +254,49 @@ describe("resolveProviderConfig", () => {
       baseUrl: "https://env.example/v1",
       apiKey: "env-key",
       model: "env-model",
+    });
+  });
+});
+
+describe("sanitizeFontStack", () => {
+  it("quotes a single valid latin / CJK family name", () => {
+    expect(sanitizeFontStack("PingFang SC")).toBe('"PingFang SC"');
+    expect(sanitizeFontStack("微软雅黑")).toBe('"微软雅黑"');
+    expect(sanitizeFontStack("JetBrains_Mono-2")).toBe('"JetBrains_Mono-2"');
+  });
+
+  it("accepts multiple names, comma-separated, quotes optional", () => {
+    expect(sanitizeFontStack("Inter, PingFang SC")).toBe('"Inter","PingFang SC"');
+    expect(sanitizeFontStack('"Inter","PingFang SC"')).toBe('"Inter","PingFang SC"');
+    expect(sanitizeFontStack("'Inter', PingFang SC")).toBe('"Inter","PingFang SC"');
+  });
+
+  it("trims whitespace and drops empty segments", () => {
+    expect(sanitizeFontStack("  Inter  ")).toBe('"Inter"');
+    expect(sanitizeFontStack("Inter,, ,PingFang SC")).toBe('"Inter","PingFang SC"');
+  });
+
+  it("drops only the segments with CSS-injection / illegal characters", () => {
+    expect(sanitizeFontStack("a; } body{display:none}")).toBe("");
+    expect(sanitizeFontStack('"a";}body{')).toBe(""); // unmatched quotes, illegal chars
+    expect(sanitizeFontStack('"OK", url(evil)')).toBe('"OK"'); // illegal segment dropped
+  });
+
+  it("returns empty for non-strings and over-long input", () => {
+    expect(sanitizeFontStack(undefined)).toBe("");
+    expect(sanitizeFontStack(123)).toBe("");
+    expect(sanitizeFontStack("x".repeat(201))).toBe("");
+  });
+});
+
+describe("normalizeSystemSettings preferences", () => {
+  it("sanitizes font names and always returns a complete preferences object", () => {
+    const result = normalizeSystemSettings(
+      makeSettings({ preferences: { fontSans: "  Inter , PingFang SC ", fontMono: "evil;}{" } }),
+    );
+    expect(result.preferences).toEqual({
+      fontSans: '"Inter","PingFang SC"',
+      fontMono: "",
     });
   });
 });

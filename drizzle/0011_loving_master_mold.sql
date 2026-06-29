@@ -1,0 +1,1 @@
+ALTER TABLE `system_settings` ADD `preferences` text DEFAULT '{}' NOT NULL;

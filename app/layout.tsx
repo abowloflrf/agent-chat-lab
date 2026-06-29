@@ -2,6 +2,13 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { DEFAULT_THEME, THEME_UI_COLORS } from "@/lib/theme-constants";
+import { getSystemSettings } from "@/lib/settings";
+import { buildFontOverrideCss } from "@/lib/fonts";
+
+// The layout injects server-stored user fonts into every page's <head>, so it
+// must render at request time. Without this, statically prerendered pages
+// (e.g. /todos, /login) would freeze the font override at build-time values.
+export const dynamic = "force-dynamic";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -39,11 +46,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // User fonts are stored server-side; inject them as a :root override during SSR
+  // so the first paint already uses them (no flash). Empty string when unset,
+  // leaving the CSS defaults in place.
+  const { preferences } = await getSystemSettings();
+  const fontOverrideCss = buildFontOverrideCss(preferences.fontSans, preferences.fontMono);
+
   return (
     <html
       lang="zh-CN"
@@ -63,6 +76,10 @@ export default function RootLayout({
             )},t=localStorage.getItem("color-theme");if(t&&c[t]){document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m)}m.setAttribute("content",c[t])}}catch(e){}})()`,
           }}
         />
+        {/* User-configured fonts (server-side), applied before first paint. */}
+        {fontOverrideCss ? (
+          <style id="user-fonts" dangerouslySetInnerHTML={{ __html: fontOverrideCss }} />
+        ) : null}
       </head>
       <body className="h-full">{children}</body>
     </html>

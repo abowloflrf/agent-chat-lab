@@ -9,6 +9,7 @@ import {
   mcpServerSchema,
   normalizeProviderConfig,
   normalizeSystemSettings,
+  preferencesSchema,
   providerConfigInputSchema,
   systemSettingsInputSchema,
   type McpServer,
@@ -77,6 +78,23 @@ function parseDisabledSkillsColumn(raw: string | null | undefined): string[] {
   }
 }
 
+function parsePreferencesColumn(
+  raw: string | null | undefined,
+): SystemSettings["preferences"] {
+  const fallback: SystemSettings["preferences"] = { fontSans: "", fontMono: "" };
+
+  if (!raw) {
+    return fallback;
+  }
+
+  try {
+    const parsed = preferencesSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function toInt(value: boolean) {
   return value ? 1 : 0;
 }
@@ -105,6 +123,7 @@ function buildDefaultSettingsFromEnv(): SystemSettings {
     ],
     mcpServers: [],
     disabledSkills: [],
+    preferences: { fontSans: "", fontMono: "" },
   });
 }
 
@@ -231,6 +250,7 @@ function parseSettingsInput(input: unknown) {
       isEnabled: server.isEnabled ?? true,
     })),
     disabledSkills: parsed.data.disabledSkills ?? [],
+    preferences: parsed.data.preferences ?? { fontSans: "", fontMono: "" },
   });
 
   assertValidMcpServerUrls(normalized.mcpServers);
@@ -289,6 +309,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
     })),
     mcpServers: parseMcpServersColumn(settingsRow?.mcpServers),
     disabledSkills: parseDisabledSkillsColumn(settingsRow?.disabledSkills),
+    preferences: parsePreferencesColumn(settingsRow?.preferences),
   });
 }
 
@@ -310,6 +331,7 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
   db.transaction((tx) => {
     const mcpServersJson = JSON.stringify(normalized.mcpServers);
     const disabledSkillsJson = JSON.stringify(disabledSkills);
+    const preferencesJson = JSON.stringify(normalized.preferences);
 
     tx.insert(systemSettings)
       .values({
@@ -318,6 +340,7 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
         exaApiKey: normalized.exaApiKey,
         mcpServers: mcpServersJson,
         disabledSkills: disabledSkillsJson,
+        preferences: preferencesJson,
         createdAt: now,
         updatedAt: now,
       })
@@ -328,6 +351,7 @@ export async function saveSystemSettings(input: unknown): Promise<SystemSettings
           exaApiKey: normalized.exaApiKey,
           mcpServers: mcpServersJson,
           disabledSkills: disabledSkillsJson,
+          preferences: preferencesJson,
           updatedAt: now,
         },
       })

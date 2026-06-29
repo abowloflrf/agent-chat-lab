@@ -165,6 +165,9 @@ export const systemSettings = sqliteTable("system_settings", {
   exaApiKey: text("exa_api_key").notNull().default(""),
   mcpServers: text("mcp_servers").notNull().default("[]"),
   disabledSkills: text("disabled_skills").notNull().default("[]"),
+  // JSON bag for loose UI preferences (fonts, …). New prefs add keys here
+  // instead of new columns, so this is the last schema change for that class.
+  preferences: text("preferences").notNull().default("{}"),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
 });
