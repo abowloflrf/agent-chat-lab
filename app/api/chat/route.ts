@@ -3,7 +3,7 @@ import {
   createUIMessageStreamResponse,
   streamText,
   convertToModelMessages,
-  stepCountIs,
+  isStepCount,
   type FinishReason,
 } from "ai";
 import { after } from "next/server";
@@ -635,7 +635,7 @@ export async function POST(request: Request) {
     // 确定性纠偏：把模型按 Claude Code 习惯发来的工具调用（大写名、file_path
     // 等参数键）就地翻译成本地工具契约，省掉“先错一次再重试”的额外往返。
     experimental_repairToolCall: repairToolCall,
-    stopWhen: stepCountIs(AGENT_MAX_STEPS),
+    stopWhen: isStepCount(AGENT_MAX_STEPS),
     // Stop generating when the client disconnects or hits "stop", and close
     // MCP connections on every terminal path (finish / error / abort).
     abortSignal: request.signal,
@@ -691,12 +691,8 @@ export async function POST(request: Request) {
           inputTokens: toNonNegativeInt(step.usage.inputTokens),
           outputTokens: toNonNegativeInt(step.usage.outputTokens),
           totalTokens: toNonNegativeInt(step.usage.totalTokens),
-          reasoningTokens: toNonNegativeInt(
-            step.usage.outputTokenDetails.reasoningTokens ?? step.usage.reasoningTokens,
-          ),
-          cachedInputTokens: toNonNegativeInt(
-            step.usage.inputTokenDetails.cacheReadTokens ?? step.usage.cachedInputTokens,
-          ),
+          reasoningTokens: toNonNegativeInt(step.usage.outputTokenDetails.reasoningTokens),
+          cachedInputTokens: toNonNegativeInt(step.usage.inputTokenDetails.cacheReadTokens),
         },
       });
 

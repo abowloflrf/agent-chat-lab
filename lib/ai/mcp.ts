@@ -351,7 +351,8 @@ export async function testMcpServer(
 
     return Object.entries(tools).map(([name, tool]) => ({
       name,
-      description: tool.description ?? "",
+      // v7 allows dynamic (function) tool descriptions; only surface static strings here.
+      description: typeof tool.description === "string" ? tool.description : "",
     }));
   } finally {
     closeClient(client);
