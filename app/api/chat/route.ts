@@ -27,6 +27,7 @@ import { connectMcpServers, type McpServerToolInfo } from "@/lib/ai/mcp";
 import { resolveBaseUrl } from "@/lib/ai/mcp-oauth";
 import { discoverSkills, type SkillInfo } from "@/lib/ai/skills";
 import {
+  conversationExists,
   persistFinishedConversation,
   persistIncomingMessages,
   generateConversationTitle,
@@ -500,6 +501,16 @@ export async function POST(request: Request) {
         error: "Invalid request: missing valid conversation or messages.",
       },
       { status: 400 },
+    );
+  }
+
+  // The conversation must already exist (created via POST /api/conversations).
+  // Persisting under an unknown id would silently materialize a ghost
+  // conversation and mask client-side conversation-id bugs.
+  if (!(await conversationExists(parsed.data.conversationId))) {
+    return Response.json(
+      { error: `Conversation ${parsed.data.conversationId} does not exist.` },
+      { status: 404 },
     );
   }
 

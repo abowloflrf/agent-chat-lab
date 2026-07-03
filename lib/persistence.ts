@@ -821,6 +821,17 @@ export async function batchDeleteConversations(ids: string[]): Promise<number> {
   return deleted;
 }
 
+export async function conversationExists(conversationId: string): Promise<boolean> {
+  await ensureDatabase();
+
+  return (
+    db.select({ id: conversations.id })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .all().length > 0
+  );
+}
+
 export async function getConversation(conversationId: string): Promise<ChatSnapshot | null> {
   await ensureDatabase();
 

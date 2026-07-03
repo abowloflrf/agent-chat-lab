@@ -274,11 +274,21 @@ export function ChatShell({
     () =>
       new DefaultChatTransport<ChatUIMessage>({
         api: "/api/chat",
-        prepareSendMessagesRequest: ({ body, id, messages }) => {
+        prepareSendMessagesRequest: ({ body, messages }) => {
           const override = modelOverrideStore.get();
           const mcpServerIds = sessionToolsStore.getMcpServerIds();
           const skillNames = sessionToolsStore.getSkillNames();
-          const requestConversationId = conversationIdStore.get() ?? id;
+          // Prefer the id threaded through sendMessage's per-call body (submit
+          // paths); fall back to the store only for SDK-initiated auto-sends
+          // (tool approvals / question answers). Never fall back to the static
+          // useChat instance id — failing loudly beats persisting the whole
+          // run under a bogus conversation.
+          const requestConversationId =
+            (body?.conversationId as string | undefined) ??
+            conversationIdStore.get();
+          if (!requestConversationId) {
+            throw new Error("Missing conversation id for chat request.");
+          }
           return {
             body: {
               ...body,
@@ -319,6 +329,10 @@ export function ChatShell({
   } = useStickToBottom({ initial: false });
   const previousRouteConversationIdRef = useRef<string | null>(routeConversationId);
   const isResettingToNewConversationRef = useRef(false);
+  // Conversation id just created by ensureConversationId whose router.replace
+  // has not committed yet. Route-sync effects must not treat the interim URL
+  // states as user navigation (see the route effect below).
+  const pendingCreatedConversationIdRef = useRef<string | null>(null);
   const conversationId = routeConversationId ?? localConversationId;
 
   useEffect(() => {
@@ -518,6 +532,14 @@ export function ChatShell({
         previousRouteConversationId !== null ||
         isResettingToNewConversationRef.current
       ) {
+        if (pendingCreatedConversationIdRef.current !== null) {
+          // Stale "/" commit from a navigation issued before the current
+          // conversation was created (its router.replace is still pending).
+          // Resetting here would null the conversation id and wipe live chat
+          // state mid-send, splitting the conversation.
+          isResettingToNewConversationRef.current = false;
+          return;
+        }
         isResettingToNewConversationRef.current = false;
         conversationIdStore.set(null);
         setLocalConversationId(null);
@@ -530,6 +552,22 @@ export function ChatShell({
         setArtifactPopoverOpen(false);
       }
       return;
+    }
+
+    if (routeConversationId === pendingCreatedConversationIdRef.current) {
+      // The URL caught up with the conversation we just created and are
+      // already on. Refetching would clobber in-flight messages with a stale
+      // (possibly empty) server snapshot and reset the session config. No
+      // state sync needed: ensureConversationId already set localConversationId
+      // to this id, and the pending guard above kept the reset from undoing it.
+      pendingCreatedConversationIdRef.current = null;
+      isResettingToNewConversationRef.current = false;
+      return;
+    }
+    if (routeConversationId !== previousRouteConversationId) {
+      // The route moved somewhere other than the pending conversation —
+      // genuine navigation; stop treating the pending id as in flight.
+      pendingCreatedConversationIdRef.current = null;
     }
 
     if (isResettingToNewConversationRef.current) {
@@ -880,6 +918,7 @@ export function ChatShell({
 
       conversationIdStore.set(nextConversationId);
       setLocalConversationId(nextConversationId);
+      pendingCreatedConversationIdRef.current = nextConversationId;
       router.replace(`/?conversationId=${nextConversationId}`, {
         scroll: false,
       });
@@ -907,9 +946,9 @@ export function ChatShell({
     setConversationCreationError(null);
     setInterruptedRunDetected(false);
     void stickScrollToBottom();
-    await ensureConversationId();
+    const conversationId = await ensureConversationId();
     setDraft("");
-    await sendMessage({ text });
+    await sendMessage({ text }, { body: { conversationId } });
   }
 
   async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
@@ -939,8 +978,8 @@ export function ChatShell({
     setConversationCreationError(null);
     setInterruptedRunDetected(false);
     void stickScrollToBottom();
-    await ensureConversationId();
-    await sendMessage({ text: prompt });
+    const conversationId = await ensureConversationId();
+    await sendMessage({ text: prompt }, { body: { conversationId } });
   }
 
   const handleRegenerateFromMessage = useCallback(
@@ -1074,6 +1113,7 @@ export function ChatShell({
     }
 
     isResettingToNewConversationRef.current = true;
+    pendingCreatedConversationIdRef.current = null;
     conversationIdStore.set(null);
     setConversationCreationError(null);
     setConversationTitle(null);
