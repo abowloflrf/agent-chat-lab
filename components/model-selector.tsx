@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import type { ProviderSettings } from "@/lib/provider-config";
 
@@ -32,6 +33,9 @@ export function ModelSelector({
   onSelect,
   disabled = false,
 }: ModelSelectorProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
   const groups = buildEnabledModels(providers);
   const totalModels = groups.reduce((sum, g) => sum + g.models.length, 0);
 
@@ -41,8 +45,41 @@ export function ModelSelector({
 
   const displayLabel = selected?.modelId ?? "选择模型";
 
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredGroups = normalizedQuery
+    ? groups
+        .map((group) => ({
+          ...group,
+          models: group.providerName.toLowerCase().includes(normalizedQuery)
+            ? group.models
+            : group.models.filter((m) =>
+                m.modelId.toLowerCase().includes(normalizedQuery),
+              ),
+        }))
+        .filter((group) => group.models.length > 0)
+    : groups;
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      setQuery("");
+    }
+  };
+
+  const selectFirstMatch = () => {
+    const group = filteredGroups[0];
+    const model = group?.models[0];
+    if (!group || !model) return;
+    onSelect({
+      providerId: group.providerId,
+      providerName: group.providerName,
+      modelId: model.modelId,
+    });
+    handleOpenChange(false);
+  };
+
   return (
-    <Popover.Root>
+    <Popover.Root open={open} onOpenChange={handleOpenChange}>
       <Popover.Trigger asChild>
         <button
           type="button"
@@ -77,8 +114,43 @@ export function ModelSelector({
           collisionPadding={12}
           className="menu-appear z-50 w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)] shadow-lg shadow-black/8 sm:w-auto sm:min-w-[240px] sm:max-w-[320px]"
         >
+          <div className="flex items-center gap-2 border-b border-[var(--border)] px-3 py-2">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              className="h-3.5 w-3.5 shrink-0 text-[var(--muted-foreground)]"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
+              />
+            </svg>
+            <input
+              type="text"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  selectFirstMatch();
+                }
+              }}
+              placeholder="搜索模型…"
+              aria-label="搜索模型"
+              className="w-full min-w-0 bg-transparent font-mono text-[12px] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none"
+            />
+          </div>
           <div className="max-h-[60vh] overflow-y-auto py-1 sm:max-h-[280px]">
-            {groups.map((group) => (
+            {filteredGroups.length === 0 ? (
+              <div className="px-3 py-5 text-center text-[12px] text-[var(--muted-foreground)]">
+                无匹配模型
+              </div>
+            ) : null}
+            {filteredGroups.map((group) => (
               <div key={group.providerId}>
                 <div className="px-3 pb-1 pt-2 text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                   {group.providerName}
