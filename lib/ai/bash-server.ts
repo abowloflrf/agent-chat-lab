@@ -10,6 +10,14 @@ import {
   assessBashCommand,
   type BashAssessment,
 } from "@/lib/ai/bash-policy";
+import { logger } from "@/lib/logger";
+
+const bashLog = logger.child({ module: "Bash" });
+
+// Keep log lines bounded: commands can be arbitrarily long.
+function summarizeCommand(command: string): string {
+  return command.length > 200 ? `${command.slice(0, 200)}…` : command;
+}
 
 // Hard ceiling on how much output we keep in memory to write to the temp file.
 // The tail window (assessment.outputLimit) is what the model sees; this larger
@@ -123,9 +131,13 @@ async function persistFullOutput(
   try {
     await writeFile(file, header, "utf8");
     return file;
-  } catch {
+  } catch (error) {
     // Persisting the full transcript is best-effort; a failure here must not
     // sink the command result the model is waiting on.
+    bashLog.warn(
+      { file, error: error instanceof Error ? error.message : String(error) },
+      "failed to persist full bash output",
+    );
     return undefined;
   }
 }
@@ -143,8 +155,13 @@ function toExecutionError(error: NodeJS.ErrnoException, workdir: string) {
 export async function executeBashCommand(command: string): Promise<BashExecutionResult> {
   const assessment = assessBashCommand(command);
   const workdir = resolveBashToolWorkdir();
+  const commandSummary = summarizeCommand(assessment.normalizedCommand);
 
   if (assessment.decision === "deny") {
+    bashLog.warn(
+      { command: commandSummary, riskLevel: assessment.riskLevel, reasons: assessment.reasons },
+      "bash command denied by policy",
+    );
     throw new Error(assessment.reasons.join(" "));
   }
 
@@ -215,7 +232,13 @@ export async function executeBashCommand(command: string): Promise<BashExecution
     });
 
     child.on("error", (error) => {
-      finalize(() => reject(toExecutionError(error, workdir)));
+      finalize(() => {
+        bashLog.warn(
+          { command: commandSummary, workdir, error: error.message },
+          "bash command failed to start",
+        );
+        reject(toExecutionError(error, workdir));
+      });
     });
 
     child.on("close", (exitCode) => {
@@ -247,6 +270,23 @@ export async function executeBashCommand(command: string): Promise<BashExecution
           const stderr = timedOut
             ? `${stderrBase}${stderrBase ? "\n" : ""}命令执行超时，已被终止。`
             : stderrBase;
+
+          const logPayload = {
+            command: commandSummary,
+            exitCode,
+            durationMs,
+            riskLevel: assessment.riskLevel,
+            workdir,
+            outputTruncated: so.truncated || se.truncated,
+          };
+          if (timedOut) {
+            bashLog.warn(
+              { ...logPayload, timeoutMs: assessment.timeoutMs },
+              "bash command timed out and was killed",
+            );
+          } else {
+            bashLog.info(logPayload, "bash command finished");
+          }
 
           resolve({
             command: assessment.normalizedCommand,

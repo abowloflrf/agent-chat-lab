@@ -1,5 +1,9 @@
 import { z } from "zod";
 import type { ProviderConfig } from "@/lib/provider-config";
+import { logger } from "@/lib/logger";
+
+const searchLog = logger.child({ module: "WebSearch" });
+const fetchLog = logger.child({ module: "WebFetch" });
 
 const DEFAULT_WEB_SEARCH_LIMIT = 5;
 const MAX_WEB_SEARCH_LIMIT = 10;
@@ -383,13 +387,23 @@ export async function runWebSearch(
   const providers = selectProviders(config);
   let lastError: unknown;
 
-  for (const provider of providers) {
+  for (const [index, provider] of providers.entries()) {
+    const startedAt = Date.now();
     try {
       const result =
         provider.name === "tavily"
           ? await searchWithTavily(input, provider.apiKey)
           : await searchWithExa(input, provider.apiKey);
 
+      searchLog.info(
+        {
+          provider: provider.name,
+          query: input.query,
+          results: result.results.length,
+          durationMs: Date.now() - startedAt,
+        },
+        "web search succeeded",
+      );
       return {
         provider: provider.name,
         ...result,
@@ -397,9 +411,26 @@ export async function runWebSearch(
       };
     } catch (error) {
       lastError = error;
+      const hasFallback = index < providers.length - 1;
+      searchLog.warn(
+        {
+          provider: provider.name,
+          query: input.query,
+          durationMs: Date.now() - startedAt,
+          willFailover: hasFallback,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        hasFallback
+          ? "web search provider failed; failing over to next"
+          : "web search provider failed",
+      );
     }
   }
 
+  searchLog.error(
+    { query: input.query, providersTried: providers.map((provider) => provider.name) },
+    "web search failed on all providers",
+  );
   throw lastError instanceof Error ? lastError : new Error("Web search failed.");
 }
 
@@ -415,7 +446,8 @@ export async function runWebFetch(
   const providers = selectProviders(config);
   let lastError: unknown;
 
-  for (const provider of providers) {
+  for (const [index, provider] of providers.entries()) {
+    const startedAt = Date.now();
     try {
       const result =
         provider.name === "tavily"
@@ -426,6 +458,16 @@ export async function runWebFetch(
         (item) => item.content && item.content.length > WEB_FETCH_CONTENT_PREVIEW_LENGTH,
       );
 
+      fetchLog.info(
+        {
+          provider: provider.name,
+          urls: input.urls.length,
+          fetched: result.results.length,
+          failed: result.failedResults.length,
+          durationMs: Date.now() - startedAt,
+        },
+        "web fetch succeeded",
+      );
       return {
         provider: provider.name,
         ...result,
@@ -435,8 +477,25 @@ export async function runWebFetch(
       };
     } catch (error) {
       lastError = error;
+      const hasFallback = index < providers.length - 1;
+      fetchLog.warn(
+        {
+          provider: provider.name,
+          urls: input.urls.length,
+          durationMs: Date.now() - startedAt,
+          willFailover: hasFallback,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        hasFallback
+          ? "web fetch provider failed; failing over to next"
+          : "web fetch provider failed",
+      );
     }
   }
 
+  fetchLog.error(
+    { urls: input.urls.length, providersTried: providers.map((provider) => provider.name) },
+    "web fetch failed on all providers",
+  );
   throw lastError instanceof Error ? lastError : new Error("Web fetch failed.");
 }

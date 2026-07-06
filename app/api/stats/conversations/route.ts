@@ -1,6 +1,9 @@
 import { listConversationStats } from "@/lib/persistence";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
+
+const statsLog = logger.child({ module: "Stats" });
 
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 500;
@@ -27,6 +30,11 @@ export async function GET(request: Request) {
     offset: (page - 1) * pageSize,
   });
   const queryDurationMs = Math.round(performance.now() - startedAt);
+
+  statsLog.info(
+    { queryDurationMs, page, pageSize, total: result.total },
+    "conversation stats query",
+  );
 
   return Response.json({
     ...result,

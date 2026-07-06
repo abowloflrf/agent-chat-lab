@@ -1,8 +1,12 @@
+import { logger } from "@/lib/logger";
+
 // Exa usage is reported per API key via the admin API (a separate service key
 // and host from the search key). We list the team's keys, then sum each key's
 // usage over the period. The free tier is expressed as a request-count cap.
 const EXA_ADMIN_API_KEYS_URL = "https://admin-api.exa.ai/team-management/api-keys";
 const EXA_FREE_LIMIT = 20000;
+
+const exaUsageLog = logger.child({ module: "ExaUsage" });
 
 type ExaUsageResponse = {
   total_cost_usd?: number;
@@ -32,6 +36,7 @@ export async function GET() {
     const listRes = await fetch(EXA_ADMIN_API_KEYS_URL, { headers });
     if (!listRes.ok) {
       const text = await listRes.text();
+      exaUsageLog.warn({ status: listRes.status }, "Exa admin API returned error");
       return Response.json(
         { error: `Exa API 返回错误: ${listRes.status} ${text}` },
         { status: listRes.status },
@@ -78,6 +83,7 @@ export async function GET() {
       },
     });
   } catch (err) {
+    exaUsageLog.error({ err }, "failed to fetch Exa usage");
     return Response.json(
       { error: err instanceof Error ? err.message : "未知错误" },
       { status: 500 },

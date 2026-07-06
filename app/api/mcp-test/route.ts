@@ -2,8 +2,11 @@ import { z } from "zod";
 import { testMcpServer } from "@/lib/ai/mcp";
 import { resolveBaseUrl } from "@/lib/ai/mcp-oauth";
 import { mcpAuthTypes } from "@/lib/provider-config";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
+
+const mcpTestLog = logger.child({ module: "McpTest" });
 export const maxDuration = 30;
 
 const requestSchema = z.object({
@@ -59,10 +62,12 @@ export async function POST(request: Request) {
       resolveBaseUrl(request),
     );
 
+    mcpTestLog.info({ url, authType, toolCount: tools.length }, "MCP server test succeeded");
     return Response.json({ tools });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to connect to MCP server.";
 
+    mcpTestLog.warn({ url, authType, error: message }, "MCP server test failed");
     return Response.json(
       {
         error: message.slice(0, 300),

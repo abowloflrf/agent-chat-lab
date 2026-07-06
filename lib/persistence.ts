@@ -18,6 +18,8 @@ import { toDayKey } from "@/lib/datetime";
 import { DEFAULT_CONVERSATION_TITLE } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import type { ProviderConfig } from "@/lib/provider-config";
+
+const conversationLog = logger.child({ module: "Conversations" });
 import {
   discoverConversationArtifacts,
   listConversationArtifacts,
@@ -818,6 +820,7 @@ export async function batchDeleteConversations(ids: string[]): Promise<number> {
     deleted = tx.delete(conversations).where(inArray(conversations.id, ids)).run().changes;
   });
 
+  conversationLog.info({ requested: ids.length, deleted }, "conversations batch deleted");
   return deleted;
 }
 
@@ -962,6 +965,8 @@ export async function createConversation(title?: string): Promise<ConversationSu
     })
     .run();
 
+  conversationLog.info({ conversationId: id, hasTitle: Boolean(title) }, "conversation created");
+
   return {
     id,
     title: title ?? null,
@@ -980,6 +985,8 @@ export async function deleteConversation(conversationId: string): Promise<void> 
     tx.delete(messages).where(eq(messages.conversationId, conversationId)).run();
     tx.delete(conversations).where(eq(conversations.id, conversationId)).run();
   });
+
+  conversationLog.info({ conversationId }, "conversation deleted");
 }
 
 export async function renameConversation(

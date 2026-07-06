@@ -205,7 +205,19 @@ function wrapToolsWithTimeout(tools: ToolSet, serverName: string): ToolSet {
           Promise.resolve(boundExecute(...callArgs)),
           MCP_TOOL_TIMEOUT_MS,
           `${serverName} 工具「${name}」执行`,
-        ),
+        ).catch((error) => {
+          // Surface MCP tool failures/timeouts, which would otherwise only reach
+          // the model as an error and stay invisible server-side.
+          logger.warn(
+            {
+              mcpServer: serverName,
+              tool: name,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            "MCP tool execution failed",
+          );
+          throw error;
+        }),
     } as ToolSet[string];
   }
 
@@ -248,6 +260,7 @@ async function connectAndCache(
   configKey: string,
 ): Promise<CacheEntry | null> {
   let client: MCPClient | undefined;
+  const startedAt = Date.now();
 
   try {
     client = await withTimeout(
@@ -273,6 +286,15 @@ async function connectAndCache(
       lastUsedAt: now,
     };
     clientCache.set(server.id, entry);
+    logger.info(
+      {
+        mcpServer: server.name,
+        url: server.url,
+        toolCount: Object.keys(rawTools).length,
+        durationMs: now - startedAt,
+      },
+      "MCP server connected",
+    );
     return entry;
   } catch (error) {
     closeClient(client);

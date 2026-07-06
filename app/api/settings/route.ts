@@ -1,7 +1,10 @@
 import { getSystemSettings, saveSystemSettings } from "@/lib/settings";
 import { getMcpOAuthStatuses } from "@/lib/db/mcp-oauth";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
+
+const settingsLog = logger.child({ module: "Settings" });
 
 export async function GET() {
   const settings = await getSystemSettings();
@@ -23,8 +26,17 @@ export async function PUT(request: Request) {
       .filter((server) => server.authType === "oauth")
       .map((server) => server.id);
     const mcpOAuth = await getMcpOAuthStatuses(oauthServerIds);
+    settingsLog.info(
+      {
+        providers: settings.providers.length,
+        mcpServers: settings.mcpServers.length,
+        disabledSkills: settings.disabledSkills.length,
+      },
+      "system settings saved",
+    );
     return Response.json({ settings, mcpOAuth });
   } catch (error) {
+    settingsLog.error({ err: error }, "failed to save system settings");
     return Response.json(
       {
         error: error instanceof Error ? error.message : "Failed to save settings.",

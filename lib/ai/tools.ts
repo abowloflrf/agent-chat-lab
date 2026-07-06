@@ -26,6 +26,7 @@ import {
 } from "@/lib/ai/web-search";
 import type { ProviderConfig } from "@/lib/provider-config";
 import { createNote, readTodos, searchNotes, writeTodo } from "@/lib/persistence";
+import { logger } from "@/lib/logger";
 
 const expressionPattern = /^[\d+\-*/().\s]+$/;
 const MAX_EXPRESSION_LENGTH = 120;
@@ -390,6 +391,10 @@ export function createAgentTools(
         const skill = await loadSkill(name);
 
         if (!skill) {
+          logger.warn(
+            { module: "Tools", skill: name },
+            "Skill tool: enabled skill could not be loaded",
+          );
           return {
             ok: false,
             error: `Failed to load skill "${name}"; its files may have been removed.`,

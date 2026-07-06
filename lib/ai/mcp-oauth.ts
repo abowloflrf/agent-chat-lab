@@ -11,6 +11,7 @@ import type {
 } from "@ai-sdk/mcp";
 import { patchSession, readSession } from "@/lib/db/mcp-oauth";
 import { isPrivateIp } from "@/lib/ai/private-ip";
+import { logger } from "@/lib/logger";
 
 /**
  * Resolve the externally reachable base URL (scheme + host, no trailing slash).
@@ -41,6 +42,7 @@ export function resolveBaseUrl(request: Request): string {
  */
 export class McpOAuthProvider implements OAuthClientProvider {
   #authorizeUrl?: string;
+  readonly #log: ReturnType<typeof logger.child>;
 
   constructor(
     private readonly serverId: string,
@@ -48,7 +50,9 @@ export class McpOAuthProvider implements OAuthClientProvider {
     private readonly baseUrl: string,
     private readonly scope: string,
     private readonly interactive = false,
-  ) {}
+  ) {
+    this.#log = logger.child({ module: "McpOAuth", serverId });
+  }
 
   get redirectUrl(): string {
     // Must be a concrete string: a missing redirect_uri makes the SDK treat the
@@ -118,6 +122,10 @@ export class McpOAuthProvider implements OAuthClientProvider {
       expiresAt,
       status: "authorized",
     });
+    this.#log.info(
+      { expiresAt, hasRefreshToken: Boolean(tokens.refresh_token) },
+      "MCP OAuth tokens saved",
+    );
   }
 
   // --- PKCE ---
@@ -144,6 +152,10 @@ export class McpOAuthProvider implements OAuthClientProvider {
       return;
     }
     patchSession(this.serverId, { status: "needs_reauth" });
+    this.#log.warn(
+      { serverUrl: this.serverUrl },
+      "MCP OAuth silent refresh failed; session marked needs_reauth",
+    );
   }
 
   /** Authorize route reads this after `auth()` returns 'REDIRECT'. */
@@ -157,6 +169,10 @@ export class McpOAuthProvider implements OAuthClientProvider {
   ): Promise<void> {
     const parsed = new URL(authorizationServerUrl);
     if (parsed.protocol !== "https:") {
+      this.#log.warn(
+        { authorizationServer: parsed.href, reason: "non-https" },
+        "rejected MCP OAuth authorization server",
+      );
       throw new Error("MCP OAuth authorization server must use https");
     }
 
@@ -167,6 +183,10 @@ export class McpOAuthProvider implements OAuthClientProvider {
     const host = parsed.hostname;
     if (isIP(host)) {
       if (isPrivateIp(host)) {
+        this.#log.warn(
+          { authorizationServer: parsed.href, host, reason: "private-ip" },
+          "rejected MCP OAuth authorization server",
+        );
         throw new Error("MCP OAuth authorization server resolves to a non-public address");
       }
       return;
@@ -176,14 +196,25 @@ export class McpOAuthProvider implements OAuthClientProvider {
     try {
       addresses = await lookup(host, { all: true });
     } catch {
+      this.#log.warn(
+        { authorizationServer: parsed.href, host, reason: "dns-unresolvable" },
+        "rejected MCP OAuth authorization server",
+      );
       throw new Error("MCP OAuth authorization server host could not be resolved");
     }
     if (addresses.some((entry) => isPrivateIp(entry.address))) {
+      this.#log.warn(
+        { authorizationServer: parsed.href, host, reason: "private-ip" },
+        "rejected MCP OAuth authorization server",
+      );
       throw new Error("MCP OAuth authorization server resolves to a non-public address");
     }
   }
 
   invalidateCredentials(scope: "all" | "client" | "tokens" | "verifier"): void {
+    if (scope === "all" || scope === "tokens") {
+      this.#log.info({ scope }, "MCP OAuth credentials invalidated");
+    }
     if (scope === "all") {
       patchSession(this.serverId, {
         clientInfoJson: null,

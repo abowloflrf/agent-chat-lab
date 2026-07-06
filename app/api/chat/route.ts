@@ -45,6 +45,9 @@ import {
   getRuntimeProviderConfigFromSettings,
   getProviderConfigByOverrideFromSettings,
 } from "@/lib/settings";
+import { logger } from "@/lib/logger";
+
+const chatLogger = logger.child({ module: "Chat" });
 
 export const runtime = "nodejs";
 const AGENT_MAX_STEPS = 12;
@@ -421,17 +424,23 @@ type ChatErrorContext = {
   steps: number;
 };
 
-/** 统一记录聊天流错误：一行带上下文的摘要 + 原始错误对象（含堆栈）。 */
+/** 统一记录聊天流错误：结构化上下文 + 原始错误对象（pino 的 err 序列化器带堆栈）。 */
 function logChatError(
   stage: string,
   error: unknown,
   ctx: ChatErrorContext,
 ): void {
-  console.error(
-    `[chat] ${stage} failed conv=${ctx.conversationId} ` +
-      `provider=${ctx.provider || "?"} model=${ctx.model || "?"} ` +
-      `elapsed=${Date.now() - ctx.startedAt}ms steps=${ctx.steps} :: ${describeError(error)}`,
-    error,
+  chatLogger.error(
+    {
+      stage,
+      conversationId: ctx.conversationId,
+      provider: ctx.provider || null,
+      model: ctx.model || null,
+      elapsedMs: Date.now() - ctx.startedAt,
+      steps: ctx.steps,
+      err: error,
+    },
+    `chat ${stage} failed: ${describeError(error)}`,
   );
 }
 
@@ -576,6 +585,20 @@ export async function POST(request: Request) {
     );
   }
 
+  chatLogger.info(
+    {
+      conversationId: parsed.data.conversationId,
+      provider: providerConfig.providerName || null,
+      model: providerConfig.model,
+      protocol: providerConfig.protocol,
+      messageCount: parsed.data.messages.length,
+      modelOverride: Boolean(parsed.data.modelOverride),
+      mcpServersRequested: mcpServers.length,
+      skillsEnabled: enabledSkills.length,
+    },
+    "chat request received",
+  );
+
   // Persist the incoming messages and open MCP connections in parallel so the
   // MCP handshake doesn't queue behind the DB write. connectMcpServers never
   // throws (per-server failures are swallowed), so only the persist can
@@ -612,6 +635,17 @@ export async function POST(request: Request) {
       toolNames: server.toolNames.filter((name) => !builtInToolNames.has(name)),
     }))
     .filter((server) => server.toolNames.length > 0);
+
+  chatLogger.info(
+    {
+      conversationId: parsed.data.conversationId,
+      connectedMcpServers: mcpBundle.servers.length,
+      mcpToolCount: Object.keys(mcpBundle.tools).length,
+      advertisedMcpServers: advertisedMcpServers.length,
+      totalTools: Object.keys(tools).length,
+    },
+    "chat request tools assembled",
+  );
 
   // Build the prompt after connecting so it can advertise the MCP tools that
   // actually came online this turn.
@@ -666,10 +700,15 @@ export async function POST(request: Request) {
     onAbort: () => {
       // 中断不是异常（多为客户端断连或反代 proxy_read_timeout 掐流），单独记一条
       // warn 便于和真正的报错区分，也让“等很久后中断”这类静默失败可被归因。
-      console.warn(
-        `[chat] stream aborted conv=${parsed.data.conversationId} ` +
-          `provider=${providerConfig.providerName || "?"} model=${providerConfig.model || "?"} ` +
-          `elapsed=${Date.now() - requestStartedAt}ms steps=${timeline.length}`,
+      chatLogger.warn(
+        {
+          conversationId: parsed.data.conversationId,
+          provider: providerConfig.providerName || null,
+          model: providerConfig.model || null,
+          elapsedMs: Date.now() - requestStartedAt,
+          steps: timeline.length,
+        },
+        "chat stream aborted",
       );
       void mcpBundle.close();
     },
@@ -795,6 +834,28 @@ export async function POST(request: Request) {
           timeline,
         ),
       });
+
+      const usageTotals = timeline.reduce(
+        (acc, step) => ({
+          inputTokens: acc.inputTokens + step.usage.inputTokens,
+          outputTokens: acc.outputTokens + step.usage.outputTokens,
+          cachedInputTokens: acc.cachedInputTokens + step.usage.cachedInputTokens,
+        }),
+        { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
+      );
+      chatLogger.info(
+        {
+          conversationId: parsed.data.conversationId,
+          provider: providerConfig.providerName || null,
+          model: providerConfig.model,
+          finishReason,
+          steps: timeline.length,
+          durationMs: requestFinishedAt - requestStartedAt,
+          ...usageTotals,
+          limitReached: Boolean(limitReachedText),
+        },
+        "chat request finished",
+      );
     },
     onFinish: async ({ messages }) => {
       const messagesToPersist =

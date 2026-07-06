@@ -29,6 +29,7 @@
 | `Response` / `CodeBlock` | Markdown 渲染栈（`components/chat-message.tsx`） | ✅ Streamdown（原生默认样式） |
 | `Conversation`（贴底内核） | 自研滚动状态机 | ✅ use-stick-to-bottom |
 | `Reasoning` | `components/ai-elements/reasoning.tsx`（接入 `chat-message.tsx`） | ✅ AI Elements 官方版手动 vendor（含 `Collapsible` / `Shimmer`，新增耗时显示 + 正文 markdown） |
+| `Source` / `InlineCitation` | `components/ai-elements/source.tsx`、`inline-citation.tsx`（接入 `chat-message.tsx`） | ✅ 精简版手动 vendor（含 `Popover`）：链接 href 映射做正文行内来源胶囊（favicon + 域名，点击出来源卡）+ 折叠来源列表 |
 | 表格 / Mermaid 控件 | — | ✅ 随 Streamdown 开启 |
 
 ---
@@ -58,7 +59,6 @@
 | AI Elements | 它提供什么 | 对本项目的潜在价值 |
 |---|---|---|
 | `Branch` | 同一轮回复的多版本分支：在 regenerate 的多个结果间切换浏览 | 把现有"重新生成（覆盖）"升级为"保留多版本并切换" |
-| `Source` / `InlineCitation` | 把来源以行内引用 / 来源列表展示 | 现在 WebSearch/WebFetch 结果只在工具卡里；可在正文里做带引用角标的来源展示 |
 | `WebPreview` | 内嵌实时网页预览（iframe 式） | 与现有 artifacts（workspace 文件）不同，是"预览一个 URL"；可用于 WebFetch / 生成的网页 |
 | `Image` | AI 生成图片的展示卡 | 仅当将来接入图像生成模型时有意义 |
 
@@ -67,7 +67,8 @@
 ## D. 建议的调研顺序
 
 1. ~~低风险试水~~ **已验证**：`Reasoning` 落地证明在 Tailwind v4 + 无 shadcn 项目里，**手动 vendor 官方源码**（自建 `cn` / `Collapsible`，按需补依赖）即可，**不必跑** `npx ai-elements add` 触发 shadcn init；棕色主题靠 `globals.css` 已有的 shadcn token（`muted-foreground`/`foreground`/`background`）自动适配。后续组件沿用此路径；只需注意官方源码与本项目更严的 `react-hooks` 规则、新版 Streamdown 类型可能有小冲突（用定向 disable / 类型收窄处理）。
-2. **新功能优先于重写**：`Source`/`InlineCitation`（给 WebSearch 配引用）和 `Branch`（多版本回复）是**净增价值**，比重写已有的 Tool/Message 更值得做。
+2. **新功能优先于重写**：`Source`/`InlineCitation`（给 WebSearch 配引用）**已落地**；`Branch`（多版本回复）仍是**净增价值**，比重写已有的 Tool/Message 更值得做。
+   - 落地经验：用**链接 href 映射**替代裸 `[n]` + 自定义 remark 插件——让模型把引用写成指向来源 URL 的 markdown 链接，前端覆盖 Streamdown 的 `a` 组件命中来源时渲染成**行内来源胶囊（favicon + 域名，不显示编号）**、点击出来源卡。来源是工具结果**自动收集的全集**而模型只稀疏引用，故放弃数字编号（避免「孤儿 [3]」式跳号），来源列表按工具返回顺序展示；预览卡用 `Popover` 精简版（单源单卡、**点击触发**而非 hover，移动端友好，无官方轮播）；favicon 缺失时按域名兜底（`WebSearch` 结果不含 favicon，用 Google S2 服务派生），模型不配合时纯退化为来源列表，不报错。
 3. **大件最后**：`Tool` / `Message` / `PromptInput` 自研版功能强、风险高，仅在确定整体迁往 shadcn 体系时再评估。
 4. 每项调研前先查是否有**独立库**（参考 Streamdown / use-stick-to-bottom 的路径），能绕开 shadcn 的优先。
 

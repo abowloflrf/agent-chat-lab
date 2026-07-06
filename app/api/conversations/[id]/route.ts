@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getConversation, deleteConversation, renameConversation } from "@/lib/persistence";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -53,5 +54,9 @@ export async function PATCH(
   }
 
   const conversation = await renameConversation(id, parsed.data.title);
+  logger.info(
+    { module: "Conversations", conversationId: id, title: parsed.data.title },
+    "conversation renamed",
+  );
   return Response.json({ conversation });
 }

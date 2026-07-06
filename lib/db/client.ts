@@ -8,6 +8,9 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import * as schema from "@/lib/db/schema";
 import { expandMessageUsageRecords } from "@/lib/usage-records";
+import { logger } from "@/lib/logger";
+
+const dbLog = logger.child({ module: "DB" });
 
 const dataDirectoryPath = path.join(process.cwd(), "data");
 const databaseFilePath = path.join(dataDirectoryPath, "agent-chat-lab.sqlite");
@@ -29,6 +32,7 @@ function getDb(): DrizzleDatabase {
     sqlite.pragma("foreign_keys = ON");
 
     drizzleInstance = drizzle(sqlite, { schema });
+    dbLog.info({ path: databaseFilePath }, "SQLite database opened");
   }
 
   return drizzleInstance;
@@ -74,11 +78,12 @@ const defaultTodos = [
   },
 ];
 
-function seedDefaultNotes() {
+// Returns the number of rows seeded (0 when the table already had data).
+function seedDefaultNotes(): number {
   const existingNote = db.select({ id: schema.notes.id }).from(schema.notes).limit(1).all()[0];
 
   if (existingNote) {
-    return;
+    return 0;
   }
 
   const now = Date.now();
@@ -93,13 +98,16 @@ function seedDefaultNotes() {
       updatedAt: now,
     })),
   ).run();
+
+  return defaultNotes.length;
 }
 
-function seedDefaultTodos() {
+// Returns the number of rows seeded (0 when the table already had data).
+function seedDefaultTodos(): number {
   const existingTodo = db.select({ id: schema.todos.id }).from(schema.todos).limit(1).all()[0];
 
   if (existingTodo) {
-    return;
+    return 0;
   }
 
   const now = Date.now();
@@ -116,11 +124,14 @@ function seedDefaultTodos() {
       completedAt: todo.status === "done" ? now : null,
     })),
   ).run();
+
+  return defaultTodos.length;
 }
 
 // One-time migration of historical assistant-message metadata into usage_records.
 // Runs only when the table is empty so it is a no-op on every subsequent boot.
-function backfillUsageRecords() {
+// Returns the number of usage records backfilled.
+function backfillUsageRecords(): number {
   const existing = db
     .select({ id: schema.usageRecords.id })
     .from(schema.usageRecords)
@@ -128,7 +139,7 @@ function backfillUsageRecords() {
     .all()[0];
 
   if (existing) {
-    return;
+    return 0;
   }
 
   const assistantRows = db
@@ -157,22 +168,34 @@ function backfillUsageRecords() {
   });
 
   if (seeds.length === 0) {
-    return;
+    return 0;
   }
 
   const batchSize = 50;
   for (let index = 0; index < seeds.length; index += batchSize) {
     db.insert(schema.usageRecords).values(seeds.slice(index, index + batchSize)).run();
   }
+
+  return seeds.length;
 }
 
 export async function ensureDatabase() {
   if (!initializationPromise) {
     initializationPromise = Promise.resolve().then(() => {
+      const startedAt = Date.now();
       migrate(db, { migrationsFolder: migrationsFolderPath });
-      seedDefaultNotes();
-      seedDefaultTodos();
-      backfillUsageRecords();
+      const seededNotes = seedDefaultNotes();
+      const seededTodos = seedDefaultTodos();
+      const backfilledUsageRecords = backfillUsageRecords();
+      dbLog.info(
+        {
+          durationMs: Date.now() - startedAt,
+          seededNotes,
+          seededTodos,
+          backfilledUsageRecords,
+        },
+        "database initialized",
+      );
     });
   }
 

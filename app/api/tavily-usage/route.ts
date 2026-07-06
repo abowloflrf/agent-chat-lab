@@ -1,4 +1,7 @@
 import { getSystemSettings } from "@/lib/settings";
+import { logger } from "@/lib/logger";
+
+const tavilyUsageLog = logger.child({ module: "TavilyUsage" });
 
 export async function GET() {
   try {
@@ -15,6 +18,7 @@ export async function GET() {
 
     if (!res.ok) {
       const text = await res.text();
+      tavilyUsageLog.warn({ status: res.status }, "Tavily usage API returned error");
       return Response.json(
         { error: `Tavily API 返回错误: ${res.status} ${text}` },
         { status: res.status },
@@ -24,6 +28,7 @@ export async function GET() {
     const data = await res.json();
     return Response.json({ usage: data });
   } catch (err) {
+    tavilyUsageLog.error({ err }, "failed to fetch Tavily usage");
     return Response.json(
       { error: err instanceof Error ? err.message : "未知错误" },
       { status: 500 },
