@@ -187,6 +187,73 @@ function SecretInput({
   );
 }
 
+// Accessible on/off switch. Knob uses --primary-foreground so it keeps
+// contrast against the accent track in every theme (light/dark included).
+function Toggle({
+  checked,
+  onChange,
+  label,
+  size = "md",
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label?: string;
+  size?: "sm" | "md";
+}) {
+  const track = size === "sm" ? "h-[18px] w-8" : "h-5 w-9";
+  const knob = size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5";
+  const shift =
+    size === "sm"
+      ? checked
+        ? "translate-x-[15px]"
+        : "translate-x-[3px]"
+      : checked
+        ? "translate-x-[19px]"
+        : "translate-x-[3px]";
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      title={label}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex ${track} shrink-0 items-center rounded-full transition-colors ${
+        checked ? "bg-[var(--accent)]" : "bg-[var(--muted-foreground)]/30"
+      }`}
+    >
+      <span
+        className={`inline-block ${knob} rounded-full bg-[var(--primary-foreground)] shadow-sm transition-transform ${shift}`}
+      />
+    </button>
+  );
+}
+
+function IconTrash({ className }: { className?: string }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+
+function IconStar({ filled, className }: { filled: boolean; className?: string }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+}
+
+function IconSpinner({ className }: { className?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`animate-spin ${className ?? ""}`}>
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
+  );
+}
+
 export function ProviderSettingsForm() {
   const pathname = usePathname();
   const segment = pathname.split("/")[2] ?? "";
@@ -1043,41 +1110,61 @@ export function ProviderSettingsForm() {
                             }`}
                           >
                             {/* Provider header */}
-                            <div
-                              className="flex cursor-pointer items-center gap-3 px-4 py-3"
-                              onClick={() => setExpandedProviderId(isExpanded ? null : provider.id)}
-                            >
-                              <span className="text-xs text-[var(--muted-foreground)]">{isExpanded ? "▼" : "▶"}</span>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium text-[var(--foreground)]">
-                                    {provider.name}
-                                  </span>
-                                  {provider.isDefault && (
-                                    <span className="rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">
-                                      默认
-                                    </span>
-                                  )}
-                                  {!provider.isEnabled && (
-                                    <span className="rounded-full bg-[var(--muted-foreground)]/10 px-2 py-0.5 text-[10px] text-[var(--muted-foreground)]">
-                                      已禁用
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="mt-0.5 truncate text-xs text-[var(--muted-foreground)]">
-                                  {provider.baseUrl} · {enabledModelCount} 个已启用模型
-                                </p>
-                              </div>
+                            <div className="flex items-center gap-2 px-2 py-2">
                               <button
                                 type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeProvider(provider.id);
-                                }}
-                                className="shrink-0 rounded-md px-2 py-1 text-xs text-[var(--muted-foreground)] transition hover:bg-[var(--danger-surface)] hover:text-[var(--danger)]"
-                                title="删除供应商"
+                                onClick={() => setExpandedProviderId(isExpanded ? null : provider.id)}
+                                aria-expanded={isExpanded}
+                                className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 text-left transition hover:bg-[var(--surface-muted)]"
                               >
-                                删除
+                                <svg
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className={`shrink-0 text-[var(--muted-foreground)] transition-transform ${
+                                    isExpanded ? "rotate-90" : ""
+                                  }`}
+                                >
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="truncate text-sm font-medium text-[var(--foreground)]">
+                                      {provider.name || "未命名供应商"}
+                                    </span>
+                                    {provider.isDefault && (
+                                      <span className="shrink-0 rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">
+                                        默认
+                                      </span>
+                                    )}
+                                    {!provider.isEnabled && (
+                                      <span className="shrink-0 rounded-full bg-[var(--muted-foreground)]/10 px-2 py-0.5 text-[10px] text-[var(--muted-foreground)]">
+                                        已禁用
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="mt-0.5 truncate text-xs text-[var(--muted-foreground)]">
+                                    {provider.baseUrl || "未设置 Base URL"} · {enabledModelCount} 个已启用模型
+                                  </p>
+                                </div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`确定要删除供应商「${provider.name || "未命名供应商"}」吗？此操作不可恢复。`)) {
+                                    removeProvider(provider.id);
+                                  }
+                                }}
+                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[var(--muted-foreground)] transition hover:bg-[var(--danger-surface)] hover:text-[var(--danger)]"
+                                title="删除供应商"
+                                aria-label="删除供应商"
+                              >
+                                <IconTrash />
                               </button>
                             </div>
 
@@ -1139,20 +1226,19 @@ export function ProviderSettingsForm() {
 
                                   {/* Toggle row */}
                                   <div className="flex flex-wrap items-center gap-4">
-                                    <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
-                                      <input
-                                        type="checkbox"
+                                    <div className="flex items-center gap-2 text-sm text-[var(--foreground)]">
+                                      <Toggle
                                         checked={provider.isEnabled}
-                                        onChange={(e) => updateProvider(provider.id, { isEnabled: e.target.checked })}
-                                        className="accent-[var(--accent)]"
+                                        onChange={(next) => updateProvider(provider.id, { isEnabled: next })}
+                                        label="启用供应商"
                                       />
                                       启用
-                                    </label>
+                                    </div>
                                     <button
                                       type="button"
                                       onClick={() => setDefaultProvider(provider.id)}
                                       disabled={provider.isDefault}
-                                      className={`rounded-full border px-3 py-1 text-xs transition ${
+                                      className={`rounded-full border px-3 py-1.5 text-xs transition ${
                                         provider.isDefault
                                           ? "border-[var(--accent)]/30 bg-[var(--accent)]/10 text-[var(--accent)]"
                                           : "border-[var(--border)] text-[var(--muted-foreground)] hover:border-[var(--accent)]/30 hover:text-[var(--accent)]"
@@ -1164,18 +1250,31 @@ export function ProviderSettingsForm() {
 
                                   {/* Models section */}
                                   <div>
-                                    <div className="mb-3 flex items-center justify-between">
-                                      <span className={labelClass}>模型列表</span>
-                                      <div className="flex items-center gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => fetchModelsForProvider(provider)}
-                                          disabled={!provider.baseUrl.trim() || !provider.apiKey.trim() || providerFetchState.status === "loading"}
-                                          className="text-[11px] text-[var(--accent)] transition hover:text-[var(--accent-strong)] disabled:opacity-50"
-                                        >
-                                          {providerFetchState.status === "loading" ? "拉取中..." : "从 API 拉取"}
-                                        </button>
-                                      </div>
+                                    <div className="mb-3 flex items-center justify-between gap-2">
+                                      <span className={labelClass + " !mb-0"}>
+                                        模型列表{provider.models.length > 0 ? ` · ${provider.models.length}` : ""}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => fetchModelsForProvider(provider)}
+                                        disabled={!provider.baseUrl.trim() || !provider.apiKey.trim() || providerFetchState.status === "loading"}
+                                        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--foreground)] transition hover:border-[var(--accent)]/40 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-[var(--border)] disabled:hover:text-[var(--foreground)]"
+                                      >
+                                        {providerFetchState.status === "loading" ? (
+                                          <>
+                                            <IconSpinner />
+                                            拉取中
+                                          </>
+                                        ) : (
+                                          <>
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                              <path d="M21 12a9 9 0 1 1-3-6.7" />
+                                              <polyline points="21 3 21 9 15 9" />
+                                            </svg>
+                                            从 API 拉取
+                                          </>
+                                        )}
+                                      </button>
                                     </div>
 
                                     {providerFetchState.status === "error" && (
@@ -1208,49 +1307,55 @@ export function ProviderSettingsForm() {
                                     )}
 
                                     {/* Added models list */}
-                                    {provider.models.length > 0 && (
+                                    {provider.models.length > 0 ? (
                                       <div className="mb-3 space-y-1.5">
                                         {provider.models.map((model) => (
                                           <div
                                             key={model.id}
-                                            className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
-                                              model.isEnabled
-                                                ? "border-[var(--border)] bg-[var(--glass-bg)]"
-                                                : "border-[var(--border)] bg-[var(--glass-bg)] opacity-60"
+                                            className={`flex items-center gap-3 rounded-md border border-[var(--border)] bg-[var(--glass-bg)] px-3 py-2 text-sm transition ${
+                                              model.isEnabled ? "" : "opacity-55"
                                             }`}
                                           >
-                                            <input
-                                              type="checkbox"
+                                            <Toggle
+                                              size="sm"
                                               checked={model.isEnabled}
                                               onChange={() => toggleModelEnabled(provider.id, model.id)}
-                                              className="accent-[var(--accent)]"
+                                              label={model.isEnabled ? "禁用该模型" : "启用该模型"}
                                             />
                                             <span className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--foreground)]">
                                               {model.modelId}
                                             </span>
-                                            {model.isDefault && (
-                                              <span className="shrink-0 rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">
-                                                默认
-                                              </span>
-                                            )}
-                                            {!model.isDefault && (
-                                              <button
-                                                type="button"
-                                                onClick={() => setDefaultModel(provider.id, model.id)}
-                                                className="shrink-0 text-[10px] text-[var(--muted-foreground)] transition hover:text-[var(--accent)]"
-                                              >
-                                                设为默认
-                                              </button>
-                                            )}
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (!model.isDefault) setDefaultModel(provider.id, model.id);
+                                              }}
+                                              disabled={model.isDefault}
+                                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition ${
+                                                model.isDefault
+                                                  ? "text-[var(--accent)]"
+                                                  : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--accent)]"
+                                              }`}
+                                              title={model.isDefault ? "当前默认模型" : "设为默认模型"}
+                                              aria-label={model.isDefault ? "当前默认模型" : "设为默认模型"}
+                                            >
+                                              <IconStar filled={model.isDefault} />
+                                            </button>
                                             <button
                                               type="button"
                                               onClick={() => removeModelFromProvider(provider.id, model.id)}
-                                              className="shrink-0 text-[10px] text-[var(--muted-foreground)] transition hover:text-[var(--danger)]"
+                                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--muted-foreground)] transition hover:bg-[var(--danger-surface)] hover:text-[var(--danger)]"
+                                              title="移除模型"
+                                              aria-label="移除模型"
                                             >
-                                              移除
+                                              <IconTrash />
                                             </button>
                                           </div>
                                         ))}
+                                      </div>
+                                    ) : (
+                                      <div className="mb-3 rounded-md border border-dashed border-[var(--border)] px-3 py-4 text-center text-xs text-[var(--muted-foreground)]">
+                                        还没有模型，从 API 拉取或手动添加。
                                       </div>
                                     )}
 
@@ -1281,6 +1386,7 @@ export function ProviderSettingsForm() {
                                         />
                                         <button
                                           type="button"
+                                          disabled={!newModelId.trim()}
                                           onClick={() => {
                                             if (newModelId.trim()) {
                                               addModelToProvider(provider.id, newModelId);
@@ -1288,7 +1394,7 @@ export function ProviderSettingsForm() {
                                               setAddingModelForProvider(null);
                                             }
                                           }}
-                                          className="shrink-0 rounded-md border border-[var(--border)] px-3 py-3 text-xs text-[var(--foreground)] transition hover:border-[var(--accent)]/30 hover:text-[var(--accent)]"
+                                          className="shrink-0 rounded-lg bg-[var(--accent)] px-4 py-3 text-xs font-medium text-[var(--primary-foreground)] transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                           添加
                                         </button>
@@ -1298,7 +1404,7 @@ export function ProviderSettingsForm() {
                                             setNewModelId("");
                                             setAddingModelForProvider(null);
                                           }}
-                                          className="shrink-0 rounded-md px-2 py-3 text-xs text-[var(--muted-foreground)] transition hover:text-[var(--foreground)]"
+                                          className="shrink-0 rounded-lg px-3 py-3 text-xs text-[var(--muted-foreground)] transition hover:text-[var(--foreground)]"
                                         >
                                           取消
                                         </button>
@@ -1310,9 +1416,13 @@ export function ProviderSettingsForm() {
                                           setAddingModelForProvider(provider.id);
                                           setNewModelId("");
                                         }}
-                                        className="text-xs text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
+                                        className="inline-flex items-center gap-1 rounded-full border border-dashed border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--muted-foreground)] transition hover:border-[var(--accent)]/40 hover:text-[var(--accent)]"
                                       >
-                                        + 手动添加模型
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <line x1="12" y1="5" x2="12" y2="19" />
+                                          <line x1="5" y1="12" x2="19" y2="12" />
+                                        </svg>
+                                        手动添加模型
                                       </button>
                                     )}
                                   </div>
@@ -1328,9 +1438,13 @@ export function ProviderSettingsForm() {
                     <button
                       type="button"
                       onClick={addProvider}
-                      className="mt-3 rounded-lg border border-dashed border-[var(--border)] px-4 py-3 text-sm text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                      className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--border)] px-4 py-3 text-sm text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
                     >
-                      + 添加供应商
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                      添加供应商
                     </button>
                   </section>
 
