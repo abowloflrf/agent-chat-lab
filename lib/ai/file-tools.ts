@@ -4,10 +4,11 @@ import { access, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve as resolvePath } from "node:path";
 import { resolveBashToolWorkdir } from "@/lib/ai/bash-server";
 
-// read 的截断上限：与 Bash 工具同源的工作目录配合，先写代码再执行。
-// 行数/字节任一触顶即截断，模型可用 offset 继续读直到读完。
+// read 的截断上限：行数/字节任一触顶即截断，模型可用 offset 继续读直到读完。
+// 字节上限与 TOOL_OUTPUT_MAX_BYTES 对齐——否则统一的工具输出预算会在这之后再砍
+// 一刀，让这里的上限和工具描述都名不副实。
 export const FILE_READ_MAX_LINES = 2000;
-export const FILE_READ_MAX_BYTES = 256 * 1024;
+export const FILE_READ_MAX_BYTES = 32 * 1024;
 // write 单次写入上限，避免模型一次性灌入超大内容。
 export const FILE_WRITE_MAX_BYTES = 1024 * 1024;
 

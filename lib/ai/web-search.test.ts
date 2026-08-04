@@ -5,7 +5,7 @@ import {
   runWebFetch,
   webSearchInputSchema,
   webFetchInputSchema,
-  WEB_FETCH_CONTENT_PREVIEW_LENGTH,
+  WEB_FETCH_LONG_CONTENT_CHARS,
   MAX_WEB_FETCH_URLS,
   type WebSearchInput,
   type WebFetchInput,
@@ -434,7 +434,7 @@ describe("runWebSearch — fallback & failure", () => {
 });
 
 describe("runWebFetch — tavily", () => {
-  it("normalizes results and failedResults and suggests preview when content is short", async () => {
+  it("normalizes results and failedResults and suggests answering directly when content is short", async () => {
     const payload = {
       response_time: 0.42,
       results: [
@@ -457,14 +457,13 @@ describe("runWebFetch — tavily", () => {
         url: "https://example.com/a",
         content: "short body",
         favicon: "https://example.com/favicon.ico",
-        contentPreview: "short body",
         contentLength: "short body".length,
       },
     ]);
     expect(result.failedResults).toEqual([
       { url: "https://example.com/bad", error: "timeout" },
     ]);
-    // No content exceeds the preview length → "answer directly" hint.
+    // No content is long enough to warrant the selective-quoting hint.
     expect(result.suggestedNextAction).toBe(
       "You can answer the user's question directly from the extracted results.",
     );
@@ -474,8 +473,8 @@ describe("runWebFetch — tavily", () => {
     expect(url).toBe("https://api.tavily.com/extract");
   });
 
-  it("suggests preview-first guidance when any content exceeds the preview length", async () => {
-    const longBody = "x".repeat(WEB_FETCH_CONTENT_PREVIEW_LENGTH + 1);
+  it("suggests selective quoting when any content is long", async () => {
+    const longBody = "x".repeat(WEB_FETCH_LONG_CONTENT_CHARS + 1);
     const payload = {
       results: [{ url: "https://example.com/a", raw_content: longBody }],
     };
@@ -483,10 +482,11 @@ describe("runWebFetch — tavily", () => {
 
     const result = await runWebFetch(baseFetchInput, makeConfig({ tavilyApiKey: "tav" }));
 
-    // contentPreview is truncated to the preview length; full content is longer.
-    expect(result.results[0].contentPreview).toHaveLength(WEB_FETCH_CONTENT_PREVIEW_LENGTH);
+    // Full content is returned once — no preview copy alongside it.
+    expect(result.results[0].content).toBe(longBody);
+    expect(result.results[0]).not.toHaveProperty("contentPreview");
     expect(result.results[0].contentLength).toBe(longBody.length);
-    expect(result.suggestedNextAction).toContain("contentPreview");
+    expect(result.suggestedNextAction).toContain("quoting only the parts");
     // Missing failed_results defaults to an empty array.
     expect(result.failedResults).toEqual([]);
   });
@@ -502,7 +502,6 @@ describe("runWebFetch — tavily", () => {
         url: "",
         content: null,
         favicon: null,
-        contentPreview: null,
         contentLength: 0,
       },
     ]);
@@ -588,8 +587,8 @@ describe("runWebFetch — exa", () => {
     expect(result.failedResults).toEqual([{ url: "", error: "Fetch failed." }]);
   });
 
-  it("suggests preview-first guidance when exa content exceeds the preview length", async () => {
-    const longBody = "y".repeat(WEB_FETCH_CONTENT_PREVIEW_LENGTH + 1);
+  it("suggests selective quoting when exa content is long", async () => {
+    const longBody = "y".repeat(WEB_FETCH_LONG_CONTENT_CHARS + 1);
     const payload = {
       results: [{ url: "https://example.com/a", text: longBody }],
     };
@@ -598,11 +597,12 @@ describe("runWebFetch — exa", () => {
     const result = await runWebFetch(baseFetchInput, makeConfig({ exaApiKey: "exa" }));
 
     expect(result.provider).toBe("exa");
-    expect(result.results[0].contentPreview).toHaveLength(WEB_FETCH_CONTENT_PREVIEW_LENGTH);
+    expect(result.results[0].content).toBe(longBody);
+    expect(result.results[0]).not.toHaveProperty("contentPreview");
     expect(result.results[0].contentLength).toBe(longBody.length);
     // exa responseTime is always normalized to null.
     expect(result.responseTime).toBeNull();
-    expect(result.suggestedNextAction).toContain("contentPreview");
+    expect(result.suggestedNextAction).toContain("quoting only the parts");
   });
 
   // KNOWN GAP: fetchWithExa builds returnedUrls from result.url. When Exa returns

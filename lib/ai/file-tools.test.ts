@@ -258,8 +258,8 @@ describe("readFileForTool", () => {
 
   it("truncates by bytes across many lines and recomputes covered lines + pagination", async () => {
     const path = join(dir, "byte-multi.txt");
-    // 1500 lines, 199 chars + newline ~= 200 bytes/line, ~300KB > 256KB,
-    // but 1500 lines < 2000, so byte truncation happens first.
+    // 1500 lines, 199 chars + newline ~= 200 bytes/line, ~300KB, well over the
+    // byte cap, but 1500 lines < 2000, so byte truncation happens first.
     const line = "z".repeat(199);
     const fileContent = Array.from({ length: 1500 }, () => line).join("\n");
     await writeFile(path, fileContent, "utf8");

@@ -98,7 +98,7 @@ export function collectMessageSources(
         url,
         title: readString(item.title),
         favicon: readString(item.favicon),
-        snippet: clampSnippet(readString(item.contentPreview) ?? readString(item.content)),
+        snippet: clampSnippet(readString(item.content)),
       };
       sources.push(source);
       byUrl.set(url, source);

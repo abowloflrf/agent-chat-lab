@@ -21,6 +21,7 @@ import {
   systemPrompt,
 } from "@/lib/ai/system-prompt";
 import { createAgentTools } from "@/lib/ai/tools";
+import { withToolOutputLimit } from "@/lib/ai/truncate-output";
 import { hasAnySearchProvider } from "@/lib/ai/web-search";
 import { repairToolCall } from "@/lib/ai/repair-tool-call";
 import { connectMcpServers, type McpServerToolInfo } from "@/lib/ai/mcp";
@@ -623,7 +624,25 @@ export async function POST(request: Request) {
   // Built-in tools take precedence so a remote server cannot shadow
   // Bash/WebSearch/etc.
   const mcpBundle = await mcpBundlePromise;
-  const tools = { ...mcpBundle.tools, ...agentTools };
+  // A tool result is re-sent on every later turn, so an unbounded one is paid
+  // for again and again. Bound the assembled set in one place rather than
+  // per-tool: that is what covers third-party MCP servers, which have no
+  // output limits of their own.
+  const tools = withToolOutputLimit(
+    { ...mcpBundle.tools, ...agentTools },
+    (info) => {
+      chatLogger.warn(
+        {
+          conversationId: parsed.data.conversationId,
+          tool: info.toolName,
+          originalBytes: info.originalBytes,
+          outputBytes: info.outputBytes,
+          fullOutputPath: info.fullOutputPath ?? null,
+        },
+        "tool output truncated to fit the output budget",
+      );
+    },
+  );
 
   // Only advertise MCP tools that survive into the final tool set. A built-in
   // wins on name collision, so an MCP tool sharing a built-in's name resolves

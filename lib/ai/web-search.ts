@@ -8,7 +8,9 @@ const fetchLog = logger.child({ module: "WebFetch" });
 const DEFAULT_WEB_SEARCH_LIMIT = 5;
 const MAX_WEB_SEARCH_LIMIT = 10;
 export const MAX_WEB_FETCH_URLS = 5;
-export const WEB_FETCH_CONTENT_PREVIEW_LENGTH = 1200;
+// Above this much extracted text, nudge the model to quote selectively instead
+// of restating whole passages back into the conversation.
+export const WEB_FETCH_LONG_CONTENT_CHARS = 4000;
 
 const TAVILY_SEARCH_URL = "https://api.tavily.com/search";
 const TAVILY_EXTRACT_URL = "https://api.tavily.com/extract";
@@ -102,7 +104,6 @@ type NormalizedFetchResult = {
     url: string;
     content: string | null;
     favicon: string | null;
-    contentPreview: string | null;
     contentLength: number;
   }>;
   failedResults: Array<{ url: string; error: string }>;
@@ -234,12 +235,15 @@ async function searchWithExa(
   };
 }
 
+// Deliberately no preview field alongside `content`: both would land in the
+// model context, paying for the same text twice. Progressive disclosure only
+// saves tokens across separate tool calls (as the Skill tool does), never
+// within one result.
 function toFetchResult(url: string, content: string | null, favicon: string | null) {
   return {
     url,
     content,
     favicon,
-    contentPreview: content ? content.slice(0, WEB_FETCH_CONTENT_PREVIEW_LENGTH) : null,
     contentLength: content?.length ?? 0,
   };
 }
@@ -455,7 +459,7 @@ export async function runWebFetch(
           : await fetchWithExa(input, provider.apiKey);
 
       const hasLongContent = result.results.some(
-        (item) => item.content && item.content.length > WEB_FETCH_CONTENT_PREVIEW_LENGTH,
+        (item) => item.content && item.content.length > WEB_FETCH_LONG_CONTENT_CHARS,
       );
 
       fetchLog.info(
@@ -472,7 +476,7 @@ export async function runWebFetch(
         provider: provider.name,
         ...result,
         suggestedNextAction: hasLongContent
-          ? "If the current question can be answered from each result's contentPreview, prefer that; only quote the longer full text when necessary."
+          ? "Answer from the extracted content, quoting only the parts that bear on the question — do not restate long passages."
           : "You can answer the user's question directly from the extracted results.",
       };
     } catch (error) {
