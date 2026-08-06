@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { ToolCallOptions } from "ai";
+import type { ToolExecutionOptions } from "ai";
 import { createAgentTools } from "@/lib/ai/tools";
 import type { ProviderConfig } from "@/lib/provider-config";
 
@@ -15,8 +15,12 @@ const noSearchConfig: ProviderConfig = {
   exaApiKey: "",
 };
 
-// Tool.execute requires a ToolCallOptions second arg; our execute bodies ignore it.
-const TOOL_OPTS = { toolCallId: "test", messages: [] } as unknown as ToolCallOptions;
+// Tool.execute requires a ToolExecutionOptions second arg; our execute bodies ignore it.
+const TOOL_OPTS: ToolExecutionOptions<Record<string, unknown>> = {
+  toolCallId: "test",
+  messages: [],
+  context: {},
+};
 
 describe("createAgentTools — exposed tool set", () => {
   it("exposes the built-in tools and omits Skill when no skills are enabled", () => {
