@@ -698,7 +698,7 @@ export async function POST(request: Request) {
         : undefined,
     // 确定性纠偏：把模型按 Claude Code 习惯发来的工具调用（大写名、file_path
     // 等参数键）就地翻译成本地工具契约，省掉“先错一次再重试”的额外往返。
-    experimental_repairToolCall: repairToolCall,
+    repairToolCall,
     stopWhen: isStepCount(AGENT_MAX_STEPS),
     // Stop generating when the client disconnects or hits "stop", and close
     // MCP connections on every terminal path (finish / error / abort).
@@ -731,10 +731,10 @@ export async function POST(request: Request) {
       );
       void mcpBundle.close();
     },
-    experimental_onStepStart: ({ stepNumber }) => {
+    onStepStart: ({ stepNumber }) => {
       stepStartTimes.set(stepNumber, Date.now());
     },
-    onStepFinish: (step) => {
+    onStepEnd: (step) => {
       const finishedAt = Date.now();
       const startedAt = stepStartTimes.get(step.stepNumber) ?? finishedAt;
 

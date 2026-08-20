@@ -254,10 +254,10 @@ async function runAgent(run: ActiveRun, params: {
     messages: modelMessages,
     tools,
     stopWhen: stepCountIs(5),
-    experimental_onStepStart: ({ stepNumber }) => {
+    onStepStart: ({ stepNumber }) => {
       stepStartTimes.set(stepNumber, Date.now());
     },
-    onStepFinish: (step) => {
+    onStepEnd: (step) => {
       // 同 route.ts 中现有的 timeline 收集逻辑
       const finishedAt = Date.now();
       const startedAt = stepStartTimes.get(step.stepNumber) ?? finishedAt;
