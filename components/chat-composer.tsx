@@ -1,7 +1,7 @@
 "use client";
 
 import type { KeyboardEvent, RefObject, SyntheticEvent } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { MAX_TEXTAREA_ROWS, MIN_TEXTAREA_ROWS } from "@/lib/constants";
 import { useSpeechRecognition } from "@/components/use-speech-recognition";
 import {
@@ -90,6 +90,31 @@ function voiceErrorMessage(code: string): string {
 }
 
 /**
+ * Build the neutral-centred RGB displacement map used by the composer's SVG
+ * backdrop filter. The blurred inner rect keeps the textarea readable while
+ * the gradients leave stronger refraction around the rounded edge.
+ */
+function buildComposerGlassMap(width: number, height: number): string {
+  const radius = Math.min(28, Math.round(height / 2));
+  const inset = Math.min(width, height) * 0.055;
+  const innerWidth = Math.max(1, width - inset * 2);
+  const innerHeight = Math.max(1, height - inset * 2);
+  const svg =
+    `<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">` +
+    "<defs>" +
+    '<linearGradient id="red" x1="100%" y1="0%" x2="0%" y2="0%"><stop offset="0%" stop-color="#000"/><stop offset="100%" stop-color="red"/></linearGradient>' +
+    '<linearGradient id="blue" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#000"/><stop offset="100%" stop-color="blue"/></linearGradient>' +
+    "</defs>" +
+    `<rect width="${width}" height="${height}" fill="black"/>` +
+    `<rect width="${width}" height="${height}" rx="${radius}" fill="url(#red)"/>` +
+    `<rect width="${width}" height="${height}" rx="${radius}" fill="url(#blue)" style="mix-blend-mode:difference"/>` +
+    `<rect x="${inset}" y="${inset}" width="${innerWidth}" height="${innerHeight}" rx="${radius}" fill="hsl(0 0% 50% / .92)" style="filter:blur(12px)"/>` +
+    "</svg>";
+
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+/**
  * 底部输入区表单：textarea + 模型/MCP/Skills 选择 + 发送/停止按钮。textareaRef 由
  * ChatShell 持有（其 [draft] 依赖的自适应高度 effect 操作它），此处透传给 <textarea>。
  * onDraftChange/onSelectModel 等回调由 ChatShell 直传其 setter（不在此包装），以保留
@@ -133,6 +158,12 @@ export function ChatComposer({
 }) {
   // Draft content captured when recording starts; transcript is appended onto it.
   const baseRef = useRef("");
+  const glassRef = useRef<HTMLDivElement>(null);
+  const glassMapRef = useRef<SVGFEImageElement>(null);
+  const glassFilterId = `composer-liquid-glass-${useId().replace(/:/g, "")}`;
+  const [glassVariant, setGlassVariant] = useState<"frosted" | "refracted">(
+    "frosted",
+  );
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const { supported, listening, start, stop, abort } = useSpeechRecognition({
     onResult: (text) => onDraftChange(baseRef.current + text),
@@ -143,6 +174,58 @@ export function ChatComposer({
       abort();
     }
   }, [abort, isBusy, listening]);
+  useEffect(() => {
+    const glass = glassRef.current;
+    const map = glassMapRef.current;
+    if (!glass || !map) return;
+
+    // SVG references inside backdrop-filter currently render reliably only in
+    // Chromium. Safari/WebKit accepts ordinary blur/saturate functions but does
+    // not paint the referenced displacement filter, so send it to the explicit
+    // frosted fallback instead of leaving a visually inert url() declaration.
+    const isChromium = /(?:Chrome|Chromium|Edg|OPR)\//.test(
+      window.navigator.userAgent,
+    );
+    const canUseSvgBackdrop =
+      isChromium &&
+      window.CSS?.supports(
+        "backdrop-filter",
+        `url(#${glassFilterId}) blur(1px)`,
+      );
+    if (!canUseSvgBackdrop) {
+      return;
+    }
+
+    const syncMap = () => {
+      const rect = glass.getBoundingClientRect();
+      const width = Math.max(1, Math.round(rect.width));
+      const height = Math.max(1, Math.round(rect.height));
+      const uri = buildComposerGlassMap(width, height);
+      map.setAttribute("href", uri);
+      map.setAttributeNS("http://www.w3.org/1999/xlink", "href", uri);
+      setGlassVariant("refracted");
+    };
+
+    let mapTimer = 0;
+    const scheduleMap = () => {
+      window.clearTimeout(mapTimer);
+      mapTimer = window.setTimeout(syncMap, 140);
+    };
+
+    syncMap();
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(scheduleMap);
+    observer?.observe(glass);
+    window.addEventListener("resize", scheduleMap, { passive: true });
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", scheduleMap);
+      window.clearTimeout(mapTimer);
+    };
+  }, [glassFilterId]);
   const startVoice = () => {
     baseRef.current = draft.trim().length > 0 ? draft : "";
     setVoiceError(null);
@@ -174,8 +257,22 @@ export function ChatComposer({
   const isEmpty = draft.trim().length === 0;
 
   return (
-    <form onSubmit={handleSubmit} className="pointer-events-auto">
-      <div className="rounded-3xl border border-border bg-[var(--glass-bg)] shadow-[0_18px_28px_-2px_var(--glass-glow),0_36px_48px_-2px_var(--glass-glow),0_8px_30px_rgba(23,23,23,0.08),inset_0_1px_0_var(--glass-highlight),inset_0_0_0_1px_var(--glass-edge)] backdrop-blur-xl backdrop-saturate-[1.8] backdrop-brightness-105">
+    <form
+      onSubmit={handleSubmit}
+      className="composer-glass-wrap pointer-events-auto"
+    >
+      <div
+        ref={glassRef}
+        className="composer-liquid-glass"
+        data-glass-variant={glassVariant}
+        style={
+          glassVariant === "refracted"
+            ? {
+                backdropFilter: `url(#${glassFilterId}) blur(8px) saturate(1.55)`,
+              }
+            : undefined
+        }
+      >
         <label className="block">
           <span className="sr-only">输入消息</span>
           <textarea
@@ -282,6 +379,72 @@ export function ChatComposer({
           </p>
         ) : null}
       </div>
+      <svg
+        className="composer-glass-defs"
+        aria-hidden="true"
+        focusable="false"
+        width="0"
+        height="0"
+      >
+        <defs>
+          <filter id={glassFilterId} colorInterpolationFilters="sRGB">
+            <feImage
+              ref={glassMapRef}
+              x="0"
+              y="0"
+              width="100%"
+              height="100%"
+              preserveAspectRatio="none"
+              result="map"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="map"
+              xChannelSelector="R"
+              yChannelSelector="B"
+              scale="-44"
+              result="displacedRed"
+            />
+            <feColorMatrix
+              in="displacedRed"
+              type="matrix"
+              values="1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"
+              result="red"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="map"
+              xChannelSelector="R"
+              yChannelSelector="B"
+              scale="-41"
+              result="displacedGreen"
+            />
+            <feColorMatrix
+              in="displacedGreen"
+              type="matrix"
+              values="0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0"
+              result="green"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="map"
+              xChannelSelector="R"
+              yChannelSelector="B"
+              scale="-38"
+              result="displacedBlue"
+            />
+            <feColorMatrix
+              in="displacedBlue"
+              type="matrix"
+              values="0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0"
+              result="blue"
+            />
+            <feBlend in="red" in2="green" mode="screen" result="redGreen" />
+            <feBlend in="redGreen" in2="blue" mode="screen" result="color" />
+            <feGaussianBlur in="color" stdDeviation="0.65" />
+          </filter>
+        </defs>
+      </svg>
     </form>
   );
 }

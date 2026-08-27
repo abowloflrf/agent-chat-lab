@@ -82,6 +82,7 @@
   --glass-glow: rgba(255, 251, 245, 0.97);
   --glass-highlight: rgba(255, 255, 255, 0.8);
   --glass-edge: rgba(255, 255, 255, 0.12);
+  --composer-glass-bg: rgba(255, 255, 255, 0.46);
   /* Font stacks: single source of truth for the whole app. --font-sans/--font-mono
      live in @theme inline (below) and can't be referenced globally, so consumers
      (body, editors, charts) use the *-stack vars instead. */
@@ -135,6 +136,7 @@
   --msg-user-muted: #a6a6a6;
   --code-inline-bg: #ececec;
   --code-inline-fg: #2b2b2b;
+  --composer-glass-bg: rgba(255, 255, 255, 0.5);
 }
 
 /* dark = a generic, near-black dark mode tuned for OLED: pure-black page, neutral
@@ -189,6 +191,7 @@
   --glass-glow: rgba(0, 0, 0, 0.5);
   --glass-highlight: rgba(255, 255, 255, 0.08);
   --glass-edge: rgba(255, 255, 255, 0.05);
+  --composer-glass-bg: rgba(18, 18, 18, 0.5);
 }
 
 @theme inline {
@@ -347,6 +350,131 @@ body::after {
   backdrop-filter: blur(18px);
 }
 
+/* The chat composer is the app's primary tactile surface. Its plain blur is the
+   cross-browser fallback; Chromium receives an inline SVG displacement filter
+   after the live composer dimensions have been measured. */
+.composer-glass-wrap {
+  position: relative;
+}
+
+.composer-glass-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 22% 5% -12px;
+  border-radius: 999px;
+  background: var(--glass-glow);
+  filter: blur(24px);
+  opacity: 0.5;
+  pointer-events: none;
+  transform: scaleX(0.96);
+}
+
+.composer-liquid-glass {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--glass-highlight) 46%, transparent) 0%,
+      transparent 34%
+    ),
+    var(--composer-glass-bg);
+  -webkit-backdrop-filter: blur(18px) saturate(1.65) brightness(1.04);
+  backdrop-filter: blur(18px) saturate(1.65) brightness(1.04);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 0 0 1px var(--glass-edge),
+    inset 0 -10px 24px color-mix(in srgb, var(--glass-highlight) 12%, transparent),
+    0 8px 24px rgba(23, 23, 23, 0.08),
+    0 24px 42px -18px var(--glass-glow);
+  transition:
+    background 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+/* WebKit cannot currently paint an SVG url() reference inside
+   backdrop-filter. Its fallback uses a clearer translucent surface, stronger
+   native blur, and a one-pixel prism rim so iOS still reads as thick glass. */
+.composer-liquid-glass[data-glass-variant="frosted"] {
+  background:
+    radial-gradient(
+      circle at 18% -45%,
+      color-mix(in srgb, var(--glass-highlight) 58%, transparent),
+      transparent 42%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--glass-highlight) 38%, transparent),
+      transparent 38%
+    ),
+    color-mix(in srgb, var(--composer-glass-bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.85) brightness(1.06);
+  backdrop-filter: blur(24px) saturate(1.85) brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    inset 1px 0 0 color-mix(in srgb, var(--glass-highlight) 34%, transparent),
+    inset -1px 0 0 color-mix(in srgb, var(--glass-edge) 72%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--glass-edge) 82%, transparent),
+    inset 0 -12px 28px color-mix(in srgb, var(--glass-highlight) 14%, transparent),
+    0 10px 30px rgba(23, 23, 23, 0.065),
+    0 26px 46px -18px var(--glass-glow);
+}
+
+.composer-liquid-glass[data-glass-variant="frosted"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    112deg,
+    color-mix(in srgb, var(--glass-highlight) 86%, transparent),
+    transparent 24%,
+    rgba(126, 181, 255, 0.09) 47%,
+    rgba(255, 166, 118, 0.09) 58%,
+    transparent 78%,
+    color-mix(in srgb, var(--glass-highlight) 54%, transparent)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.composer-liquid-glass::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 10%;
+  left: 10%;
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--glass-highlight) 22%,
+    var(--glass-highlight) 78%,
+    transparent
+  );
+  opacity: 0.82;
+  pointer-events: none;
+}
+
+.composer-glass-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .dark-panel {
   background: linear-gradient(180deg, var(--panel-soft), var(--panel-strong));
   color: var(--panel-foreground);
@@ -474,6 +602,10 @@ body::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .composer-liquid-glass {
+    transition: none;
+  }
+
   .rise-in,
   .float-slow,
   .pulse-soft,
