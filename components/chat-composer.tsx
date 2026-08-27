@@ -137,6 +137,7 @@ export function ChatComposer({
   selectedSkillNames,
   onChangeSkillNames,
   isBusy,
+  isSubmitting,
   onStop,
 }: {
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
@@ -154,6 +155,7 @@ export function ChatComposer({
   selectedSkillNames: string[];
   onChangeSkillNames: (selectedIds: string[]) => void;
   isBusy: boolean;
+  isSubmitting: boolean;
   onStop: () => void | Promise<void>;
 }) {
   // Draft content captured when recording starts; transcript is appended onto it.
@@ -299,7 +301,7 @@ export function ChatComposer({
               providers={providers}
               selected={selectedModel}
               onSelect={onSelectModel}
-              disabled={isBusy}
+              disabled={isBusy || isSubmitting}
             />
             <SessionToolSelector
               label="MCP"
@@ -307,7 +309,7 @@ export function ChatComposer({
               items={mcpServerItems}
               selectedIds={selectedMcpServerIds}
               onChange={onChangeMcpServerIds}
-              disabled={isBusy}
+              disabled={isBusy || isSubmitting}
               emptyHint="本次对话不会连接任何 MCP 服务"
             />
             <SessionToolSelector
@@ -316,7 +318,7 @@ export function ChatComposer({
               items={skillItems}
               selectedIds={selectedSkillNames}
               onChange={onChangeSkillNames}
-              disabled={isBusy}
+              disabled={isBusy || isSubmitting}
               emptyHint="本次对话不会加载任何 Skill"
             />
             <span
@@ -364,7 +366,7 @@ export function ChatComposer({
           ) : (
             <button
               type="submit"
-              disabled={isEmpty}
+              disabled={isEmpty || isSubmitting}
               title="发送消息"
               aria-label="发送消息"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-primary-foreground transition-colors duration-200 hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)] disabled:text-muted-foreground"

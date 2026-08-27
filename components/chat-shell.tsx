@@ -232,6 +232,7 @@ export function ChatShell({
   const [currentMessages, setCurrentMessages] =
     useState<ChatUIMessage[]>(() => initialRecoveredMessages);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // 桌面端是否收起会话列表侧边栏（持久化在 localStorage）；移动端走 sidebarOpen
   // 抽屉，二者互不影响。
@@ -312,6 +313,7 @@ export function ChatShell({
   const [headerHidden, setHeaderHidden] = useState(false);
   const lastScrollTopRef = useRef(0);
   const scrollDeltaAccRef = useRef(0);
+  const submitLockRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -935,20 +937,30 @@ export function ChatShell({
   async function submitMessage() {
     const text = draft.trim();
 
-    if (!text || isBusy) {
+    if (!text || isBusy || submitLockRef.current) {
       return;
     }
 
-    clearError();
-    // 先把内存里可能残留的悬空工具 part 整理成与服务端 settle 一致的
-    // 终态，避免发送后旧消息还显示假"运行中"徽标。
-    recoverDeadStream();
-    setConversationCreationError(null);
-    setInterruptedRunDetected(false);
-    void stickScrollToBottom();
-    const conversationId = await ensureConversationId();
-    setDraft("");
-    await sendMessage({ text }, { body: { conversationId } });
+    // React state 与 useChat.status 都要等下一次渲染才能反馈到事件闭包；
+    // ref 在第一个 await 前同步上锁，阻止弱网创建会话期间的连续提交。
+    submitLockRef.current = true;
+    setIsSubmitting(true);
+
+    try {
+      clearError();
+      // 先把内存里可能残留的悬空工具 part 整理成与服务端 settle 一致的
+      // 终态，避免发送后旧消息还显示假"运行中"徽标。
+      recoverDeadStream();
+      setConversationCreationError(null);
+      setInterruptedRunDetected(false);
+      void stickScrollToBottom();
+      const conversationId = await ensureConversationId();
+      setDraft("");
+      await sendMessage({ text }, { body: { conversationId } });
+    } finally {
+      submitLockRef.current = false;
+      setIsSubmitting(false);
+    }
   }
 
   async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
@@ -1230,6 +1242,7 @@ export function ChatShell({
               selectedSkillNames={selectedSkillNames}
               onChangeSkillNames={setSelectedSkillNames}
               isBusy={isBusy}
+              isSubmitting={isSubmitting}
               onStop={handleStop}
             />
           </div>
